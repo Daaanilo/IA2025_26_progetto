@@ -84,3 +84,39 @@ coverage.xml
 tmp/
 temp/
 *.tmp
+
+# Crafter specific
+crafter_*.mp4
+crafter_*.gif
+*.pkl
+*.pickle
+
+# Training outputs
+data/reviewer_dataset.jsonl
+data/pipeline_status.json
+data/helper_analysis/
+data/evaluation/
+
+# Model checkpoints (keep structure, ignore weights)
+models/baseline/
+models/reviewer_finetuned/
+models/heron/
+!models/baseline/.gitkeep
+!models/reviewer_finetuned/.gitkeep
+!models/heron/.gitkeep
+
+# Hugging Face cache
+.cache/
+huggingface/
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Profiling
+*.prof
+*.lprof
+
+# Distribution
+*.whl

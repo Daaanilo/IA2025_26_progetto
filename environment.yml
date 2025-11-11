@@ -1,11 +1,16 @@
 name: ia2025
 channels:
-  - defaults
-  - conda-forge
   - pytorch
+  - conda-forge
+  - defaults
 dependencies:
   - python=3.10
+  - pytorch>=2.0.0
+  - torchvision
+  - torchaudio
+  - cpuonly  # Rimuovi questa riga se hai GPU
   - pip
   - pip:
     - -r requirements.txt
-    - git+https://github.com/danijar/crafter.git
+    # Crafter va installato manualmente dopo:
+    # pip install git+https://github.com/danijar/crafter.git

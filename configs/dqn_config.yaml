@@ -38,11 +38,12 @@ environment:
   
 # Training Configuration
 training:
-  total_timesteps: 5000000
-  eval_freq: 50000
+  num_episodes: 2000
+  max_steps_per_episode: 10000
+  eval_freq: 100
   eval_episodes: 10
-  save_freq: 100000
-  log_freq: 1000
+  save_freq: 500
+  log_freq: 10
   
 # Device Configuration
 device: "cuda"  # or "cpu"

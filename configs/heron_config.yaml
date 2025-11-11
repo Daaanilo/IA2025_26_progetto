@@ -23,6 +23,9 @@ heron:
     # Threshold for accepting Helper's suggestions (based on Reviewer rating)
     acceptance_threshold: 6.0
     
+    # Reward shaping weight based on Reviewer feedback
+    reward_shaping_weight: 0.3
+    
     # Exploration strategy when suggestions are rejected
     fallback_strategy: "npc_policy"  # "npc_policy", "random", "conservative"
   

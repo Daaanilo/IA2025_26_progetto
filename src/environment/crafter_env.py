@@ -129,17 +129,66 @@ class CrafterWrapper:
         Returns:
             Dictionary with state information
         """
-        # Note: Crafter doesn't expose internal state directly
-        # We track what we can from observations and info
-        state_desc = {
-            'step': self.current_step,
-            'episode_reward': self.episode_reward,
-            'achievements': self.achievements.copy(),
-            'recent_actions': [
-                self.action_names[a] 
-                for a in self.action_history[-10:]
-            ] if self.action_history else []
-        }
+        # Extract info from Crafter's internal state if available
+        try:
+            # Try to get inventory and player stats from environment
+            player_stats = {}
+            inventory = {}
+            
+            if hasattr(self.env, '_player'):
+                player = self.env._player
+                player_stats = {
+                    'health': getattr(player, 'health', 9),
+                    'food': getattr(player, 'food', 9),
+                    'drink': getattr(player, 'drink', 9),
+                    'energy': getattr(player, 'energy', 9)
+                }
+                
+                # Get inventory
+                if hasattr(player, 'inventory'):
+                    inv = player.inventory
+                    inventory = {k: v for k, v in inv.items() if v > 0}
+            
+            # Get nearby objects if available
+            nearby_objects = []
+            if hasattr(self.env, '_world'):
+                # This would require deeper inspection of Crafter's world state
+                # For now, we'll leave it empty or extract from observation
+                pass
+            
+            state_desc = {
+                'step': self.current_step,
+                'episode_reward': self.episode_reward,
+                'health': player_stats.get('health', 9),
+                'food': player_stats.get('food', 9),
+                'drink': player_stats.get('drink', 9),
+                'energy': player_stats.get('energy', 9),
+                'inventory': inventory,
+                'nearby_objects': nearby_objects,
+                'achievements': self.achievements.copy(),
+                'recent_actions': [
+                    self.action_names[a] 
+                    for a in self.action_history[-10:]
+                ] if self.action_history else []
+            }
+            
+        except Exception as e:
+            # Fallback to minimal state if we can't access internal state
+            state_desc = {
+                'step': self.current_step,
+                'episode_reward': self.episode_reward,
+                'health': 9,  # Default values
+                'food': 9,
+                'drink': 9,
+                'energy': 9,
+                'inventory': {},
+                'nearby_objects': [],
+                'achievements': self.achievements.copy(),
+                'recent_actions': [
+                    self.action_names[a] 
+                    for a in self.action_history[-10:]
+                ] if self.action_history else []
+            }
         
         return state_desc
     
