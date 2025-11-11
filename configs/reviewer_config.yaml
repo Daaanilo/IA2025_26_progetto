@@ -1,0 +1,81 @@
+# Reviewer LLM Configuration
+reviewer:
+  base_model: "meta-llama/Llama-2-7b-chat-hf"  # or "mistralai/Mistral-7B-Instruct-v0.2"
+  fine_tuned_model: "models/reviewer_finetuned"
+  
+  # Fine-tuning Configuration
+  fine_tuning:
+    learning_rate: 2.0e-4
+    num_epochs: 3
+    batch_size: 4
+    gradient_accumulation_steps: 4
+    max_seq_length: 2048
+    warmup_steps: 100
+    logging_steps: 10
+    save_steps: 500
+    eval_steps: 100
+    
+  # LoRA Configuration (for efficient fine-tuning)
+  lora:
+    r: 16
+    lora_alpha: 32
+    lora_dropout: 0.05
+    target_modules: ["q_proj", "k_proj", "v_proj", "o_proj"]
+    bias: "none"
+    task_type: "CAUSAL_LM"
+  
+  # Quantization (for memory efficiency)
+  quantization:
+    load_in_4bit: true
+    bnb_4bit_compute_dtype: "float16"
+    bnb_4bit_quant_type: "nf4"
+    bnb_4bit_use_double_quant: true
+  
+  # Inference Configuration
+  inference:
+    temperature: 0.5
+    max_new_tokens: 300
+    top_p: 0.9
+    repetition_penalty: 1.1
+  
+  # Prompt Configuration
+  system_prompt: |
+    You are a Reviewer AI that evaluates action suggestions from a Helper AI in the Crafter game.
+    Your task is to:
+    1. Evaluate if the suggested action sequence is appropriate for the current state
+    2. Identify any issues or dangers (e.g., low health, missing resources)
+    3. Provide constructive feedback to improve the Helper's suggestions
+    4. Rate the quality of the suggestions (1-10)
+    
+    Be specific and actionable in your feedback.
+  
+  feedback_template: |
+    State: {state_description}
+    Helper's Suggested Actions: {suggested_actions}
+    
+    Evaluate these suggestions and provide:
+    1. Overall rating (1-10)
+    2. Strengths of the suggestion
+    3. Weaknesses or risks
+    4. Improved action sequence (if needed)
+    
+    Format your response as JSON:
+    {{
+      "rating": <1-10>,
+      "strengths": "<description>",
+      "weaknesses": "<description>",
+      "improved_actions": ["action1", "action2", ...],
+      "reasoning": "<explanation>"
+    }}
+
+# Training Data Configuration
+dataset:
+  train_split: 0.8
+  val_split: 0.1
+  test_split: 0.1
+  max_samples: 10000
+  data_path: "data/reviewer_training_data.json"
+
+# Device Configuration
+device: "cuda"
+seed: 42

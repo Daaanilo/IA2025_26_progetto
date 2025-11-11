@@ -1,0 +1,50 @@
+# DQN Agent Configuration for Crafter
+agent:
+  name: "DQN_NPC"
+  algorithm: "DQN"
+  
+  # Network Architecture
+  network:
+    hidden_layers: [256, 256]
+    activation: "relu"
+    dueling: true
+    noisy: false
+  
+  # Training Hyperparameters
+  training:
+    learning_rate: 0.0001
+    gamma: 0.99
+    epsilon_start: 1.0
+    epsilon_end: 0.01
+    epsilon_decay: 0.995
+    batch_size: 64
+    buffer_size: 100000
+    target_update_freq: 1000
+    learning_starts: 10000
+    train_freq: 4
+    gradient_steps: 1
+    
+  # Optimization
+  optimizer: "adam"
+  loss: "huber"
+  max_grad_norm: 10.0
+
+# Environment Configuration
+environment:
+  name: "crafter"
+  max_episode_steps: 10000
+  frame_stack: 1
+  reward_scale: 1.0
+  
+# Training Configuration
+training:
+  total_timesteps: 5000000
+  eval_freq: 50000
+  eval_episodes: 10
+  save_freq: 100000
+  log_freq: 1000
+  
+# Device Configuration
+device: "cuda"  # or "cpu"
+seed: 42
+num_envs: 1

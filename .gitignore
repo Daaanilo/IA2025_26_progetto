@@ -1,0 +1,86 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment (venv and conda)
+venv/
+env/
+ENV/
+.venv
+# Conda environments (if created in project directory)
+conda/
+miniconda/
+anaconda/
+# Conda environment exports
+environment_complete.yml
+environment_minimal.yml
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Environment variables
+.env
+.env.local
+
+# Model files
+models/*.pth
+models/*.pt
+models/*.ckpt
+models/*.bin
+!models/.gitkeep
+
+# Data files
+data/raw/*
+data/processed/*
+data/datasets/*
+!data/.gitkeep
+
+# Logs
+logs/
+*.log
+runs/
+wandb/
+
+# TensorBoard
+events.out.tfevents.*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test coverage
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+
+# Temporary files
+tmp/
+temp/
+*.tmp

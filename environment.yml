@@ -1,0 +1,11 @@
+name: ia2025
+channels:
+  - defaults
+  - conda-forge
+  - pytorch
+dependencies:
+  - python=3.10
+  - pip
+  - pip:
+    - -r requirements.txt
+    - git+https://github.com/danijar/crafter.git
