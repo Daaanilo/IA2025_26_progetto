@@ -14,8 +14,8 @@ heron:
     # How often to query Helper (in timesteps)
     helper_query_freq: 50
     
-    # Number of actions Helper suggests per query
-    actions_per_query: 5
+  # Number of actions Helper suggests per query
+  actions_per_query: 3
     
     # Whether to use Reviewer feedback
     use_reviewer: true

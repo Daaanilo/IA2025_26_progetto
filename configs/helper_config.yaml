@@ -6,7 +6,7 @@ helper:
   top_p: 0.9
   
   # Action Generation
-  num_actions_per_call: 5  # Number of sequential actions to generate
+  num_actions_per_call: 3  # Number of sequential actions to generate (aligned to helper analysis)
   context_window: 10  # Number of previous observations to include
   
   # Prompt Engineering

@@ -1,28 +1,14 @@
-"""
-HeRoN Crafter Project
-=====================
+"""HeRoN Crafter Project package.
 
-An implementation of the HeRoN (Helper-Reviewer-NPC) architecture
-for adaptive NPC behavior in the Crafter environment.
+This module intentionally keeps imports lightweight so that importing
+``src`` does not trigger heavy dependencies (torch, transformers, etc.).
+
+Access submodules directly (e.g. ``from src.environment import make_crafter_env``)
+to avoid loading large ML libraries at package import time.
 """
+
 __version__ = "0.1.0"
 
-# Import main components for easy access
-from src.agents import DQNAgent, DQNNetwork, ReplayBuffer
-from src.environment import CrafterWrapper, make_crafter_env
-from src.llm import Helper, Reviewer
+# Note: Do NOT import heavy submodules here. Import them explicitly where needed.
 
-__all__ = [
-    # Version
-    '__version__',
-    # Agents
-    'DQNAgent',
-    'DQNNetwork', 
-    'ReplayBuffer',
-    # Environment
-    'CrafterWrapper',
-    'make_crafter_env',
-    # LLM
-    'Helper',
-    'Reviewer',
-]
+__all__ = ["__version__"]

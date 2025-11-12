@@ -14,3 +14,5 @@ dependencies:
     - -r requirements.txt
     # Crafter va installato manualmente dopo:
     # pip install git+https://github.com/danijar/crafter.git
+    # conda env create -f environment.yml
+    # conda activate ia2025

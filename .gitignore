@@ -92,7 +92,6 @@ crafter_*.gif
 *.pickle
 
 # Training outputs
-data/reviewer_dataset.jsonl
 data/pipeline_status.json
 data/helper_analysis/
 data/evaluation/
@@ -120,3 +119,4 @@ dmypy.json
 
 # Distribution
 *.whl
+traccia.txt
