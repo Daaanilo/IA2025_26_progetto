@@ -19,7 +19,7 @@ Configuration:
 - Success ratio: 80% achievement-unlocking, 20% exploratory
 """
 
-import csv
+import json
 import numpy as np
 import re
 from typing import List, Dict, Tuple, Optional
@@ -444,7 +444,7 @@ class EpisodicDataCollector:
 class CrafterDatasetGenerator:
     """Orchestrates dataset generation and export."""
     
-    def __init__(self, num_episodes: int = 50, output_filename: str = 'game_scenarios_dataset_crafter.csv'):
+    def __init__(self, num_episodes: int = 50, output_filename: str = 'game_scenarios_dataset_crafter.jsonl'):
         """
         Initialize generator.
         
@@ -524,41 +524,37 @@ class CrafterDatasetGenerator:
         
         return self.all_data
     
-    def export_to_csv(self) -> str:
+    def export_to_jsonl(self) -> str:
         """
-        Export collected data to CSV.
-        
+        Export collected data to JSONL (one JSON object per line).
+
         Returns:
-            str: Path to exported CSV
+            str: Path to exported JSONL
         """
-        print(f"\nExporting to CSV: {self.output_filename}")
-        
-        # Prepare data for CSV
-        csv_data = []
-        for data_point in self.all_data:
-            csv_data.append({
-                'episode_id': data_point.episode_id,
-                'step': data_point.step,
-                'prompt': data_point.state_description,
-                'response': data_point.helper_response,
-                'instructions': data_point.feedback,
-                'quality_score': f"{data_point.quality_score:.3f}",
-                'achievements_unlocked': ', '.join(data_point.achievements_unlocked) if data_point.achievements_unlocked else 'none',
-                'action_sequence': ', '.join([str(a) for a in (data_point.action_sequence or [])]),
-            })
-        
-        # Write CSV
-        if csv_data:
-            fieldnames = csv_data[0].keys()
-            with open(self.output_filename, 'w', newline='', encoding='utf-8') as f:
-                writer = csv.DictWriter(f, fieldnames=fieldnames)
-                writer.writeheader()
-                writer.writerows(csv_data)
-            
-            print(f"✓ Exported {len(csv_data)} samples to {self.output_filename}")
+        print(f"\nExporting to JSONL: {self.output_filename}")
+
+        # Prepare data for JSONL
+        jsonl_count = 0
+        if self.all_data:
+            with open(self.output_filename, 'w', encoding='utf-8') as f:
+                for data_point in self.all_data:
+                    record = {
+                        'episode_id': data_point.episode_id,
+                        'step': data_point.step,
+                        'prompt': data_point.state_description,
+                        'response': data_point.helper_response,
+                        'instructions': data_point.feedback,
+                        'quality_score': float(f"{data_point.quality_score:.3f}"),
+                        'achievements_unlocked': ', '.join(data_point.achievements_unlocked) if data_point.achievements_unlocked else 'none',
+                        'action_sequence': ', '.join([str(a) for a in (data_point.action_sequence or [])]),
+                    }
+                    f.write(json.dumps(record, ensure_ascii=False) + "\n")
+                    jsonl_count += 1
+
+            print(f"✓ Exported {jsonl_count} samples to {self.output_filename}")
         else:
             print("✗ No data to export")
-        
+
         return self.output_filename
     
     def cleanup(self):
@@ -847,8 +843,8 @@ def main():
     """Main entry point for dataset generation."""
     
     # Configuration
-    NUM_EPISODES = 50  # Recommendation: 50-100
-    OUTPUT_FILENAME = 'game_scenarios_dataset_crafter.csv'
+    NUM_EPISODES = 1  # Quick test: 1 episode
+    OUTPUT_FILENAME = 'game_scenarios_dataset_crafter_test.jsonl'
     USE_LM_STUDIO = False # Set to False to use synthetic responses
     
     # Generate dataset
@@ -860,7 +856,7 @@ def main():
     try:
         generator.initialize(use_helper_lm_studio=USE_LM_STUDIO)
         dataset = generator.generate()
-        output_path = generator.export_to_csv()
+        output_path = generator.export_to_jsonl()
         
         print(f"\n✓ SUCCESS: Dataset generated at '{output_path}'")
         print(f"  Ready for F06 (Reviewer Fine-tuning)")

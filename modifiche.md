@@ -283,7 +283,7 @@ Hand-crafted rule-based feedback su **5 livelli**:
 Orchestrates dataset generation:
 - Initialize: CrafterEnv + CrafterHelper (con fallback SyntheticHelper)
 - Generate: simula N episodi, raccoglie EpisodeData
-- Export CSV: 'game_scenarios_dataset_crafter.csv'
+ - Export JSONL: 'game_scenarios_dataset_crafter.jsonl'
 - Cleanup: chiude environment
 
 #### 5. `SyntheticHelper`
@@ -318,7 +318,7 @@ cd "d:\Progetto_AI2\HeRoN\dataset Reviewer"
 python crafter_dataset_generation.py
 ```
 
-Output: `game_scenarios_dataset_crafter.csv` (pronto per F06 fine-tuning)
+Output: `game_scenarios_dataset_crafter.jsonl` (pronto per F06 fine-tuning)
 
 ### Verifiche Completate F05
 - ✅ Episodic data collection logic
@@ -378,7 +378,7 @@ Crafter dà reward solo quando achievement sbloccato (+1), altrimenti 0. DQN tra
 ✅ F04 COMPLETATA (Prompt Engineering Helper)
 ✅ F05 COMPLETATA (Dataset Generation per Reviewer)
 ✅ F08 COMPLETATA (HeRoN Architecture Integration per Crafter)
-⏳ F06 Prossimo: Fine-Tuning Reviewer su game_scenarios_dataset_crafter.csv
+⏳ F06 Prossimo: Fine-Tuning Reviewer su game_scenarios_dataset_crafter.jsonl
 ⏳ F07: Analisi lunghezza sequenze ottimale
 
 ---

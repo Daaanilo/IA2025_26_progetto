@@ -69,9 +69,9 @@ Use `evaluation_report_generator.py` to generate markdown comparison reports.
 ### Dataset Generation for Reviewer Fine-Tuning
 ```bash
 cd "dataset Reviewer"
-python crafter_dataset_generation.py  # Generates game_scenarios_dataset_crafter.csv
+python crafter_dataset_generation.py  # Generates game_scenarios_dataset_crafter.jsonl
 ```
-**Output**: CSV with columns `[episode_id, step, prompt, response, instructions, quality_score, achievements_unlocked]`
+**Output**: JSONL (one JSON object per line) with fields `[episode_id, step, prompt, response, instructions, quality_score, achievements_unlocked]`
 - Default: 50 episodes × ~50 Helper calls/episode = ~2500 samples
 - Adjust `NUM_EPISODES` for larger datasets (100 episodes → 5000 samples)
 

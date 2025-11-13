@@ -1,9 +1,27 @@
+import os
 import torch
 import pandas as pd
 from datasets import Dataset
 from transformers import TrainingArguments, Trainer,AutoTokenizer, AutoModelForSeq2SeqLM
 
-df = pd.read_csv('D:\\Progetto_AI2\\HeRoN\\game_scenarios_dataset_crafter.csv') # insert dataset
+# Locate JSONL dataset (tries several common locations)
+possible_paths = [
+    r'D:\\Progetto_AI2\\HeRoN\\game_scenarios_dataset_crafter.jsonl',
+    os.path.join(os.path.dirname(os.path.dirname(__file__)), 'game_scenarios_dataset_crafter.jsonl'),
+    os.path.join(os.path.dirname(__file__), '..', 'game_scenarios_dataset_crafter.jsonl'),
+    'game_scenarios_dataset_crafter.jsonl'
+]
+
+dataset_path = None
+for p in possible_paths:
+    if os.path.exists(p):
+        dataset_path = p
+        break
+
+if dataset_path is None:
+    raise FileNotFoundError("game_scenarios_dataset_crafter.jsonl not found. Please generate dataset or update the path.")
+
+df = pd.read_json(dataset_path, lines=True)  # insert dataset (JSONL)
 
 df['input'] = df['prompt'] + " " + df['response']
 

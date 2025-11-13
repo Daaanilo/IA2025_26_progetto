@@ -9,8 +9,9 @@ training_output/
 training_logs/
 
 # Dataset files
-game_scenarios_dataset_crafter.csv
+game_scenarios_dataset_crafter.jsonl
 *.csv
+*.jsonl
 
 # Python cache
 __pycache__/
