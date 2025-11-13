@@ -1,0 +1,50 @@
+# Model files
+*.pth
+*.pt
+*.safetensors
+*.keras
+
+# Training output
+training_output/
+training_logs/
+
+# Dataset files
+game_scenarios_dataset_crafter.csv
+*.csv
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+# Reviewer retrained model JSON configs
+reviewer_retrained/*.json
+reviewer_retrained/spiece.model
