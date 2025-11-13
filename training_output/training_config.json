@@ -1,0 +1,11 @@
+{
+  "episodes": 10,
+  "batch_size": 32,
+  "checkpoint_interval": 10,
+  "lr_strategy": "step_decay",
+  "epsilon_strategy": "linear_decay",
+  "threshold_strategy": "linear_decay",
+  "enable_curriculum": true,
+  "enable_early_stopping": true,
+  "timestamp": "2025-11-13T19:52:53.519745"
+}

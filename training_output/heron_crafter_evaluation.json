@@ -1,0 +1,283 @@
+{
+  "summary_statistics": {
+    "total_episodes": 10,
+    "shaped_reward": {
+      "mean": 3.919099999999993,
+      "std": 2.1317235022394403,
+      "min": -0.6579999999999999,
+      "max": 6.7199999999999855,
+      "final": 5.456999999999996
+    },
+    "native_reward": {
+      "mean": 1.2999999999999998,
+      "std": 1.3266499161421597,
+      "min": -0.8999999999999999,
+      "max": 3.0999999999999996,
+      "final": 2.099999999999999
+    },
+    "achievements_unlocked": {
+      "mean": 2.2,
+      "std": 1.32664991614216,
+      "total": 22,
+      "max_per_episode": "4",
+      "final": 3
+    },
+    "moves": {
+      "mean": 151.5,
+      "std": 48.15651565468582,
+      "total": 1515,
+      "min": "36",
+      "max": "209"
+    },
+    "helper_calls": {
+      "mean": 1.3,
+      "std": 1.9000000000000001,
+      "total": 13,
+      "final_episode": 5
+    },
+    "hallucinations": {
+      "total": 1,
+      "mean_rate": 0.02,
+      "std_rate": 0.060000000000000005,
+      "final_rate": 0.2
+    }
+  },
+  "achievement_statistics": {
+    "total_possible_achievements": 22,
+    "unique_achievements_unlocked": 0,
+    "unlock_ratio": 0.0,
+    "total_unlock_instances": 0,
+    "avg_unlocks_per_achievement": 0,
+    "max_unlocks_per_achievement": 0,
+    "min_unlocks_per_achievement": 0,
+    "never_unlocked": 22,
+    "per_achievement_stats": [
+      {
+        "achievement_id": 0,
+        "unlock_count": 0,
+        "first_unlock_episode": null,
+        "first_unlock_move": null
+      },
+      {
+        "achievement_id": 1,
+        "unlock_count": 0,
+        "first_unlock_episode": null,
+        "first_unlock_move": null
+      },
+      {
+        "achievement_id": 2,
+        "unlock_count": 0,
+        "first_unlock_episode": null,
+        "first_unlock_move": null
+      },
+      {
+        "achievement_id": 3,
+        "unlock_count": 0,
+        "first_unlock_episode": null,
+        "first_unlock_move": null
+      },
+      {
+        "achievement_id": 4,
+        "unlock_count": 0,
+        "first_unlock_episode": null,
+        "first_unlock_move": null
+      },
+      {
+        "achievement_id": 5,
+        "unlock_count": 0,
+        "first_unlock_episode": null,
+        "first_unlock_move": null
+      },
+      {
+        "achievement_id": 6,
+        "unlock_count": 0,
+        "first_unlock_episode": null,
+        "first_unlock_move": null
+      },
+      {
+        "achievement_id": 7,
+        "unlock_count": 0,
+        "first_unlock_episode": null,
+        "first_unlock_move": null
+      },
+      {
+        "achievement_id": 8,
+        "unlock_count": 0,
+        "first_unlock_episode": null,
+        "first_unlock_move": null
+      },
+      {
+        "achievement_id": 9,
+        "unlock_count": 0,
+        "first_unlock_episode": null,
+        "first_unlock_move": null
+      },
+      {
+        "achievement_id": 10,
+        "unlock_count": 0,
+        "first_unlock_episode": null,
+        "first_unlock_move": null
+      },
+      {
+        "achievement_id": 11,
+        "unlock_count": 0,
+        "first_unlock_episode": null,
+        "first_unlock_move": null
+      },
+      {
+        "achievement_id": 12,
+        "unlock_count": 0,
+        "first_unlock_episode": null,
+        "first_unlock_move": null
+      },
+      {
+        "achievement_id": 13,
+        "unlock_count": 0,
+        "first_unlock_episode": null,
+        "first_unlock_move": null
+      },
+      {
+        "achievement_id": 14,
+        "unlock_count": 0,
+        "first_unlock_episode": null,
+        "first_unlock_move": null
+      },
+      {
+        "achievement_id": 15,
+        "unlock_count": 0,
+        "first_unlock_episode": null,
+        "first_unlock_move": null
+      },
+      {
+        "achievement_id": 16,
+        "unlock_count": 0,
+        "first_unlock_episode": null,
+        "first_unlock_move": null
+      },
+      {
+        "achievement_id": 17,
+        "unlock_count": 0,
+        "first_unlock_episode": null,
+        "first_unlock_move": null
+      },
+      {
+        "achievement_id": 18,
+        "unlock_count": 0,
+        "first_unlock_episode": null,
+        "first_unlock_move": null
+      },
+      {
+        "achievement_id": 19,
+        "unlock_count": 0,
+        "first_unlock_episode": null,
+        "first_unlock_move": null
+      },
+      {
+        "achievement_id": 20,
+        "unlock_count": 0,
+        "first_unlock_episode": null,
+        "first_unlock_move": null
+      },
+      {
+        "achievement_id": 21,
+        "unlock_count": 0,
+        "first_unlock_episode": null,
+        "first_unlock_move": null
+      }
+    ]
+  },
+  "efficiency_statistics": {
+    "reward_per_move": {
+      "mean": 0.02183777484434116,
+      "std": 0.01539847076189734,
+      "min": -0.018277777777777775,
+      "max": 0.035183246073298355
+    },
+    "reward_per_helper_call": {
+      "mean": 3.0561399999999947,
+      "std": 2.231047802356548,
+      "min": -0.6579999999999999,
+      "max": 6.7199999999999855
+    },
+    "achievements_per_move": {
+      "mean": 0.013172699980436634,
+      "std": 0.00741605747668171,
+      "min": 0.0,
+      "max": 0.025974025974025976
+    }
+  },
+  "convergence_report": {
+    "shaped_reward_convergence": {
+      "converged": false,
+      "converged_at_episode": null,
+      "threshold": 0.05,
+      "final_moving_std": 2.1317235022394403,
+      "moving_mean": [
+        -0.6579999999999999,
+        0.11000000000000043,
+        1.6386666666666654,
+        2.419749999999997,
+        2.8059999999999974,
+        3.121666666666663,
+        3.6357142857142803,
+        3.550499999999994,
+        3.7482222222222155,
+        3.919099999999993
+      ],
+      "moving_std": [
+        0.0,
+        0.7680000000000003,
+        2.2509685816455867,
+        2.3728502244136656,
+        2.258559452394377,
+        2.1792512985477854,
+        2.3782678399136055,
+        2.2360609338745627,
+        2.1810935472208377,
+        2.1317235022394403
+      ]
+    },
+    "shaped_reward_trend": {
+      "trend": "insufficient_data",
+      "episodes_analyzed": 10
+    },
+    "achievements_convergence": {
+      "converged": false,
+      "converged_at_episode": null,
+      "threshold": 0.05,
+      "final_moving_std": 1.32664991614216,
+      "moving_mean": [
+        0.0,
+        0.5,
+        1.6666666666666667,
+        2.0,
+        1.8,
+        1.8333333333333333,
+        2.142857142857143,
+        2.0,
+        2.111111111111111,
+        2.2
+      ],
+      "moving_std": [
+        0.0,
+        0.5,
+        1.699673171197595,
+        1.5811388300841898,
+        1.469693845669907,
+        1.3437096247164249,
+        1.4568627181693672,
+        1.4142135623730951,
+        1.3698697784375504,
+        1.32664991614216
+      ]
+    },
+    "achievements_trend": {
+      "trend": "insufficient_data",
+      "episodes_analyzed": 10
+    },
+    "helper_calls_trend": {
+      "trend": "insufficient_data",
+      "episodes_analyzed": 10
+    }
+  }
+}

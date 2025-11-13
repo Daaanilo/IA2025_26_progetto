@@ -25,6 +25,7 @@ gym
 # Utility
 scikit-learn
 cloudpickle
+seaborn
 
 # Crafter environment (installato con PYTHONUTF8=1 su Windows)
 crafter>=1.8.3

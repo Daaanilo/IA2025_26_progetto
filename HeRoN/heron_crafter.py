@@ -31,8 +31,8 @@ from classes.crafter_environment import CrafterEnv
 from classes.agent import DQNAgent
 from classes.crafter_helper import CrafterHelper, SequenceExecutor
 from classes.instructor_agent import InstructorAgent
-from evaluation_system import EvaluationSystem
-from evaluation_plots import AdvancedPlotter, generate_all_plots
+from evaluation.evaluation_system import EvaluationSystem
+from evaluation.evaluation_plots import AdvancedPlotter, generate_all_plots
 
 # LM Studio configuration
 SERVER_API_HOST = "http://127.0.0.1:1234"
@@ -43,8 +43,8 @@ device = torch.device("mps" if torch.backends.mps.is_available() else "cuda" if 
 print(f"[Config] Using device: {device}")
 
 # Reviewer model configuration (PLACEHOLDER - update after F06 completion)
-REVIEWER_MODEL_PATH = "path/to/flan-t5-crafter-fine-tuned"  # TODO: Update after F06
-REVIEWER_TOKENIZER_PATH = "path/to/flan-t5-crafter-tokenizer"  # TODO: Update after F06
+REVIEWER_MODEL_PATH = "reviewer_retrained"  # TODO: Update after F06
+REVIEWER_TOKENIZER_PATH = "reviewer_retrained"  # TODO: Update after F06
 
 print(f"[Config] Reviewer model path (PLACEHOLDER): {REVIEWER_MODEL_PATH}")
 print(f"[Config] Note: Update paths after F06 fine-tuning completion")
@@ -328,15 +328,21 @@ def train_dqn_crafter(episodes=100, batch_size=32, episode_length=1000, threshol
     native_rewards_per_episode = []
     shaped_bonus_per_episode = []
     
+    # F09: Performance tracking for checkpointing
+    best_achievement_count = 0
+    best_episode = -1
+    
     # Initialize F10 Evaluation System
     evaluation_system = EvaluationSystem(num_achievements=22)
     
+    # F09: Threshold decay per EPISODE (not per step)
     threshold = 1.0
-    decay = 0.1
+    threshold_decay_per_episode = 0.01  # Decays from 1.0 to 0.0 over 100 episodes
     
     print(f"\n[Training] Starting training for {episodes} episodes...")
-    print(f"[Training] Threshold decay: {decay} per episode (stops at episode {threshold_episodes})")
+    print(f"[Training] Threshold decay: {threshold_decay_per_episode} per episode (stops at episode {threshold_episodes})")
     print(f"[Training] Episode length: {episode_length} steps")
+    print(f"[Training] Initial epsilon: {agent.epsilon:.4f}")
     
     # ===== EPISODE LOOP =====
     for e in range(episodes):
@@ -487,10 +493,6 @@ def train_dqn_crafter(episodes=100, batch_size=32, episode_length=1000, threshol
             state = next_state
             previous_info = info
             moves += 1
-            
-            # Decay threshold
-            if e < threshold_episodes:
-                threshold = max(0, threshold - decay)
         
         # ===== EPISODE END =====
         shaped_bonus = total_shaped_reward - total_native_reward
@@ -515,6 +517,20 @@ def train_dqn_crafter(episodes=100, batch_size=32, episode_length=1000, threshol
             hallucinations=episode_hallucinations
         )
         
+        # F09: Performance-based checkpointing
+        if episode_achievements > best_achievement_count:
+            best_achievement_count = episode_achievements
+            best_episode = e
+            checkpoint_path = os.path.join("checkpoints", f"best_model_ep{e}_ach{episode_achievements}")
+            agent.save(checkpoint_path)
+            print(f"\n[Checkpoint] New best model saved: {checkpoint_path}")
+        
+        # F09: Periodic checkpoints every 10 episodes
+        if (e + 1) % 10 == 0:
+            checkpoint_path = os.path.join("checkpoints", f"model_ep{e}")
+            agent.save(checkpoint_path)
+            print(f"[Checkpoint] Periodic checkpoint saved: {checkpoint_path}")
+        
         print(f"\n[Episode {e}] Done!")
         print(f"  Total Reward (Shaped): {total_shaped_reward:.2f}")
         print(f"  Native Reward: {total_native_reward:.2f}")
@@ -524,6 +540,11 @@ def train_dqn_crafter(episodes=100, batch_size=32, episode_length=1000, threshol
         print(f"  Helper Calls: {episode_helper_calls}, Hallucinations: {episode_hallucinations}")
         print(f"  Epsilon: {agent.epsilon:.4f}, Threshold: {threshold:.4f}")
         print(f"  Helper Stats: {helper.get_statistics()}")
+        
+        # F09: Decay threshold PER EPISODE (not per step)
+        if e < threshold_episodes:
+            threshold = max(0, threshold - threshold_decay_per_episode)
+            print(f"  Next Episode Threshold: {threshold:.4f}")
     
     # ===== TRAINING COMPLETE =====
     print(f"\n[Training] Complete!")
@@ -535,10 +556,13 @@ def train_dqn_crafter(episodes=100, batch_size=32, episode_length=1000, threshol
     print(f"[Training] Total Helper Calls: {sum(helper_calls)}")
     print(f"[Training] Total Hallucinations: {sum(hallucinations)}")
     print(f"[Training] Reward Shaping Stats: {reward_shaper.get_statistics()}")
+    print(f"[Training] Best Model: Episode {best_episode}, Achievements: {best_achievement_count}")
     
-    # Save model
-    print(f"\n[Save] Saving trained agent...")
-    agent.save("crafter_heron_final")
+    # Save final model
+    print(f"\n[Save] Saving final trained agent...")
+    final_path = os.path.join("models", "crafter_heron_final")
+    agent.save(final_path)
+    print(f"[Save] Final model saved to: {final_path}")
     
     # ===== F10: EVALUATION SYSTEM FINALIZATION =====
     print(f"\n[F10 Evaluation] Finalizing evaluation system...")
