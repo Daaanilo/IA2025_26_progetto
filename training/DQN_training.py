@@ -19,7 +19,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from classes.crafter_environment import CrafterEnv
 from classes.agent import DQNAgent
-from evaluation_system import EvaluationSystem
+from evaluation.evaluation_system import EvaluationSystem
+import os
 
 
 def plot_baseline_metrics(rewards, native_rewards, shaped_bonus, achievements, moves, 
@@ -173,7 +174,7 @@ def calculate_shaped_reward(native_reward, info, previous_info, achievements_thi
     shaped_bonus += achievements_this_step * 1.0
     
     if previous_info is None:
-        return native_reward + shaped_bonus
+        return native_reward + shaped_bonus, shaped_bonus
     
     prev_inv = previous_info.get('inventory', {})
     curr_inv = info.get('inventory', {})
@@ -215,7 +216,7 @@ def calculate_shaped_reward(native_reward, info, previous_info, achievements_thi
     return shaped_reward, shaped_bonus
 
 
-def train_dqn_baseline(episodes=50, batch_size=32, episode_length=500, load_model_path=None):
+def train_dqn_baseline(episodes=200, batch_size=32, episode_length=500, load_model_path=None):
     """
     Train pure DQN agent on Crafter environment.
     
@@ -232,8 +233,8 @@ def train_dqn_baseline(episodes=50, batch_size=32, episode_length=500, load_mode
     print(f"[Baseline DQN] State size: {env.state_size}, Action size: {env.action_size}")
     
     # Initialize DQN agent
-    agent = DQNAgent(env.state_size, env.action_size, load_model_path=load_model_path)
-    print(f"[Baseline DQN] DQN Agent initialized")
+    agent = DQNAgent(env.state_size, env.action_size, epsilon=1.0, load_model_path=load_model_path)
+    print(f"[Baseline DQN] DQN Agent initialized (epsilon={agent.epsilon:.4f})")
     
     # Initialize evaluation system
     evaluation_system = EvaluationSystem()
@@ -318,7 +319,7 @@ def train_dqn_baseline(episodes=50, batch_size=32, episode_length=500, load_mode
         )
         
         # Progress logging
-        if (episode + 1) % max(1, episodes // 10) == 0:
+        if (episode + 1) % 5 == 0:
             avg_reward = np.mean(rewards_per_episode[-10:])
             avg_achievements = np.mean(achievements_per_episode[-10:])
             print(f"Episode {episode+1:3d}/{episodes} | Avg Reward (last 10): {avg_reward:6.2f} | "
@@ -332,7 +333,8 @@ def train_dqn_baseline(episodes=50, batch_size=32, episode_length=500, load_mode
     
     # Save model
     print("[Baseline DQN] Saving model...")
-    agent.save("baseline_crafter_dqn")
+    os.makedirs("../models", exist_ok=True)
+    agent.save("../models/baseline_crafter_dqn")
     
     # Export metrics
     print("[Baseline DQN] Exporting metrics...")
@@ -364,7 +366,7 @@ if __name__ == "__main__":
     import argparse
     
     parser = argparse.ArgumentParser(description="Train DQN baseline on Crafter environment")
-    parser.add_argument("--episodes", type=int, default=50, help="Number of training episodes")
+    parser.add_argument("--episodes", type=int, default=300, help="Number of training episodes")
     parser.add_argument("--batch-size", type=int, default=32, help="DQN batch size")
     parser.add_argument("--episode-length", type=int, default=500, help="Steps per episode")
     parser.add_argument("--load-model", type=str, default=None, help="Path to pre-trained model")

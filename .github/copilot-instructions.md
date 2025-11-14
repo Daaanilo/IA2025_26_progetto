@@ -1,255 +1,178 @@
-# HeRoN - Multi-Agent RL-LLM Framework for Crafter
+# HeRoN - Multi-Agent RL-LLM for Crafter
 
-## Project Overview
-HeRoN combines reinforcement learning with LLM reasoning for adaptive game AI in survival crafting environments. Three agents collaborate:
-- **DQNAgent**: PyTorch neural network (state=43-dim, actions=17) with Double DQN + Prioritized Replay
-- **CrafterHelper**: Zero-shot LLM (via LM Studio) generates 3-5 action sequences
-- **InstructorAgent**: Fine-tuned T5 provides strategic feedback to refine Helper suggestions
+## Architecture Overview
+Three-agent system combining reinforcement learning with LLM reasoning:
+- **DQNAgent** (`classes/agent.py`): PyTorch Double DQN + Prioritized Replay Buffer (10k transitions, α=0.6, β=0.4→1.0)
+- **CrafterHelper** (`classes/crafter_helper.py`): Zero-shot LLM (via LM Studio) generates 3-5 action sequences
+- **InstructorAgent** (`classes/instructor_agent.py`): Fine-tuned T5 refines Helper suggestions
 
-**Environment**: Crafter (22 achievements, sparse rewards +1 per unlock). State = `[inventory(16), pos(2), status(3), achievements(22)]` = 43 dims.
+**State**: 43-dim vector = `[inventory(16), position(2), status(3), achievements(22)]`  
+**Actions**: 17 discrete (movement, do, sleep, place_*, make_*, noop)  
+**Rewards**: Sparse (+1/achievement) + shaped bonuses (resources +0.1, health +0.05, tier +0.05, tools +0.02)
 
-## Core Architecture
+## Critical Workflows
 
-### Environment (`classes/crafter_environment.py`)
-43-dimensional state: `[inventory(16), position(2), status(3), achievements(22)]`
-- Wraps `crafter.Env()`, extracts semantic features from `info` dict (inventory, achievements, player_pos)
-- **All 17 actions always valid** (no masking needed)
-- Sparse native rewards: +1 per achievement unlock only
-- **Critical**: Always use `_extract_state()` to convert RGB observation → numerical state vector
-- Inventory items: health, food, drink, energy, sapling, wood, stone, coal, iron, diamond, wood_pickaxe, stone_pickaxe, iron_pickaxe, wood_sword, stone_sword, iron_sword
-
-### Training Loop (`training/heron_training.py`)
-Threshold-based LLM involvement (decays 1.0→0.0 over episodes):
+### Training Loop Pattern (`training/heron_training.py`)
 ```python
-# Per-EPISODE threshold decay (not per-step!)
+# CRITICAL: Threshold decay PER EPISODE (not per step!)
 for episode in range(episodes):
-    threshold = max(0, threshold - 0.01)  # Decay once per episode
+    threshold = max(0, threshold - 0.01)  # Decays 1.0→0.0 over 100 episodes
     
-    for step in range(episode_length):
+    for step in range(max_steps):
         if random() > threshold and episode < 600:
             # LLM workflow: Helper → Reviewer → Refined sequence
             sequence = helper.generate_action_sequence(state, info)
             if reviewer_available:
                 feedback = reviewer.generate_suggestion(...)
-                sequence = helper.generate_action_sequence(...)  # Re-prompt
-            executor.execute_next(sequence)
+                sequence = helper.generate_action_sequence(...)  # Re-prompt with feedback
         else:
-            action = agent.act(state)  # Pure DQN
+            action = agent.act(state, env)  # Pure DQN
 ```
 
-**Re-planning triggers** (Strategy B - interrupts 3-5 action sequences):
-- Achievement unlock → re-query LLM with new context
-- Health < 30% → DQN fallback for immediate survival  
-- Critical resources depleted → re-query for gathering
-
-### DQN Agent (`classes/agent.py`)
-**Double DQN** with Prioritized Replay:
-- Architecture: `Linear(128) → Linear(128) → Linear(64) → Linear(actions)` (PyTorch)
-- Target network updated every 100 steps
-- Priority α=0.6, β=0.4→1.0 (importance sampling)
-- Memory: 10k transitions
-- **Device auto-detection**: CUDA > CPU (no MPS support in current version)
-
-**Critical patterns**:
-```python
-# State must be torch tensor on correct device
-state_tensor = torch.FloatTensor(state).to(self.device)
-q_values = self.model(state_tensor)
-
-# Model persistence: 4 files (.pth, _memory.pkl, _priorities.pkl, _epsilon.txt)
-agent.save("models/crafter_heron_final")  # Relative path
-```
-
-## Development Workflows
+**Re-planning triggers** (interrupts 3-5 action sequences):
+- Achievement unlock → new LLM query with updated context
+- Health ≤ 5 → immediate DQN fallback for survival
+- Health < 30% → re-query for health management
 
 ### Running Training
 ```powershell
+# Prerequisites: Conda env + LM Studio on http://127.0.0.1:1234
 conda activate HeRoN
 
-# Main training script (F08 three-agent integration)
-cd training
-python heron_training.py
+# Full HeRoN (DQN + Helper + Reviewer)
+cd training; python heron_training.py
 
-# DQN-only baseline
+# DQN-only baseline for comparison
 python DQN_training.py
+
+# Dataset generation (50 episodes → ~2500 samples)
+cd "dataset Reviewer"; python crafter_dataset_generation.py
+
+# Reviewer fine-tuning (5 epochs, saves to reviewer_retrained/)
+cd reviewer_fine_tuning; python reviewer_fine_tuning.py
+
+# Evaluation report (HeRoN vs baselines)
+cd evaluation; python evaluation_report_generator.py
 ```
 
-**Prerequisites**:
-1. LM Studio running on `http://127.0.0.1:1234` (load `llama-3.2-3b-instruct` or similar)
-2. Reviewer model at `reviewer_retrained/` (optional, graceful fallback if missing)
-3. Ensure `checkpoints/` and `models/` directories exist (auto-created)
+## Critical Patterns
 
-### Baselines & Evaluation
-```powershell
-cd evaluation
-python evaluation_report_generator.py # Compare HeRoN vs baselines
-```
-
-### Dataset Generation (F05)
-```powershell
-cd "dataset Reviewer"
-python crafter_dataset_generation.py  # 50 episodes → ~2500 samples
-```
-Generates `game_scenarios_dataset_crafter.jsonl` with:
-- `prompt`: State description (inventory, achievements, goals)
-- `response`: Helper's raw LLM output
-- `instructions`: Hand-crafted strategic feedback (5 quality tiers)
-- `quality_score`: 0-1 based on achievement progress
-
-**Reviewer Fine-Tuning** (F06):
-```powershell
-cd reviewer_fine_tuning
-python reviewer_fine_tuning.py  # 5 epochs, saves to reviewer_retrained/
-```
-
-## Project-Specific Patterns
-
-### LLM Response Parsing
+### State Handling (MUST USE)
 ```python
-# Multi-action sequences: "[move_right], [do], [move_left]"
-llm_response = re.sub(r"<think>.*?</think>", "", llm_response, flags=re.DOTALL)
-matches = re.findall(r'\[(.*?)\]', llm_response)
-action_ids = [CrafterHelper.ACTION_ID_MAP.get(m.strip().lower()) for m in matches[:5]]
+# Environment extracts state from info dict - DO NOT use raw RGB observation
+state = env.reset()  # Returns 43-dim vector, NOT image
+next_state, reward, done, info = env.step(action)
 
-# Fuzzy matching for typos (13 mappings in crafter_helper.py)
-typo_map = {"place_rock": "place_stone", "make_pickaxe": "make_wood_pickaxe", ...}
+# DQN requires PyTorch tensor on correct device
+state_tensor = torch.FloatTensor(state).to(agent.device)  # Auto-detects CUDA/CPU
+q_values = agent.model(state_tensor)
 ```
 
-### Reward Shaping (`training/heron_training.py`)
-Crafter's native rewards are sparse (+1 achievement only). HeRoN adds adaptive intrinsic bonuses:
+### Model Persistence (4 Files)
 ```python
-bonus = resource_collection(+0.1) + health_mgmt(+0.05) + tier_progress(+0.05) + tools(+0.02)
-shaped_reward = native_reward + bonus_total
-
-# Curriculum stage multipliers (F09 - not yet implemented):
-# Early stage: 1.5× resource_collection
-# Mid stage: 2× tool_usage, 1.5× tier_progression  
-# Late stage: 2× tier_progression, 1.5× health_management
-```
-**Track separately**: `native_reward` and `shaped_reward` for ablation studies.
-
-## Development Guidelines
-
-### Critical Patterns
-```python
-# State must be PyTorch tensor on correct device
-state_tensor = torch.FloatTensor(state).to(agent.device)
-action = agent.act(state_tensor)
-
-# Memory replay only when sufficient samples
-if len(agent.memory) > batch_size:
-    agent.replay(batch_size)
-
-# F09 Critical: Epsilon MUST start at 1.0, not 0.0
-agent = DQNAgent(state_size=43, action_size=17, epsilon=1.0)
-
-# Threshold decay PER EPISODE (not per step!)
-for episode in range(episodes):
-    # ... episode loop
-    if episode < threshold_episodes:
-        threshold = max(0, threshold - decay_per_episode)
-```
-
-### Model Persistence
-```python
-# F09 Fix: Relative paths (auto-creates directories)
-agent.save("models/crafter_heron_final")  # Creates .pth, _memory.pkl, _priorities.pkl, _epsilon.txt
-agent.load("checkpoints/best_model_ep42_ach15")  # Loads all 4 files
+# Saves: .pth (weights), _memory.pkl, _priorities.pkl, _epsilon.txt
+agent.save("models/crafter_heron_final")  # Relative path, auto-creates dirs
+agent.load("checkpoints/best_model_ep42_ach15")
 
 # Performance-based checkpointing
 if episode_achievements > best_count:
-    path = os.path.join("checkpoints", f"best_model_ep{e}_ach{achievements}")
-    agent.save(path)
+    agent.save(f"checkpoints/best_model_ep{e}_ach{achievements}")
 ```
 
-### Output Files (F09)
+### LLM Response Parsing
 ```python
-# Training outputs
-models/crafter_heron_final.*              # Final model (4 files)
-checkpoints/best_model_ep*_ach*.*         # Best checkpoints
-heron_crafter_extended_metrics.csv        # Per-episode metrics
-heron_crafter_evaluation.json             # Summary statistics
-hyperparameter_history.csv                # lr/epsilon/threshold per episode (F09 - not yet implemented)
-training_config.json                      # Full configuration snapshot (F09 - not yet implemented)
+# Expected format: "[move_right], [do], [move_left]" (3-5 actions)
+llm_response = re.sub(r"<think>.*?</think>", "", raw_response, flags=re.DOTALL)
+action_ids = [CrafterHelper.ACTION_ID_MAP.get(m.strip().lower()) 
+              for m in re.findall(r'\[(.*?)\]', llm_response)[:5]]
 
-# Evaluation plots (6 PNG files)
-evaluation_plots/rewards_trend.png
-evaluation_plots/achievements_heatmap.png
-evaluation_plots/efficiency_scatter.png
-evaluation_plots/helper_dependency.png
-evaluation_plots/convergence_analysis.png
-evaluation_plots/multi_metric_dashboard.png
+# Typo correction (13 mappings)
+typo_map = {"place_rock": "place_stone", "make_pickaxe": "make_wood_pickaxe"}
 ```
 
-## Common Pitfalls
+## Common Pitfalls (Fix Immediately)
 
-### 1. Epsilon Initialization (F09 Critical Fix)
+### 1. Epsilon Initialization
 ```python
 # ❌ WRONG - No exploration!
-self.epsilon = 0.0
+agent = DQNAgent(epsilon=0.0)
 
 # ✅ CORRECT - Start with full exploration
-agent = DQNAgent(state_size=43, action_size=17, epsilon=1.0)
+agent = DQNAgent(state_size=43, action_size=17, epsilon=1.0)  # Decays to 0.05
 ```
 
-### 2. Threshold Decay Per-Step (F08 Bug)
+### 2. Threshold Decay Timing
 ```python
 # ❌ WRONG - Decays to 0 in first episode!
 while not done:
-    threshold = max(0, threshold - 0.01)  # Per-step decay
+    threshold -= 0.01  # Inside step loop
 
 # ✅ CORRECT - Decay per episode
 for episode in range(episodes):
     # ... episode loop
-    threshold = max(0, threshold - 0.01)  # After episode completes
+    if episode < threshold_episodes:
+        threshold = max(0, threshold - 0.01)  # After episode ends
 ```
 
-### 3. LM Studio Connection
+### 3. LM Studio Connectivity
 ```powershell
-# Verify LM Studio is running
+# Verify server is running and model loaded
 (Invoke-WebRequest -Uri "http://127.0.0.1:1234/v1/models").Content | ConvertFrom-Json
-
-# If connection fails, start LM Studio server and load model
+# Returns {"data": [{"id": "llama-3.2-3b-instruct", ...}]}
 ```
 
-### 4. State Size Mismatch
+### 4. State Dimensions
 ```python
-# Crafter: state_size=43, action_size=17 (current)
-# Battle (deprecated): state_size=36, action_size=9
-agent = DQNAgent(state_size=43, action_size=17)  # Always verify
+# MUST match environment
+assert env.state_size == 43 and env.action_size == 17
+agent = DQNAgent(state_size=43, action_size=17)  # NOT 36/9 (deprecated Battle env)
 ```
 
-### 5. Reviewer Model Path
+### 5. Reviewer Fallback
 ```python
-# Training continues without Reviewer if model not found
-REVIEWER_MODEL_PATH = "reviewer_retrained"  # Generated by F06
-# Run reviewer_fine_tuning.py first if model missing
+# Training continues gracefully if reviewer_retrained/ missing
+# Run `reviewer_fine_tuning.py` first for full three-agent system
 ```
 
-## Feature Development Workflow
+## File Organization
 
-### Implementation Process
-1. Check `features.md` for specifications
-2. Mark completed (✓) in `features.md` with implementation notes
-3. **Always update `modifiche.md`** after completion:
-   - Feature ID (e.g., "F09: Iterative Training")
-   - Implementation approach and key decisions
-   - File diff summary and trade-offs
+### Training Outputs
+```
+models/crafter_heron_final.*              # Final model (4 files)
+checkpoints/best_model_ep*_ach*.*         # Performance-based snapshots
+heron_crafter_extended_metrics.csv        # Per-episode metrics
+heron_crafter_evaluation.json             # Summary stats
+evaluation_plots/*.png                    # 6 visualization plots
+```
 
-### Current Status
-- ✅ **F01-F06**: Core architecture complete (Environment, DQN, Helper, Dataset, Reviewer)
-- ✅ **F08**: Three-agent training loop
-- ✅ **F09**: Curriculum learning + hyperparameter scheduling + iterative refinement
-- ✅ **F10**: Evaluation system with baselines
-- ⏳ **F11-F14**: Testing, benchmarking, analysis, documentation
-
-### Key Files
-- `classes/crafter_environment.py`: Environment wrapper (43-dim state extraction)
-- `classes/agent.py`: Double DQN with prioritized replay
-- `classes/crafter_helper.py`: LLM action sequence generator
+### Core Files
+- `classes/crafter_environment.py`: 43-dim state extraction from Crafter
+- `classes/agent.py`: Double DQN + prioritized replay (PyTorch)
+- `classes/crafter_helper.py`: LLM sequence generator + re-planning logic
 - `classes/instructor_agent.py`: T5 Reviewer
-- `training/heron_training.py`: Three-agent training (F08)
+- `training/heron_training.py`: Three-agent training loop
 - `training/DQN_training.py`: DQN-only baseline
-- `dataset Reviewer/crafter_dataset_generation.py`: Dataset generation for Reviewer
-- `reviewer_fine_tuning/reviewer_fine_tuning.py`: T5 fine-tuning on Crafter data
 - `evaluation/evaluation_system.py`: Metrics aggregation + convergence detection
+
+## Development Notes
+
+### Reward Shaping
+Track `native_reward` (sparse +1/achievement) and `shaped_reward` separately for ablation studies:
+```python
+shaped_reward = native_reward + resource_bonus(+0.1) + health_bonus(+0.05) + tier_bonus(+0.05) + tool_bonus(+0.02)
+```
+
+### Dependencies
+- PyTorch (CUDA/CPU, no MPS support)
+- LM Studio (local LLM server on :1234)
+- Crafter environment (`pip install crafter>=1.8.3`)
+- Transformers (T5 Reviewer fine-tuning)
+
+### Testing
+```powershell
+# Test environment wrapper
+python test_crafter_env.py
+
+# Test LM Studio connection
+python test_lmstudio_connection.py
+```

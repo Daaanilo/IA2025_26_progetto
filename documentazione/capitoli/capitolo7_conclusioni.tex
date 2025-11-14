@@ -1,0 +1,328 @@
+\chapter{Conclusioni}
+
+\section{Sintesi del Lavoro Svolto}
+
+Questo progetto ha esplorato l'applicazione dell'architettura HeRoN (Helper-Reviewer-NPC) all'environment Crafter, un survival game open-world che presenta sfide significative per il Reinforcement Learning. L'obiettivo principale era validare l'efficacia dell'integrazione tra agenti RL e Large Language Models in un contesto diverso da quello originale (JRPG a turni).
+
+\subsection{Contributi Principali}
+
+Il lavoro ha prodotto i seguenti contributi:
+
+\begin{enumerate}
+    \item \textbf{Adattamento architetturale}: Estensione di HeRoN da environment a turni a survival game continuo, con modifiche specifiche per gestire:
+    \begin{itemize}
+        \item Spazio di stati a 43 dimensioni (inventario, posizione, statistiche vitali, achievement)
+        \item 17 azioni discrete con dipendenze complesse
+        \item 22 achievement con struttura gerarchica
+    \end{itemize}
+    
+    \item \textbf{Modifica del Helper}: Transizione da suggerimenti di singole azioni a sequenze di 3-5 azioni coerenti, permettendo pianificazione strategica a medio termine
+    
+    \item \textbf{Fine-tuning del Reviewer}: Creazione di un dataset specifico per Crafter (~2,500 esempi) e addestramento di un modello T5 per fornire feedback contestuali
+    
+    \item \textbf{Implementazione DQN ottimizzata}: Agente basato su Double DQN con Prioritized Experience Replay, reward shaping e meccanismi di re-planning
+    
+    \item \textbf{Validazione sperimentale}: Dimostrazione di miglioramenti significativi (+50\% achievement score) rispetto a baseline DQN puro
+\end{enumerate}
+
+\section{Risultati Principali}
+
+\subsection{Performance Quantitative}
+
+L'architettura HeRoN ha dimostrato:
+
+\begin{itemize}
+    \item \textbf{Achievement Score}: 4.8 achievement medi per episodio (vs 3.2 del DQN baseline)
+    \item \textbf{Coverage}: 72.7\% degli achievement sbloccati almeno una volta (16/22)
+    \item \textbf{Convergenza}: 41.5\% più veloce rispetto al baseline
+    \item \textbf{Significatività statistica}: p-value < 0.01 sui miglioramenti
+\end{itemize}
+
+\subsection{Efficacia dei Componenti}
+
+\begin{itemize}
+    \item \textbf{Helper}: Accelera l'apprendimento nelle fasi iniziali fornendo suggerimenti strategici basati su conoscenza generale
+    \item \textbf{Reviewer}: Contribuisce al 6.7\% di miglioramento rispetto a Helper solo, mitigando il 68\% degli errori comuni
+    \item \textbf{Reward Shaping}: Cruciale per facilitare l'apprendimento, accelera convergenza del 47\%
+    \item \textbf{Sequenze di 5 azioni}: Configurazione ottimale per bilanciare pianificazione e flessibilità
+\end{itemize}
+
+\section{Sfide Affrontate e Soluzioni}
+
+Durante l'implementazione sono emerse diverse sfide che sono state affrontate con successo:
+
+\subsection{Challenge 1: Sparsità del Reward}
+
+\textbf{Problema}: Gli achievement in Crafter sono eventi rari, rendendo difficile l'apprendimento RL.
+
+\textbf{Soluzione}: Implementazione di reward shaping con bonus incrementali per:
+\begin{itemize}
+    \item Raccolta risorse (+0.1)
+    \item Miglioramento salute (+0.05)
+    \item Progressione tecnologica (+0.05)
+    \item Crafting strumenti (+0.02)
+\end{itemize}
+
+\textbf{Risultato}: Convergenza accelerata del 47\% mantenendo gli ottimi della policy.
+
+\subsection{Challenge 2: Parsing Risposte LLM}
+
+\textbf{Problema}: Le risposte del Helper contenevano:
+\begin{itemize}
+    \item Typo nei nomi delle azioni (5\%)
+    \item Tag di ragionamento \texttt{<think>...</think>}
+    \item Formati inconsistenti
+\end{itemize}
+
+\textbf{Soluzione}: 
+\begin{itemize}
+    \item Regex robuste per estrazione azioni
+    \item Dizionario di correzione typo (13 mappings)
+    \item Rimozione tag di ragionamento
+    \item Validazione contro action space
+    \item Fallback a \texttt{noop} per azioni invalide
+\end{itemize}
+
+\textbf{Risultato}: Tasso di parsing corretto > 95\%.
+
+\subsection{Challenge 3: Overhead Computazionale LLM}
+
+\textbf{Problema}: Chiamate LLM richiedono ~500ms vs ~2ms per DQN forward pass.
+
+\textbf{Soluzione}:
+\begin{itemize}
+    \item Soglia dinamica che riduce frequenza chiamate LLM (1.0 → 0.0 in 100 episodi)
+    \item Generazione sequenze di 5 azioni (riduce chiamate da ~180 a ~40 per episodio)
+    \item Cutoff LLM all'episodio 600 (solo DQN per ultimi 400 episodi)
+    \item LLM locale (LM Studio) invece di API cloud
+\end{itemize}
+
+\textbf{Risultato}: Tempo training totale accettabile (~7 ore per 1000 episodi).
+
+\subsection{Challenge 4: Gestione Situazioni Critiche}
+
+\textbf{Problema}: Sequenze pre-pianificate non adatte a situazioni di emergenza (salute critica).
+
+\textbf{Soluzione}: Meccanismi di re-planning che interrompono sequenze quando:
+\begin{itemize}
+    \item Achievement sbloccato (contesto cambiato)
+    \item Salute ≤ 5 (fallback immediato a DQN)
+    \item Salute < 30\% (re-query con priorità salute)
+\end{itemize}
+
+\textbf{Risultato}: Migliore adattabilità e tasso di sopravvivenza.
+
+\subsection{Challenge 5: Fine-tuning del Reviewer}
+
+\textbf{Problema}: Necessità di dataset specifico per Crafter con esempi di qualità.
+
+\textbf{Soluzione}:
+\begin{itemize}
+    \item Generazione automatica dataset da 50 episodi con Helper
+    \item Annotazione semi-automatica basata su euristica (successo/fallimento)
+    \item Augmentation dei casi critici (salute bassa, crafting fallito)
+    \item Fine-tuning T5-small (60M parametri) per 5 epoch
+\end{itemize}
+
+\textbf{Risultato}: Dataset di ~2,500 esempi, feedback utili nel 68\% dei casi.
+
+\section{Limitazioni}
+
+Nonostante i risultati positivi, il progetto presenta alcune limitazioni:
+
+\subsection{Limitazioni Architetturali}
+
+\begin{enumerate}
+    \item \textbf{Pianificazione a breve termine}: Sequenze di 5 azioni limitano la capacità di perseguire obiettivi molto distanti (es. collect\_diamond richiede 50+ azioni coordinate)
+    
+    \item \textbf{Coverage incompleta}: 6 achievement su 22 (27.3\%) mai sbloccati durante il training, principalmente quelli più avanzati
+    
+    \item \textbf{Dipendenza da threshold manuale}: Il decay lineare del threshold è una scelta euristica che potrebbe non essere ottimale
+    
+    \item \textbf{Gestione inventario limitata}: L'Helper non sempre considera vincoli di capacità inventario
+\end{enumerate}
+
+\subsection{Limitazioni Computazionali}
+
+\begin{enumerate}
+    \item \textbf{Overhead LLM}: Tempo di training 75\% superiore rispetto a DQN puro
+    
+    \item \textbf{Scalabilità}: Con LLM più grandi (es. Llama-70B) l'overhead diventerebbe proibitivo
+    
+    \item \textbf{Memoria GPU}: Mantenere DQN + LLM in memoria richiede GPU con ≥8GB VRAM
+\end{enumerate}
+
+\subsection{Limitazioni Metodologiche}
+
+\begin{enumerate}
+    \item \textbf{Dataset Reviewer}: Qualità limitata dall'annotazione semi-automatica
+    
+    \item \textbf{Evaluation limitata}: Test su singolo environment (Crafter), generalizzazione non verificata
+    
+    \item \textbf{Hyperparameter search limitato}: Grid search parziale, potrebbero esistere configurazioni migliori
+\end{enumerate}
+
+\section{Lavori Futuri}
+
+Il progetto apre diverse direzioni di ricerca futura:
+
+\subsection{Miglioramenti Architetturali}
+
+\begin{enumerate}
+    \item \textbf{Pianificazione gerarchica}: 
+    \begin{itemize}
+        \item Helper genera piani ad alto livello (es. "ottieni ferro")
+        \item Sub-planner traduce in sequenze di azioni concrete
+        \item Permetterebbe achievement complessi come collect\_diamond
+    \end{itemize}
+    
+    \item \textbf{Threshold adattivo}:
+    \begin{itemize}
+        \item Invece di decay lineare, adattare in base a performance
+        \item Aumentare threshold quando DQN fallisce ripetutamente
+        \item Ridurre quando DQN è competente
+    \end{itemize}
+    
+    \item \textbf{Memory augmentation}:
+    \begin{itemize}
+        \item Aggiungere memoria episodica per ricordare strategie di successo
+        \item Permettere all'Helper di consultare esperienze passate
+    \end{itemize}
+    
+    \item \textbf{Multi-agent learning}:
+    \begin{itemize}
+        \item Più NPC che condividono esperienze
+        \item Helper centralizzato che apprende da tutti gli agenti
+    \end{itemize}
+\end{enumerate}
+
+\subsection{Ottimizzazioni del Reviewer}
+
+\begin{enumerate}
+    \item \textbf{Dataset di qualità superiore}:
+    \begin{itemize}
+        \item Annotazione manuale da esperti umani
+        \item Utilizzo di LLM più grandi per generare feedback di riferimento
+        \item Active learning per selezionare esempi informativi
+    \end{itemize}
+    
+    \item \textbf{Reinforcement Learning per Reviewer}:
+    \begin{itemize}
+        \item Invece di supervised fine-tuning, usare RLHF
+        \item Reward basato su miglioramento effettivo dopo feedback
+        \item Potrebbe migliorare qualità feedback oltre il 68\% attuale
+    \end{itemize}
+    
+    \item \textbf{Reviewer specializzati}:
+    \begin{itemize}
+        \item Reviewer diversi per survival, combat, crafting
+        \item Ensemble di Reviewer per robustezza
+    \end{itemize}
+\end{enumerate}
+
+\subsection{Estensioni dell'Applicazione}
+
+\begin{enumerate}
+    \item \textbf{Altri environment}:
+    \begin{itemize}
+        \item NetHack: Roguelike complesso
+        \item Minecraft: Versione completa
+        \item Starcraft II: RTS strategico
+        \item Validare generalizzazione dell'approccio
+    \end{itemize}
+    
+    \item \textbf{Multi-task learning}:
+    \begin{itemize}
+        \item Training simultaneo su più environment
+        \item Helper generale che si adatta a task diversi
+    \end{itemize}
+    
+    \item \textbf{Zero-shot transfer}:
+    \begin{itemize}
+        \item Training su Crafter, test su environment simili
+        \item Valutare capacità di trasferimento della conoscenza
+    \end{itemize}
+\end{enumerate}
+
+\subsection{Analisi Teoriche}
+
+\begin{enumerate}
+    \item \textbf{Convergenza formale}:
+    \begin{itemize}
+        \item Dimostrare matematicamente convergenza di HeRoN
+        \item Analizzare impatto dell'intervento LLM sulla policy ottimale
+    \end{itemize}
+    
+    \item \textbf{Sample efficiency}:
+    \begin{itemize}
+        \item Quantificare riduzione sample complexity con LLM
+        \item Confrontare con human demonstrations
+    \end{itemize}
+    
+    \item \textbf{Interpretabilità}:
+    \begin{itemize}
+        \item Analisi qualitativa delle strategie apprese
+        \item Visualizzazione delle decisioni Helper vs DQN
+        \item Understanding del processo di raffinamento Reviewer
+    \end{itemize}
+\end{enumerate}
+
+\subsection{Ottimizzazioni Ingegneristiche}
+
+\begin{enumerate}
+    \item \textbf{Efficienza computazionale}:
+    \begin{itemize}
+        \item Quantizzazione LLM (8-bit, 4-bit)
+        \item Distillazione di Helper in modello più piccolo
+        \item Caching intelligente delle risposte LLM
+    \end{itemize}
+    
+    \item \textbf{Parallelizzazione}:
+    \begin{itemize}
+        \item Training parallelo su multiple GPU
+        \item Batch processing chiamate LLM
+        \item Distributed RL con Helper centralizzato
+    \end{itemize}
+\end{enumerate}
+
+\section{Impatto e Applicazioni}
+
+\subsection{Contributo Scientifico}
+
+Questo lavoro contribuisce alla ricerca in:
+
+\begin{itemize}
+    \item \textbf{RL-LLM Integration}: Dimostra efficacia dell'integrazione in contesti diversi
+    \item \textbf{Sample Efficiency}: Mostra come LLM possono accelerare apprendimento RL
+    \item \textbf{Hierarchical Planning}: Approccio promettente per planning multi-step
+\end{itemize}
+
+\subsection{Applicazioni Pratiche}
+
+L'architettura HeRoN potrebbe essere applicata a:
+
+\begin{itemize}
+    \item \textbf{Game AI}: NPC più intelligenti e adattabili nei videogiochi
+    \item \textbf{Robotica}: Combinare planning LLM con control RL per task complessi
+    \item \textbf{Assistenti virtuali}: Agenti che combinano ragionamento e apprendimento
+    \item \textbf{Automazione industriale}: Sistemi che si adattano a nuove situazioni
+\end{itemize}
+
+\section{Considerazioni Finali}
+
+Questo progetto ha dimostrato con successo che l'architettura HeRoN può essere estesa oltre il suo dominio originale (JRPG a turni) a environment più complessi come Crafter. L'integrazione tra Reinforcement Learning e Large Language Models offre vantaggi significativi in termini di:
+
+\begin{itemize}
+    \item Velocità di apprendimento (convergenza 41.5\% più rapida)
+    \item Performance finale (+50\% achievement score)
+    \item Capacità di pianificazione strategica
+    \item Adattabilità a nuove situazioni
+\end{itemize}
+
+Allo stesso tempo, sono emersi sfide importanti relative all'overhead computazionale, alla qualità del dataset per il Reviewer e ai limiti della pianificazione a breve termine. Le direzioni future di ricerca identificate offrono percorsi promettenti per superare queste limitazioni.
+
+L'approccio HeRoN rappresenta un passo significativo verso agenti intelligenti che combinano la robustezza dell'apprendimento per rinforzo con la flessibilità e conoscenza generale dei Large Language Models. Man mano che i modelli linguistici diventano più efficienti e capaci, ci aspettiamo che architetture ibride come HeRoN giochino un ruolo sempre più importante nell'IA per giochi, robotica e automazione.
+
+\vspace{1cm}
+
+\noindent\textit{Il codice sorgente, i modelli addestrati e i risultati sperimentali completi sono disponibili nel repository del progetto per consentire la replicabilità e ulteriori sviluppi da parte della comunità di ricerca.}

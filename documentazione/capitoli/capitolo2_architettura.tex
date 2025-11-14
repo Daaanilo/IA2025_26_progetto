@@ -1,0 +1,192 @@
+\chapter{Architettura HeRoN}
+
+\section{Panoramica dell'Architettura}
+
+HeRoN (Helper-Reviewer-NPC) è un'architettura multi-agente che integra Reinforcement Learning e Large Language Models per migliorare il processo decisionale di agenti intelligenti in ambienti interattivi. L'architettura è stata originariamente proposta nell'articolo "HeRoN: A Multi-Agent RL-LLM Framework for Adaptive NPC Behavior in Interactive Environments" \cite{heron2024}.
+
+L'idea centrale di HeRoN consiste nel combinare:
+\begin{itemize}
+    \item La capacità di apprendimento per rinforzo di ottimizzare strategie attraverso trial-and-error
+    \item Il ragionamento semantico e la conoscenza generale dei Large Language Models
+    \item Un meccanismo di feedback iterativo per raffinare i suggerimenti forniti
+\end{itemize}
+
+\section{Componenti dell'Architettura}
+
+L'architettura HeRoN è composta da tre componenti principali che interagiscono in modo coordinato:
+
+\subsection{NPC (Non-Player Character)}
+
+Il componente NPC è un agente di Reinforcement Learning che rappresenta il "giocatore" effettivo nell'environment. Nel contesto di questo progetto, l'NPC è implementato utilizzando l'algoritmo Deep Q-Network (DQN) con le seguenti caratteristiche:
+
+\begin{itemize}
+    \item \textbf{Architettura}: Double DQN con target network per stabilizzare l'apprendimento
+    \item \textbf{Replay Buffer}: Prioritized Experience Replay con capacità di 10,000 transizioni
+    \item \textbf{Parametri}:
+    \begin{itemize}
+        \item $\alpha = 0.6$ (prioritization exponent)
+        \item $\beta = 0.4 \rightarrow 1.0$ (importance sampling weight)
+        \item $\gamma = 0.99$ (discount factor)
+        \item $\epsilon = 1.0 \rightarrow 0.05$ (exploration rate con decay)
+    \end{itemize}
+    \item \textbf{Input}: Stato dell'environment a 43 dimensioni
+    \item \textbf{Output}: Q-values per 17 azioni possibili
+\end{itemize}
+
+L'NPC apprende attraverso l'esperienza diretta, accumulando transizioni $(s, a, r, s')$ nel replay buffer e aggiornando i pesi della rete neurale per massimizzare il reward atteso.
+
+\subsection{Helper}
+
+Il componente Helper è un Large Language Model utilizzato in modalità zero-shot che fornisce suggerimenti strategici all'NPC. Nel progetto HeRoN per Crafter, l'Helper è implementato utilizzando un LLM locale (Llama-3.2-3B-Instruct) attraverso LM Studio.
+
+\subsubsection{Funzionalità Principali}
+
+\begin{itemize}
+    \item \textbf{Generazione di sequenze di azioni}: A differenza dell'implementazione originale che suggeriva singole azioni, l'Helper in questo progetto genera sequenze di 3-5 azioni coerenti da eseguire sequenzialmente.
+    
+    \item \textbf{Contestualizzazione}: L'Helper riceve informazioni dettagliate sullo stato corrente del gioco:
+    \begin{itemize}
+        \item Inventario del giocatore (16 item)
+        \item Posizione corrente
+        \item Statistiche vitali (salute, cibo, acqua)
+        \item Achievement sbloccati (22 possibili)
+    \end{itemize}
+    
+    \item \textbf{Prompt Engineering}: Il prompt è stato specificamente progettato per Crafter e include:
+    \begin{itemize}
+        \item Descrizione del contesto di gioco
+        \item Stato corrente dell'agente
+        \item Lista delle azioni disponibili
+        \item Richiesta di generare una sequenza strategica
+    \end{itemize}
+\end{itemize}
+
+\subsubsection{Formato di Output}
+
+L'Helper risponde con una sequenza di azioni nel formato:
+\begin{verbatim}
+[azione_1], [azione_2], [azione_3], [azione_4], [azione_5]
+\end{verbatim}
+
+Ad esempio:
+\begin{verbatim}
+[move_right], [do], [move_left], [do], [noop]
+\end{verbatim}
+
+\subsection{Reviewer}
+
+Il componente Reviewer è un LLM fine-tuned (basato su T5) che valuta i suggerimenti forniti dall'Helper e genera feedback per migliorarli. Il Reviewer è stato addestrato specificamente per il contesto di Crafter.
+
+\subsubsection{Training del Reviewer}
+
+Il Reviewer viene addestrato su un dataset generato attraverso:
+\begin{enumerate}
+    \item Raccolta di stati dell'environment durante sessioni di gioco
+    \item Generazione di suggerimenti dall'Helper per ciascuno stato
+    \item Annotazione manuale o semi-automatica di feedback correttivi
+    \item Fine-tuning del modello T5 su coppie (suggerimento, feedback)
+\end{enumerate}
+
+Il dataset tipicamente contiene circa 2,500 esempi raccolti da 50 episodi di gioco.
+
+\subsubsection{Funzionalità}
+
+Il Reviewer analizza:
+\begin{itemize}
+    \item Coerenza della sequenza di azioni suggerite
+    \item Appropriatezza rispetto allo stato corrente
+    \item Potenziali rischi o inefficienze
+    \item Priorità strategiche (es. sopravvivenza vs. progressione)
+\end{itemize}
+
+E fornisce feedback strutturato che viene utilizzato per ri-interrogare l'Helper con maggiori informazioni.
+
+\section{Workflow dell'Architettura}
+
+Il workflow di HeRoN durante il training si articola nelle seguenti fasi:
+
+\subsection{Fase 1: Decisione di Consultazione}
+
+Ad ogni step dell'episodio, l'architettura decide se consultare i componenti LLM in base a una soglia dinamica $\theta$:
+
+\begin{algorithm}
+\caption{Decisione di consultazione LLM}
+\begin{algorithmic}
+\IF{$random() > \theta$ AND $episode < 600$}
+    \STATE Procedi con workflow LLM
+\ELSE
+    \STATE Usa solo DQN: $a = \arg\max_a Q(s, a)$
+\ENDIF
+\end{algorithmic}
+\end{algorithm}
+
+La soglia $\theta$ decresce linearmente da 1.0 a 0.0 nel corso di 100 episodi:
+$$\theta_t = \max(0, \theta_0 - 0.01 \cdot episode)$$
+
+Questo meccanismo permette all'NPC di dipendere maggiormente dai suggerimenti LLM nelle fasi iniziali del training, riducendo gradualmente questa dipendenza man mano che l'agente RL diventa più competente.
+
+\subsection{Fase 2: Generazione Suggerimenti (Helper)}
+
+Quando viene deciso di consultare l'LLM, l'Helper genera una sequenza di azioni basandosi sullo stato corrente:
+
+\begin{verbatim}
+sequence = helper.generate_action_sequence(state, info)
+\end{verbatim}
+
+\subsection{Fase 3: Review e Raffinamento (Reviewer)}
+
+Se il Reviewer è disponibile, valuta la sequenza proposta:
+
+\begin{algorithm}
+\caption{Workflow Helper-Reviewer}
+\begin{algorithmic}
+\STATE $sequence_1 = Helper(state, info)$
+\IF{Reviewer disponibile}
+    \STATE $feedback = Reviewer(state, sequence_1)$
+    \STATE $sequence_2 = Helper(state, info, feedback)$
+    \STATE $sequence = sequence_2$
+\ELSE
+    \STATE $sequence = sequence_1$
+\ENDIF
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Fase 4: Esecuzione e Re-planning}
+
+La sequenza di azioni viene eseguita sequenzialmente, ma può essere interrotta in caso di eventi significativi:
+
+\begin{itemize}
+    \item \textbf{Achievement sbloccato}: Nuova consultazione LLM con contesto aggiornato
+    \item \textbf{Salute critica} ($health \leq 5$): Fallback immediato a DQN per azioni di sopravvivenza
+    \item \textbf{Salute bassa} ($health < 30\%$): Ri-query del sistema per gestione prioritaria della salute
+\end{itemize}
+
+\section{Vantaggi dell'Architettura}
+
+L'architettura HeRoN offre diversi vantaggi rispetto al solo Reinforcement Learning:
+
+\begin{enumerate}
+    \item \textbf{Conoscenza a priori}: Gli LLM portano conoscenze generali sul task che possono accelerare l'apprendimento
+    
+    \item \textbf{Ragionamento strategico}: Capacità di pianificare sequenze di azioni coerenti verso obiettivi a lungo termine
+    
+    \item \textbf{Adattabilità}: Il sistema può adattarsi a nuove situazioni combinando l'esplorazione RL con suggerimenti LLM
+    
+    \item \textbf{Interpretabilità}: Le sequenze di azioni suggerite possono essere analizzate per comprendere la strategia dell'agente
+    
+    \item \textbf{Raffinamento iterativo}: Il meccanismo Helper-Reviewer permette di migliorare la qualità dei suggerimenti
+\end{enumerate}
+
+\section{Sfide dell'Integrazione}
+
+L'integrazione di RL e LLM presenta anche alcune sfide:
+
+\begin{itemize}
+    \item \textbf{Overhead computazionale}: Le chiamate LLM sono più costose delle forward pass della rete DQN
+    
+    \item \textbf{Parsing delle risposte}: Necessità di gestire risposte malformate o contenenti errori (typo, azioni non valide)
+    
+    \item \textbf{Bilanciamento}: Trovare il giusto equilibrio tra dipendenza da LLM e autonomia dell'agente RL
+    
+    \item \textbf{Consistenza}: Garantire che le sequenze suggerite siano effettivamente eseguibili e sensate nel contesto
+\end{itemize}

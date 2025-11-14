@@ -1,0 +1,229 @@
+\chapter{Environment Crafter}
+
+\section{Introduzione a Crafter}
+
+Crafter è un environment di ricerca per il Reinforcement Learning sviluppato come versione semplificata e controllata di Minecraft \cite{hafner2021crafter}. L'environment è stato specificamente progettato per valutare l'intero spettro delle capacità degli agenti RL, dalla sopravvivenza base alla progressione tecnologica complessa.
+
+\subsection{Caratteristiche Principali}
+
+\begin{itemize}
+    \item \textbf{Open-world 2D}: Mondo procedurale generato casualmente con terreni variegati
+    \item \textbf{Survival game}: Focus su raccolta risorse, crafting e sopravvivenza
+    \item \textbf{Osservazioni visive}: Frame RGB di dimensione $64 \times 64 \times 3$
+    \item \textbf{22 Achievement}: Obiettivi progressivi che testano diverse abilità
+    \item \textbf{Episodi limitati}: Ogni episodio dura al massimo 10,000 step
+\end{itemize}
+
+\section{Meccaniche di Gioco}
+
+\subsection{Obiettivi di Sopravvivenza}
+
+Il giocatore deve gestire tre statistiche vitali:
+
+\begin{itemize}
+    \item \textbf{Salute (Health)}: Diminuisce quando si viene attaccati da mostri. Se raggiunge zero, l'episodio termina.
+    \item \textbf{Cibo (Food)}: Diminuisce costantemente nel tempo. A zero, la salute inizia a diminuire.
+    \item \textbf{Acqua (Water)}: Diminuisce costantemente nel tempo. A zero, la salute inizia a diminuire.
+\end{itemize}
+
+Per sopravvivere, il giocatore deve:
+\begin{enumerate}
+    \item Raccogliere cibo (piante, animali)
+    \item Bere acqua (esplorando il mondo)
+    \item Dormire per rigenerare la salute
+    \item Evitare o combattere i mostri
+\end{enumerate}
+
+\subsection{Sistema di Progressione}
+
+Crafter implementa un sistema di progressione tecnologica simile a Minecraft:
+
+\begin{enumerate}
+    \item \textbf{Raccolta base}: Legno, pietra
+    \item \textbf{Costruzione strumenti}: Tavolo di lavoro, fornace
+    \item \textbf{Strumenti di pietra}: Piccone, spada di pietra
+    \item \textbf{Strumenti di ferro}: Estrazione ferro, crafting strumenti avanzati
+\end{enumerate}
+
+Ogni livello di progressione sblocca nuove possibilità e achievement.
+
+\section{Spazio di Stati}
+
+Mentre Crafter fornisce osservazioni visive RGB, nel nostro progetto utilizziamo una rappresentazione strutturata dello stato composta da 43 dimensioni:
+
+\subsection{Inventario (16 dimensioni)}
+
+Conta degli item posseduti dal giocatore:
+\begin{verbatim}
+[wood, stone, coal, iron, diamond, sapling, 
+ wood_pickaxe, stone_pickaxe, iron_pickaxe,
+ wood_sword, stone_sword, iron_sword,
+ drink, food, health_potion, arrow]
+\end{verbatim}
+
+\subsection{Posizione e Orientamento (2 dimensioni)}
+
+\begin{itemize}
+    \item Coordinata X (normalizzata)
+    \item Coordinata Y (normalizzata)
+\end{itemize}
+
+\subsection{Statistiche Vitali (3 dimensioni)}
+
+\begin{itemize}
+    \item Livello di salute (0-9)
+    \item Livello di cibo (0-9)
+    \item Livello di acqua (0-9)
+\end{itemize}
+
+\subsection{Achievement (22 dimensioni)}
+
+Vettore binario che indica quali achievement sono stati sbloccati:
+\begin{verbatim}
+[collect_wood, collect_stone, collect_coal, collect_iron,
+ collect_diamond, place_table, place_furnace, place_plant,
+ place_stone, defeat_zombie, defeat_skeleton, eat_cow,
+ eat_plant, drink_water, make_wood_pickaxe, 
+ make_stone_pickaxe, make_iron_pickaxe, make_wood_sword,
+ make_stone_sword, make_iron_sword, sleep, wake_up]
+\end{verbatim}
+
+\subsection{Rappresentazione Compatta}
+
+La rappresentazione a 43 dimensioni offre diversi vantaggi:
+\begin{itemize}
+    \item \textbf{Efficienza}: Molto più compatta delle osservazioni RGB ($64 \times 64 \times 3 = 12,288$ valori)
+    \item \textbf{Interpretabilità}: Ogni dimensione ha un significato semantico chiaro
+    \item \textbf{Facilitazione apprendimento}: Riduce la complessità per l'agente RL
+    \item \textbf{Compatibilità LLM}: Facilita la descrizione testuale dello stato per gli LLM
+\end{itemize}
+
+\section{Spazio delle Azioni}
+
+Crafter definisce 17 azioni discrete che il giocatore può eseguire:
+
+\subsection{Movimento (4 azioni)}
+\begin{itemize}
+    \item \texttt{move\_left}: Sposta il giocatore a sinistra
+    \item \texttt{move\_right}: Sposta il giocatore a destra
+    \item \texttt{move\_up}: Sposta il giocatore verso l'alto
+    \item \texttt{move\_down}: Sposta il giocatore verso il basso
+\end{itemize}
+
+\subsection{Interazione (2 azioni)}
+\begin{itemize}
+    \item \texttt{do}: Azione contestuale (raccogliere, attaccare, crafting)
+    \item \texttt{sleep}: Dormi per rigenerare salute (richiede essere su erba di notte)
+\end{itemize}
+
+\subsection{Posizionamento (4 azioni)}
+\begin{itemize}
+    \item \texttt{place\_stone}: Posiziona pietra dall'inventario
+    \item \texttt{place\_table}: Posiziona tavolo di lavoro
+    \item \texttt{place\_furnace}: Posiziona fornace
+    \item \texttt{place\_plant}: Pianta un albero
+\end{itemize}
+
+\subsection{Crafting (6 azioni)}
+\begin{itemize}
+    \item \texttt{make\_wood\_pickaxe}: Crea piccone di legno (richiede tavolo)
+    \item \texttt{make\_stone\_pickaxe}: Crea piccone di pietra (richiede tavolo)
+    \item \texttt{make\_iron\_pickaxe}: Crea piccone di ferro (richiede tavolo + fornace)
+    \item \texttt{make\_wood\_sword}: Crea spada di legno (richiede tavolo)
+    \item \texttt{make\_stone\_sword}: Crea spada di pietra (richiede tavolo)
+    \item \texttt{make\_iron\_sword}: Crea spada di ferro (richiede tavolo + fornace)
+\end{itemize}
+
+\subsection{Nessuna Azione (1 azione)}
+\begin{itemize}
+    \item \texttt{noop}: Non fare nulla (utile per aspettare o concludere sequenze)
+\end{itemize}
+
+\section{Sistema di Reward}
+
+\subsection{Reward Nativo (Sparse)}
+
+Crafter fornisce un reward sparso basato sugli achievement:
+$$r_{native} = \begin{cases} 
++1 & \text{se achievement sbloccato} \\
+0 & \text{altrimenti}
+\end{cases}$$
+
+Questo reward è estremamente sparso: in un episodio tipico, il giocatore può sbloccare 0-5 achievement su 22 possibili.
+
+\subsection{Reward Shaping (Dense)}
+
+Per facilitare l'apprendimento, abbiamo implementato un sistema di reward shaping che fornisce segnali più frequenti:
+
+\begin{align}
+r_{shaped} &= r_{native} + r_{resources} + r_{health} + r_{tier} + r_{tools} \\
+r_{resources} &= 0.1 \times \text{\# nuove risorse raccolte} \\
+r_{health} &= 0.05 \times \Delta_{health} \quad (\text{se positivo}) \\
+r_{tier} &= 0.05 \times \Delta_{tier} \quad (\text{progressione tecnologica}) \\
+r_{tools} &= 0.02 \times \text{\# nuovi strumenti crafted}
+\end{align}
+
+Il reward shaping mantiene i seguenti principi:
+\begin{itemize}
+    \item Non altera gli ottimi della policy (bonus solo per progressi effettivi)
+    \item Mantiene lo stesso ordine di grandezza del reward nativo
+    \item Fornisce feedback più denso durante l'esplorazione iniziale
+\end{itemize}
+
+\section{Achievement e Difficoltà}
+
+I 22 achievement di Crafter sono progettati con difficoltà crescente:
+
+\subsection{Achievement Base (Facili)}
+\begin{itemize}
+    \item \texttt{collect\_wood}: Raccogliere legno
+    \item \texttt{eat\_plant}: Mangiare una pianta
+    \item \texttt{drink\_water}: Bere acqua
+\end{itemize}
+
+\subsection{Achievement Intermedi}
+\begin{itemize}
+    \item \texttt{place\_table}: Posizionare tavolo di lavoro
+    \item \texttt{make\_wood\_pickaxe}: Creare piccone di legno
+    \item \texttt{collect\_stone}: Raccogliere pietra
+    \item \texttt{defeat\_zombie}: Sconfiggere uno zombie
+\end{itemize}
+
+\subsection{Achievement Avanzati (Difficili)}
+\begin{itemize}
+    \item \texttt{collect\_iron}: Raccogliere ferro (richiede piccone di pietra)
+    \item \texttt{make\_iron\_pickaxe}: Creare piccone di ferro
+    \item \texttt{collect\_diamond}: Raccogliere diamante (richiede piccone di ferro)
+\end{itemize}
+
+\subsection{Dipendenze tra Achievement}
+
+Molti achievement hanno dipendenze implicite:
+
+\begin{verbatim}
+collect_wood -> make_wood_pickaxe -> collect_stone 
+    -> make_stone_pickaxe -> collect_iron -> place_furnace
+    -> make_iron_pickaxe -> collect_diamond
+\end{verbatim}
+
+Questa struttura gerarchica richiede all'agente di apprendere sequenze di azioni complesse e pianificazione a lungo termine.
+
+\section{Sfide per il Reinforcement Learning}
+
+Crafter presenta diverse sfide che lo rendono un benchmark impegnativo:
+
+\begin{enumerate}
+    \item \textbf{Sparsità del reward}: Gli achievement sono rari, rendendo difficile l'esplorazione
+    
+    \item \textbf{Orizzonte lungo}: Alcuni achievement richiedono centinaia o migliaia di azioni
+    
+    \item \textbf{Dipendenze complesse}: Necessità di completare achievement in ordine specifico
+    
+    \item \textbf{Gestione risorse}: Bilanciamento tra esplorazione e sopravvivenza
+    
+    \item \textbf{Variabilità procedurale}: Ogni episodio ha un mondo generato casualmente
+    
+    \item \textbf{Multi-task}: 22 obiettivi diversi da apprendere simultaneamente
+\end{enumerate}
+
+Queste sfide rendono Crafter un banco di prova ideale per valutare architetture avanzate come HeRoN, che combinano RL e ragionamento LLM per affrontare complessità strategiche.
