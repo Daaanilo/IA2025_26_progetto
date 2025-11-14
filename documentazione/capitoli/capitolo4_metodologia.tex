@@ -1,12 +1,12 @@
-\chapter{Metodologia di Implementazione}
+\section{Metodologia di Implementazione}
 
-\section{Overview del Processo}
+\subsection{Overview del Processo}
 
 L'implementazione del progetto HeRoN per Crafter è stata suddivisa in fasi sequenziali, ciascuna volta a sviluppare e validare un componente specifico dell'architettura. La metodologia adottata segue un approccio iterativo che permette di validare progressivamente le componenti del sistema.
 
-\section{Fase 1: Setup dell'Environment}
+\subsection{Fase 1: Setup dell'Environment}
 
-\subsection{Installazione e Configurazione}
+\subsubsection{Installazione e Configurazione}
 
 Il primo passo ha riguardato la configurazione dell'environment di sviluppo:
 
@@ -32,7 +32,7 @@ Il primo passo ha riguardato la configurazione dell'environment di sviluppo:
     \end{verbatim}
 \end{enumerate}
 
-\subsection{Wrapper dell'Environment}
+\subsubsection{Wrapper dell'Environment}
 
 È stato sviluppato un wrapper custom per Crafter (\texttt{crafter\_environment.py}) che:
 
@@ -44,7 +44,7 @@ Il primo passo ha riguardato la configurazione dell'environment di sviluppo:
     \item Calcola il reward shaped combinando reward nativo e bonus
 \end{itemize}
 
-\subsection{Testing Iniziale}
+\subsubsection{Testing Iniziale}
 
 Prima di procedere con l'implementazione degli agenti, sono stati eseguiti test per verificare:
 \begin{itemize}
@@ -54,9 +54,9 @@ Prima di procedere con l'implementazione degli agenti, sono stati eseguiti test 
     \item Performance computazionali
 \end{itemize}
 
-\section{Fase 2: Sviluppo del NPC (DQN Agent)}
+\subsection{Fase 2: Sviluppo del NPC (DQN Agent)}
 
-\subsection{Architettura della Rete Neurale}
+\subsubsection{Architettura della Rete Neurale}
 
 L'agente DQN è stato implementato con una rete neurale feedforward:
 
@@ -72,7 +72,7 @@ Hidden Layer 3: 128 neuroni + ReLU
 Output Layer: 17 neuroni (Q-values per azioni)
 \end{verbatim}
 
-\subsection{Implementazione Double DQN}
+\subsubsection{Implementazione Double DQN}
 
 Sono state implementate due reti neurali:
 \begin{itemize}
@@ -84,7 +84,7 @@ L'aggiornamento della target network avviene ogni $C = 1000$ step tramite soft u
 $$\theta_{target} \leftarrow \tau \theta_{policy} + (1-\tau) \theta_{target}$$
 con $\tau = 0.001$.
 
-\subsection{Prioritized Experience Replay}
+\subsubsection{Prioritized Experience Replay}
 
 Il replay buffer implementa prioritized sampling:
 
@@ -100,7 +100,7 @@ Il replay buffer implementa prioritized sampling:
     $$w_i = \left(\frac{1}{N \cdot P(i)}\right)^\beta$$
 \end{enumerate}
 
-\subsection{Training Baseline DQN}
+\subsubsection{Training Baseline DQN}
 
 Prima di integrare i componenti LLM, è stato addestrato un agente DQN baseline:
 
@@ -114,9 +114,9 @@ Prima di integrare i componenti LLM, è stato addestrato un agente DQN baseline:
 
 Il baseline serve come riferimento per valutare l'efficacia dell'integrazione con gli LLM.
 
-\section{Fase 3: Sviluppo del Helper}
+\subsection{Fase 3: Sviluppo del Helper}
 
-\subsection{Setup LM Studio}
+\subsubsection{Setup LM Studio}
 
 LM Studio è stato configurato per servire il modello Llama-3.2-3B-Instruct:
 \begin{itemize}
@@ -126,7 +126,7 @@ LM Studio è stato configurato per servire il modello Llama-3.2-3B-Instruct:
     \item Max tokens: 150 (sufficiente per sequenze di 3-5 azioni)
 \end{itemize}
 
-\subsection{Progettazione del Prompt}
+\subsubsection{Progettazione del Prompt}
 
 Il prompt per l'Helper è stato progettato iterativamente attraverso esperimenti:
 
@@ -143,28 +143,19 @@ Current State:
 - Achievements unlocked: {achievements}
 
 Available actions:
-[move_left, move_right, move_up, move_down, do, sleep,
- place_stone, place_table, place_furnace, place_plant,
- make_wood_pickaxe, make_stone_pickaxe, make_iron_pickaxe,
- make_wood_sword, make_stone_sword, make_iron_sword, noop]
+[move_left, move_right, move_up, move_down, do,
+ sleep, place_stone, place_table, place_furnace,
+ place_plant, make_wood_pickaxe, make_stone_pickaxe,
+ make_iron_pickaxe, make_wood_sword, make_stone_sword,
+ make_iron_sword, noop]
 
-Output format: [action1], [action2], [action3], [action4], [action5]
+Output format: [action1], [action2], [action3],
+[action4], [action5]
 
 Suggest actions:
 \end{verbatim}
 
-\subsection{Parsing delle Risposte}
-
-È stato implementato un parser robusto per gestire:
-\begin{itemize}
-    \item Estrazione delle azioni tramite regex: \texttt{r'\textbackslash[(.*?)\textbackslash]'}
-    \item Rimozione di tag di ragionamento: \texttt{<think>...</think>}
-    \item Correzione typo comuni (13 mappings predefiniti)
-    \item Validazione azioni (controllo che siano nell'action space)
-    \item Limitazione a 5 azioni massimo
-\end{itemize}
-
-\subsection{Meccanismi di Re-planning}
+\subsubsection{Meccanismi di Re-planning}
 
 Sono state implementate logiche per interrompere e ri-pianificare:
 
@@ -189,14 +180,14 @@ Sono state implementate logiche per interrompere e ri-pianificare:
 \end{algorithmic}
 \end{algorithm}
 
-\section{Fase 4: Generazione Dataset per Reviewer}
+\subsection{Fase 4: Generazione Dataset per Reviewer}
 
-\subsection{Processo di Raccolta Dati}
+\subsubsection{Processo di Raccolta Dati}
 
 Per addestrare il Reviewer, è stato necessario generare un dataset di esempi:
 
 \begin{enumerate}
-    \item \textbf{Esecuzione episodi}: 50 episodi di gioco con Helper zero-shot
+    \item \textbf{Esecuzione episodi}: 50 episodi di gioco con Helper zero-shot (circa 2,500 esempi di training)
     \item \textbf{Registrazione}: Per ogni chiamata Helper, salvare:
     \begin{itemize}
         \item Stato dell'environment
@@ -211,25 +202,9 @@ Per addestrare il Reviewer, è stato necessario generare un dataset di esempi:
     \end{itemize}
 \end{enumerate}
 
-\subsection{Struttura del Dataset}
+\subsection{Fase 5: Fine-tuning del Reviewer}
 
-Il dataset (\texttt{game\_scenarios\_dataset\_crafter.jsonl}) contiene esempi nel formato:
-
-\begin{verbatim}
-{
-    "input": "State: health=5, food=3, inventory=[wood:2]
-              Suggestion: [move_right], [do], [move_left]",
-    "output": "CRITICAL: Health is low! Prioritize finding
-               food or water. Consider sleeping if it's
-               night. Suggested: [eat_plant], [drink_water]"
-}
-\end{verbatim}
-
-Tipicamente, 50 episodi producono circa 2,500 esempi di training.
-
-\section{Fase 5: Fine-tuning del Reviewer}
-
-\subsection{Scelta del Modello Base}
+\subsubsection{Scelta del Modello Base}
 
 È stato scelto T5-small come modello base per il Reviewer:
 \begin{itemize}
@@ -238,7 +213,7 @@ Tipicamente, 50 episodi producono circa 2,500 esempi di training.
     \item Veloce per inference durante il training
 \end{itemize}
 
-\subsection{Configurazione Training}
+\subsubsection{Configurazione Training}
 
 Il fine-tuning è stato eseguito con i seguenti parametri:
 
@@ -252,7 +227,7 @@ Max output length: 128 tokens
 Gradient accumulation steps: 2
 \end{verbatim}
 
-\subsection{Validazione}
+\subsubsection{Validazione}
 
 Il dataset è stato diviso in:
 \begin{itemize}
@@ -267,9 +242,9 @@ Metriche monitorate durante il training:
     \item BLEU score (similarità con feedback attesi)
 \end{itemize}
 
-\section{Fase 6: Training Integrato HeRoN}
+\subsection{Fase 6: Training Integrato HeRoN}
 
-\subsection{Protocollo di Training}
+\subsubsection{Protocollo di Training}
 
 Il training completo dell'architettura HeRoN segue questo protocollo:
 
@@ -304,7 +279,7 @@ Il training completo dell'architettura HeRoN segue questo protocollo:
 \end{algorithmic}
 \end{algorithm}
 
-\subsection{Parametri di Training}
+\subsubsection{Parametri di Training}
 
 \begin{itemize}
     \item \textbf{Episodi totali}: 1000
@@ -314,7 +289,7 @@ Il training completo dell'architettura HeRoN segue questo protocollo:
     \item \textbf{Checkpoint}: Salvataggio ogni 50 episodi + best model
 \end{itemize}
 
-\subsection{Analisi del Numero Ottimale di Azioni}
+\subsubsection{Analisi del Numero Ottimale di Azioni}
 
 È stata condotta un'analisi sperimentale per determinare il numero ottimale di azioni per sequenza:
 
@@ -339,9 +314,9 @@ Il valore ottimale è risultato essere 5 azioni, che bilancia:
     \item Overhead computazionale LLM
 \end{itemize}
 
-\section{Fase 7: Valutazione delle Prestazioni}
+\subsection{Fase 7: Valutazione delle Prestazioni}
 
-\subsection{Metriche di Valutazione}
+\subsubsection{Metriche di Valutazione}
 
 Per valutare le prestazioni di HeRoN, sono state definite diverse metriche:
 
@@ -359,7 +334,7 @@ Per valutare le prestazioni di HeRoN, sono state definite diverse metriche:
     \item \textbf{Convergenza}: Episodio in cui lo score medio si stabilizza
 \end{enumerate}
 
-\subsection{Baseline di Confronto}
+\subsubsection{Baseline di Confronto}
 
 HeRoN è stato confrontato con:
 \begin{itemize}
@@ -368,7 +343,7 @@ HeRoN è stato confrontato con:
     \item \textbf{Helper solo}: DQN + Helper senza Reviewer
 \end{itemize}
 
-\subsection{Protocollo di Test}
+\subsubsection{Protocollo di Test}
 
 Per garantire validità statistica:
 \begin{itemize}
@@ -378,26 +353,7 @@ Per garantire validità statistica:
     \item Test statistici (t-test) per significatività
 \end{itemize}
 
-\section{Fase 8: Analisi e Ottimizzazione}
-
-\subsection{Profiling delle Performance}
-
-Sono state analizzate le performance computazionali:
-\begin{itemize}
-    \item Tempo per step DQN: ~2ms
-    \item Tempo per chiamata Helper: ~500ms
-    \item Tempo per chiamata Reviewer: ~300ms
-    \item Overhead totale LLM: significativo ma accettabile
-\end{itemize}
-
-\subsection{Ottimizzazioni Implementate}
-
-\begin{enumerate}
-    \item \textbf{Caching delle sequenze}: Evitare ri-query multiple per stati simili
-    \item \textbf{Batch processing}: Aggiornamenti DQN in batch per efficienza GPU
-    \item \textbf{Early stopping LLM}: Dopo episodio 600, solo DQN per accelerare
-    \item \textbf{Checkpoint intelligenti}: Salvare solo modelli con miglioramenti
-\end{enumerate}
+\subsection{Fase 8: Analisi e Ottimizzazione}
 
 \subsection{Tuning degli Iperparametri}
 

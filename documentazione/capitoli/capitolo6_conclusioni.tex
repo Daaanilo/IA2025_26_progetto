@@ -1,33 +1,12 @@
-\chapter{Conclusioni}
+\section{Conclusioni}
 
-\section{Sintesi del Lavoro Svolto}
+\subsection{Sintesi del Lavoro Svolto}
 
 Questo progetto ha esplorato l'applicazione dell'architettura HeRoN (Helper-Reviewer-NPC) all'environment Crafter, un survival game open-world che presenta sfide significative per il Reinforcement Learning. L'obiettivo principale era validare l'efficacia dell'integrazione tra agenti RL e Large Language Models in un contesto diverso da quello originale (JRPG a turni).
 
-\subsection{Contributi Principali}
+\subsection{Risultati Principali}
 
-Il lavoro ha prodotto i seguenti contributi:
-
-\begin{enumerate}
-    \item \textbf{Adattamento architetturale}: Estensione di HeRoN da environment a turni a survival game continuo, con modifiche specifiche per gestire:
-    \begin{itemize}
-        \item Spazio di stati a 43 dimensioni (inventario, posizione, statistiche vitali, achievement)
-        \item 17 azioni discrete con dipendenze complesse
-        \item 22 achievement con struttura gerarchica
-    \end{itemize}
-    
-    \item \textbf{Modifica del Helper}: Transizione da suggerimenti di singole azioni a sequenze di 3-5 azioni coerenti, permettendo pianificazione strategica a medio termine
-    
-    \item \textbf{Fine-tuning del Reviewer}: Creazione di un dataset specifico per Crafter (~2,500 esempi) e addestramento di un modello T5 per fornire feedback contestuali
-    
-    \item \textbf{Implementazione DQN ottimizzata}: Agente basato su Double DQN con Prioritized Experience Replay, reward shaping e meccanismi di re-planning
-    
-    \item \textbf{Validazione sperimentale}: Dimostrazione di miglioramenti significativi (+50\% achievement score) rispetto a baseline DQN puro
-\end{enumerate}
-
-\section{Risultati Principali}
-
-\subsection{Performance Quantitative}
+\subsubsection{Performance Quantitative}
 
 L'architettura HeRoN ha dimostrato:
 
@@ -47,11 +26,11 @@ L'architettura HeRoN ha dimostrato:
     \item \textbf{Sequenze di 5 azioni}: Configurazione ottimale per bilanciare pianificazione e flessibilità
 \end{itemize}
 
-\section{Sfide Affrontate e Soluzioni}
+\subsection{Sfide Affrontate e Soluzioni}
 
 Durante l'implementazione sono emerse diverse sfide che sono state affrontate con successo:
 
-\subsection{Challenge 1: Sparsità del Reward}
+\subsubsection{Challenge 1: Sparsità del Reward}
 
 \textbf{Problema}: Gli achievement in Crafter sono eventi rari, rendendo difficile l'apprendimento RL.
 
@@ -65,41 +44,7 @@ Durante l'implementazione sono emerse diverse sfide che sono state affrontate co
 
 \textbf{Risultato}: Convergenza accelerata del 47\% mantenendo gli ottimi della policy.
 
-\subsection{Challenge 2: Parsing Risposte LLM}
-
-\textbf{Problema}: Le risposte del Helper contenevano:
-\begin{itemize}
-    \item Typo nei nomi delle azioni (5\%)
-    \item Tag di ragionamento \texttt{<think>...</think>}
-    \item Formati inconsistenti
-\end{itemize}
-
-\textbf{Soluzione}: 
-\begin{itemize}
-    \item Regex robuste per estrazione azioni
-    \item Dizionario di correzione typo (13 mappings)
-    \item Rimozione tag di ragionamento
-    \item Validazione contro action space
-    \item Fallback a \texttt{noop} per azioni invalide
-\end{itemize}
-
-\textbf{Risultato}: Tasso di parsing corretto > 95\%.
-
-\subsection{Challenge 3: Overhead Computazionale LLM}
-
-\textbf{Problema}: Chiamate LLM richiedono ~500ms vs ~2ms per DQN forward pass.
-
-\textbf{Soluzione}:
-\begin{itemize}
-    \item Soglia dinamica che riduce frequenza chiamate LLM (1.0 → 0.0 in 100 episodi)
-    \item Generazione sequenze di 5 azioni (riduce chiamate da ~180 a ~40 per episodio)
-    \item Cutoff LLM all'episodio 600 (solo DQN per ultimi 400 episodi)
-    \item LLM locale (LM Studio) invece di API cloud
-\end{itemize}
-
-\textbf{Risultato}: Tempo training totale accettabile (~7 ore per 1000 episodi).
-
-\subsection{Challenge 4: Gestione Situazioni Critiche}
+\subsubsection{Challenge 2: Gestione Situazioni Critiche}
 
 \textbf{Problema}: Sequenze pre-pianificate non adatte a situazioni di emergenza (salute critica).
 
@@ -112,7 +57,7 @@ Durante l'implementazione sono emerse diverse sfide che sono state affrontate co
 
 \textbf{Risultato}: Migliore adattabilità e tasso di sopravvivenza.
 
-\subsection{Challenge 5: Fine-tuning del Reviewer}
+\subsubsection{Challenge 3: Fine-tuning del Reviewer}
 
 \textbf{Problema}: Necessità di dataset specifico per Crafter con esempi di qualità.
 
@@ -126,11 +71,11 @@ Durante l'implementazione sono emerse diverse sfide che sono state affrontate co
 
 \textbf{Risultato}: Dataset di ~2,500 esempi, feedback utili nel 68\% dei casi.
 
-\section{Limitazioni}
+\subsection{Limitazioni}
 
 Nonostante i risultati positivi, il progetto presenta alcune limitazioni:
 
-\subsection{Limitazioni Architetturali}
+\subsubsection{Limitazioni Architetturali}
 
 \begin{enumerate}
     \item \textbf{Pianificazione a breve termine}: Sequenze di 5 azioni limitano la capacità di perseguire obiettivi molto distanti (es. collect\_diamond richiede 50+ azioni coordinate)
@@ -142,7 +87,7 @@ Nonostante i risultati positivi, il progetto presenta alcune limitazioni:
     \item \textbf{Gestione inventario limitata}: L'Helper non sempre considera vincoli di capacità inventario
 \end{enumerate}
 
-\subsection{Limitazioni Computazionali}
+\subsubsection{Limitazioni Computazionali}
 
 \begin{enumerate}
     \item \textbf{Overhead LLM}: Tempo di training 75\% superiore rispetto a DQN puro
@@ -152,21 +97,11 @@ Nonostante i risultati positivi, il progetto presenta alcune limitazioni:
     \item \textbf{Memoria GPU}: Mantenere DQN + LLM in memoria richiede GPU con ≥8GB VRAM
 \end{enumerate}
 
-\subsection{Limitazioni Metodologiche}
-
-\begin{enumerate}
-    \item \textbf{Dataset Reviewer}: Qualità limitata dall'annotazione semi-automatica
-    
-    \item \textbf{Evaluation limitata}: Test su singolo environment (Crafter), generalizzazione non verificata
-    
-    \item \textbf{Hyperparameter search limitato}: Grid search parziale, potrebbero esistere configurazioni migliori
-\end{enumerate}
-
-\section{Lavori Futuri}
+\subsection{Lavori Futuri}
 
 Il progetto apre diverse direzioni di ricerca futura:
 
-\subsection{Miglioramenti Architetturali}
+\subsubsection{Miglioramenti Architetturali}
 
 \begin{enumerate}
     \item \textbf{Pianificazione gerarchica}: 
@@ -196,7 +131,7 @@ Il progetto apre diverse direzioni di ricerca futura:
     \end{itemize}
 \end{enumerate}
 
-\subsection{Ottimizzazioni del Reviewer}
+\subsubsection{Ottimizzazioni del Reviewer}
 
 \begin{enumerate}
     \item \textbf{Dataset di qualità superiore}:
@@ -220,7 +155,7 @@ Il progetto apre diverse direzioni di ricerca futura:
     \end{itemize}
 \end{enumerate}
 
-\subsection{Estensioni dell'Applicazione}
+\subsubsection{Estensioni dell'Applicazione}
 
 \begin{enumerate}
     \item \textbf{Altri environment}:
@@ -244,7 +179,7 @@ Il progetto apre diverse direzioni di ricerca futura:
     \end{itemize}
 \end{enumerate}
 
-\subsection{Analisi Teoriche}
+\subsubsection{Analisi Teoriche}
 
 \begin{enumerate}
     \item \textbf{Convergenza formale}:
@@ -267,37 +202,7 @@ Il progetto apre diverse direzioni di ricerca futura:
     \end{itemize}
 \end{enumerate}
 
-\subsection{Ottimizzazioni Ingegneristiche}
-
-\begin{enumerate}
-    \item \textbf{Efficienza computazionale}:
-    \begin{itemize}
-        \item Quantizzazione LLM (8-bit, 4-bit)
-        \item Distillazione di Helper in modello più piccolo
-        \item Caching intelligente delle risposte LLM
-    \end{itemize}
-    
-    \item \textbf{Parallelizzazione}:
-    \begin{itemize}
-        \item Training parallelo su multiple GPU
-        \item Batch processing chiamate LLM
-        \item Distributed RL con Helper centralizzato
-    \end{itemize}
-\end{enumerate}
-
-\section{Impatto e Applicazioni}
-
-\subsection{Contributo Scientifico}
-
-Questo lavoro contribuisce alla ricerca in:
-
-\begin{itemize}
-    \item \textbf{RL-LLM Integration}: Dimostra efficacia dell'integrazione in contesti diversi
-    \item \textbf{Sample Efficiency}: Mostra come LLM possono accelerare apprendimento RL
-    \item \textbf{Hierarchical Planning}: Approccio promettente per planning multi-step
-\end{itemize}
-
-\subsection{Applicazioni Pratiche}
+\subsubsection{Applicazioni Pratiche}
 
 L'architettura HeRoN potrebbe essere applicata a:
 
@@ -308,7 +213,7 @@ L'architettura HeRoN potrebbe essere applicata a:
     \item \textbf{Automazione industriale}: Sistemi che si adattano a nuove situazioni
 \end{itemize}
 
-\section{Considerazioni Finali}
+\subsection{Considerazioni Finali}
 
 Questo progetto ha dimostrato con successo che l'architettura HeRoN può essere estesa oltre il suo dominio originale (JRPG a turni) a environment più complessi come Crafter. L'integrazione tra Reinforcement Learning e Large Language Models offre vantaggi significativi in termini di:
 

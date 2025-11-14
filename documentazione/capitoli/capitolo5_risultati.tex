@@ -1,29 +1,8 @@
-\chapter{Risultati Sperimentali}
+\section{Risultati Sperimentali}
 
-\section{Setup Sperimentale}
+\subsection{Setup Sperimentale}
 
-\subsection{Configurazione Hardware e Software}
-
-Gli esperimenti sono stati eseguiti sulla seguente configurazione:
-
-\begin{table}[h]
-\centering
-\begin{tabular}{@{}ll@{}}
-\toprule
-\textbf{Componente} & \textbf{Specifiche} \\ \midrule
-CPU & AMD/Intel (specificare) \\
-GPU & NVIDIA CUDA-compatible (specificare) \\
-RAM & 16 GB \\
-OS & Windows 10/11 \\
-Python & 3.9 \\
-PyTorch & 2.x con CUDA \\
-LM Studio & v0.2.x \\
-LLM & Llama-3.2-3B-Instruct \\ \bottomrule
-\end{tabular}
-\caption{Configurazione sperimentale}
-\end{table}
-
-\subsection{Parametri di Training}
+\subsubsection{Parametri di Training}
 
 I seguenti parametri sono stati utilizzati per tutti gli esperimenti:
 
@@ -50,9 +29,9 @@ LLM cutoff & Episodio 600 \\ \bottomrule
 \caption{Parametri di training}
 \end{table}
 
-\section{Risultati Quantitativi}
+\subsection{Risultati Quantitativi}
 
-\subsection{Confronto tra Configurazioni}
+\subsubsection{Confronto tra Configurazioni}
 
 Sono state testate quattro configurazioni:
 
@@ -63,7 +42,7 @@ Sono state testate quattro configurazioni:
     \item \textbf{Random Policy}: Azioni casuali (baseline inferiore)
 \end{enumerate}
 
-\subsection{Achievement Score}
+\subsubsection{Achievement Score}
 
 La metrica principale è il numero medio di achievement sbloccati per episodio negli ultimi 100 episodi:
 
@@ -145,9 +124,9 @@ HeRoN Completo & \textbf{20.4} & 4.9 & \textbf{36.2} \\ \bottomrule
 \caption{Reward cumulativo - ultimi 100 episodi}
 \end{table}
 
-\section{Analisi della Convergenza}
+\subsection{Analisi della Convergenza}
 
-\subsection{Curve di Apprendimento}
+\subsubsection{Curve di Apprendimento}
 
 Le curve di apprendimento mostrano il numero medio di achievement su finestre di 50 episodi:
 
@@ -168,7 +147,7 @@ Le curve di apprendimento mostrano il numero medio di achievement su finestre di
     \item \textbf{Episodi 600-1000}: Solo DQN, stabilizzazione delle performance
 \end{itemize}
 
-\subsection{Velocità di Convergenza}
+\subsubsection{Velocità di Convergenza}
 
 Episodio in cui ciascuna configurazione raggiunge l'80\% del suo score massimo:
 
@@ -186,7 +165,7 @@ HeRoN Completo & \textbf{380} & \textbf{3.8} \\ \bottomrule
 
 HeRoN converge il \textbf{41.5\% più velocemente} rispetto al DQN baseline.
 
-\section{Analisi del Numero di Azioni per Sequenza}
+\subsection{Analisi del Numero di Azioni per Sequenza}
 
 È stato condotto un esperimento per determinare il numero ottimale di azioni per sequenza Helper:
 
@@ -211,7 +190,7 @@ HeRoN converge il \textbf{41.5\% più velocemente} rispetto al DQN baseline.
     \item Sequenze troppo lunghe (7-10) riducono la capacità di adattamento
 \end{itemize}
 
-\section{Analisi del Reward Shaping}
+\subsection{Analisi del Reward Shaping}
 
 Confronto tra reward nativo (sparse) e reward shaped (dense):
 
@@ -233,7 +212,7 @@ Il reward shaping:
     \item Riduce la varianza tra episodi
 \end{itemize}
 
-\section{Efficacia del Reviewer}
+\subsection{Efficacia del Reviewer}
 
 \subsection{Qualità dei Suggerimenti}
 
@@ -250,55 +229,31 @@ Analisi manuale di 100 casi mostra che il Reviewer:
 \textbf{Caso 1 - Priorità Salute}:
 \begin{verbatim}
 State: health=3/9, food=7/9
-Helper (prima): [move_right], [do], [move_right], [do], [noop]
-Reviewer: "WARNING: Health is critically low! Prioritize 
-           eating or sleeping before exploration."
-Helper (dopo): [eat_plant], [eat_plant], [sleep], [move_right], [do]
-Risultato: Sopravvivenza garantita, +1 achievement (sleep)
+Helper (prima): [move_right], [do], [move_right], [do],
+                [noop]
+Reviewer: "WARNING: Health is critically low!
+           Prioritize eating or sleeping
+           before exploration."
+Helper (dopo): [eat_plant], [eat_plant], [sleep],
+               [move_right], [do]
+Risultato: Sopravvivenza garantita, +1 achievement
+           (sleep)
 \end{verbatim}
 
 \textbf{Caso 2 - Sequenza Tecnologica}:
 \begin{verbatim}
 State: inventory=[wood:5], achievements=[collect_wood]
-Helper (prima): [move_left], [do], [move_right], [do], [noop]
+Helper (prima): [move_left], [do], [move_right], [do],
+                [noop]
 Reviewer: "You have enough wood. Focus on placing table 
            and crafting pickaxe for progression."
-Helper (dopo): [place_table], [make_wood_pickaxe], [move_right], 
-               [do], [noop]
-Risultato: +2 achievement (place_table, make_wood_pickaxe)
+Helper (dopo): [place_table], [make_wood_pickaxe],
+               [move_right], [do], [noop]
+Risultato: +2 achievement (place_table,
+           make_wood_pickaxe)
 \end{verbatim}
 
-\section{Analisi delle Prestazioni Computazionali}
-
-\subsection{Tempi di Esecuzione}
-
-\begin{table}[h]
-\centering
-\begin{tabular}{@{}lcc@{}}
-\toprule
-\textbf{Operazione} & \textbf{Tempo Medio} & \textbf{Frequenza} \\ \midrule
-DQN forward pass & 2 ms & Ogni step \\
-DQN training step & 8 ms & Ogni step \\
-Helper LLM call & 480 ms & ~40/episodio (early) \\
-Reviewer LLM call & 320 ms & ~40/episodio (early) \\
-Environment step & 5 ms & Ogni step \\ \midrule
-\textbf{Episodio (ep 1-100)} & 35 s & Include LLM \\
-\textbf{Episodio (ep 600+)} & 15 s & Solo DQN \\ \bottomrule
-\end{tabular}
-\caption{Performance computazionali}
-\end{table}
-
-\subsection{Training Time Totale}
-
-\begin{itemize}
-    \item \textbf{HeRoN Completo}: ~7 ore per 1000 episodi
-    \item \textbf{DQN + Helper}: ~6 ore per 1000 episodi
-    \item \textbf{DQN Baseline}: ~4 ore per 1000 episodi
-\end{itemize}
-
-L'overhead LLM è significativo ma accettabile considerando i miglioramenti in performance.
-
-\section{Analisi degli Errori}
+\subsection{Analisi degli Errori}
 
 \subsection{Errori Comuni del Helper}
 
@@ -336,7 +291,7 @@ Situazioni in cui HeRoN non riesce a progredire:
     \item \textbf{Gestione inventario pieno}: L'Helper non sempre considera i limiti dell'inventario
 \end{itemize}
 
-\section{Test di Significatività Statistica}
+\subsection{Test di Significatività Statistica}
 
 T-test per confrontare HeRoN vs DQN Baseline (100 episodi, 5 seed):
 
@@ -354,9 +309,9 @@ Achievement Coverage & 0.012 & +27.2\% & Sì (p < 0.05) \\ \bottomrule
 
 I miglioramenti di HeRoN sono \textbf{statisticamente significativi} con alta confidenza.
 
-\section{Confronto con Stato dell'Arte}
+\subsection{Confronto con Stato dell'Arte}
 
-Confronto con risultati riportati nell'articolo originale Crafter \cite{hafner2021crafter}:
+Confronto con risultati riportati nell'articolo originale Crafter:
 
 \begin{table}[h]
 \centering
@@ -381,7 +336,7 @@ DreamerV2 & 8.7 & Crafter paper \\
     \item L'integrazione LLM-RL mostra promettenti risultati
 \end{itemize}
 
-\section{Sintesi dei Risultati}
+\subsection{Sintesi dei Risultati}
 
 I risultati sperimentali dimostrano che:
 
