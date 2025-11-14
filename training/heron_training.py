@@ -18,6 +18,7 @@ import pandas as pd
 import re
 import os
 import sys
+import json
 from pathlib import Path
 
 # Add parent directory to path for imports
@@ -67,9 +68,10 @@ ACHIEVEMENT_ID_TO_NAME = {v: k for k, v in ACHIEVEMENT_NAME_TO_ID.items()}
 SERVER_API_HOST = "http://127.0.0.1:1234"
 lms.get_default_client(SERVER_API_HOST)
 
-# Device selection: MPS (Apple Silicon), CUDA (NVIDIA), or CPU
-device = torch.device("mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu")
+# Device selection: CUDA (NVIDIA) or CPU only (NO MPS - Crafter incompatible)
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"[Config] Using device: {device}")
+print(f"[Config] NOTE: MPS (Apple Silicon) not supported by Crafter environment")
 
 # Reviewer model configuration (PLACEHOLDER - update after F06 completion)
 REVIEWER_MODEL_PATH = "reviewer_retrained"  # TODO: Update after F06
@@ -97,13 +99,14 @@ class CrafterRewardShaper:
     """Augments sparse Crafter rewards with intrinsic bonuses for learning signal."""
     
     # Crafter action ID mapping
+    # OFFICIAL CRAFTER ACTION MAPPING (corrected)
     ACTION_NAMES = {
-        0: 'move_up', 1: 'move_down', 2: 'move_left', 3: 'move_right',
-        4: 'do', 5: 'sleep',
-        6: 'place_stone', 7: 'place_table', 8: 'place_furnace', 9: 'place_plant',
-        10: 'make_wood_pickaxe', 11: 'make_stone_pickaxe', 12: 'make_iron_pickaxe',
-        13: 'make_wood_sword', 14: 'make_stone_sword', 15: 'make_iron_sword',
-        16: 'noop'
+        0: 'noop',
+        1: 'move_left', 2: 'move_right', 3: 'move_up', 4: 'move_down',
+        5: 'do', 6: 'sleep',
+        7: 'place_stone', 8: 'place_table', 9: 'place_furnace', 10: 'place_plant',
+        11: 'make_wood_pickaxe', 12: 'make_stone_pickaxe', 13: 'make_iron_pickaxe',
+        14: 'make_wood_sword', 15: 'make_stone_sword', 16: 'make_iron_sword'
     }
     
     def __init__(self):
@@ -178,7 +181,7 @@ class CrafterRewardShaper:
         +0.1 for successful resource collection.
         Detect: inventory increase for wood, stone, iron, coal, diamond after [do] action
         """
-        if action != 4:  # [do] action
+        if action != 5:  # [do] action (ID 5, not 4!)
             return 0.0
         
         bonus = 0.0
@@ -261,18 +264,11 @@ class CrafterRewardShaper:
         """
         bonus = 0.0
         
-        # Map action IDs to tool usage scenarios
-        # 10-12: make pickaxes; 13-15: make swords (tool creation)
-        # Bonus: if tool was used to collect harder resource
-        
-        curr_inv = info.get('inventory', {})
-        prev_inv = previous_info.get('inventory', {})
-        
-        # Check if better-tier pickaxe was created/used
+        # Map action IDs to tool usage scenarios (UPDATED for correct mapping)
         tool_actions = {
-            10: ['wood_pickaxe'],  # make_wood_pickaxe
-            11: ['stone_pickaxe'],  # make_stone_pickaxe
-            12: ['iron_pickaxe'],   # make_iron_pickaxe
+            11: ['wood_pickaxe'],  # make_wood_pickaxe (was 10)
+            12: ['stone_pickaxe'],  # make_stone_pickaxe (was 11)
+            13: ['iron_pickaxe'],   # make_iron_pickaxe (was 12)
         }
         
         if action in tool_actions:
@@ -322,10 +318,17 @@ def train_dqn_crafter(episodes=100, batch_size=32, episode_length=1000, threshol
                      length=episode_length, seed=None)
     
     print(f"[Init] State size: {env.state_size}, Action size: {env.action_size}")
+    print(f"[Init] Using device: {device}")
     
-    # Initialize DQN Agent
+    # Initialize DQN Agent with consistent device
     print("[Init] Initializing DQN Agent...")
     agent = DQNAgent(env.state_size, env.action_size, load_model_path=None)
+    
+    # Verify agent device matches global device
+    print(f"[Init] DQN Agent device: {agent.device}")
+    if agent.device != device:
+        print(f"[WARNING] Device mismatch: Agent={agent.device}, Global={device}")
+        print(f"[WARNING] This may cause issues with Reviewer interaction")
     
     # Initialize CrafterHelper (LLM)
     print("[Init] Initializing CrafterHelper...")
