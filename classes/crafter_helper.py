@@ -28,26 +28,37 @@ class CrafterHelper:
     
     ACTION_ID_MAP = {v: k for k, v in ACTION_NAMES.items()}
     
-    # Sequence generation parameters
-    SEQUENCE_LENGTH = 5  # Generate sequences of 3-5 actions (use 5 as default)
-    MIN_SEQUENCE_LENGTH = 3
-    MAX_SEQUENCE_LENGTH = 5
-    
     # Re-planning thresholds
-    REPLAN_THRESHOLD_HP = 0.2  # Re-plan if health drops below 20%
+    REPLAN_THRESHOLD_HP = 0.3  # Re-plan if health drops below 30% (was 20%)
+    REPLAN_THRESHOLD_HP_CRITICAL = 5  # Re-plan immediately if health <= 5
     REPLAN_THRESHOLD_ACHIEVEMENT = True  # Re-plan on achievement unlock
     REPLAN_THRESHOLD_INVENTORY_CHANGE = True  # Re-plan on significant inventory change
     
-    def __init__(self, server_host="http://127.0.0.1:1234", model_name="llama-3.2-3b-instruct"):
+    def __init__(self, server_host="http://127.0.0.1:1234", model_name="llama-3.2-3b-instruct",
+                 min_sequence_length=3, max_sequence_length=5, default_sequence_length=4):
         """
         Initialize Crafter Helper with LM Studio connection.
         
         Args:
             server_host: LM Studio API host
             model_name: LLM model name (default: llama-3.2-3b-instruct)
+            min_sequence_length: Minimum actions per sequence (default: 3)
+            max_sequence_length: Maximum actions per sequence (default: 5)
+            default_sequence_length: Target sequence length for prompts (default: 4)
         """
         self.server_host = server_host
         self.model_name = model_name
+        
+        # Sequence generation parameters (configurable for F07 analysis)
+        self.min_sequence_length = min_sequence_length
+        self.max_sequence_length = max_sequence_length
+        self.default_sequence_length = default_sequence_length
+        
+        # Validate configuration
+        assert 1 <= min_sequence_length <= max_sequence_length <= 15, \
+            f"Invalid sequence bounds: min={min_sequence_length}, max={max_sequence_length}"
+        assert min_sequence_length <= default_sequence_length <= max_sequence_length, \
+            f"Default {default_sequence_length} must be within [{min_sequence_length}, {max_sequence_length}]"
         
         # Statistics
         self.sequence_count = 0
@@ -55,10 +66,10 @@ class CrafterHelper:
     
     def describe_crafter_state(self, state, info, previous_info=None):
         """
-        Convert 41-dim Crafter state vector + info dict to human-readable description.
+        Convert 43-dim Crafter state vector + info dict to human-readable description.
         
         Args:
-            state: 41-dim numpy array from CrafterEnv
+            state: 43-dim numpy array from CrafterEnv (16 inventory + 2 pos + 3 status + 22 achievements)
             info: info dict from env.step() containing inventory, achievements, player_pos
             previous_info: optional previous info dict for change detection
         
@@ -66,7 +77,7 @@ class CrafterHelper:
             str: Human-readable game state description
         """
         # Extract components from state vector
-        # State structure: [inventory(13), pos(2), status(3), achievements(22), fence(1)]
+        # State structure: [inventory(16), pos(2), status(3), achievements(22)]
         
         inventory = info.get('inventory', {})
         achievements = info.get('achievements', {})
@@ -75,8 +86,10 @@ class CrafterHelper:
         
         # Inventory summary (include only non-zero items)
         inventory_items = []
-        for key in ['health', 'food', 'drink', 'energy', 'wood', 'stone', 'iron', 
-                    'coal', 'diamond', 'wood_pickaxe', 'stone_pickaxe', 'iron_pickaxe', 'potion']:
+        for key in ['health', 'food', 'drink', 'energy', 'sapling',
+                    'wood', 'stone', 'coal', 'iron', 'diamond',
+                    'wood_pickaxe', 'stone_pickaxe', 'iron_pickaxe',
+                    'wood_sword', 'stone_sword', 'iron_sword']:
             val = inventory.get(key, 0)
             if val > 0:
                 inventory_items.append(f"{key}: {val}")
@@ -115,28 +128,55 @@ class CrafterHelper:
     
     def _determine_current_goal(self, inventory, achievements, unlocked):
         """Determine the next logical goal based on current state."""
-        # Simple heuristic: suggest next missing achievement tier
+        # PRIORITY 1: Survival - check health/food/drink first
+        health = inventory.get('health', 10)
+        food = inventory.get('food', 10)
+        drink = inventory.get('drink', 10)
         
+        if health <= 3:
+            return "URGENT: Restore health (eat/drink/sleep) - SURVIVAL CRITICAL!"
+        elif health <= 5:
+            return "Low health - prioritize eating, drinking, or sleeping"
+        elif food <= 2:
+            return "Low food - find and eat plants or hunt animals"
+        elif drink <= 2:
+            return "Low hydration - collect and drink water"
+        
+        # PRIORITY 2: Achievement progression
         if 'collect_wood' not in unlocked:
             return "Collect wood (primary resource)"
         elif 'collect_stone' not in unlocked:
             return "Collect stone (build structures)"
-        elif 'collect_iron' not in unlocked:
-            return "Collect iron (craft better tools)"
-        elif 'place_stone' not in unlocked:
-            return "Place stone (build structures)"
+        elif 'place_table' not in unlocked:
+            return "Place table (craft tools)"
         elif 'make_wood_pickaxe' not in unlocked:
-            return "Craft wood pickaxe (mine faster)"
-        elif 'make_stone_pickaxe' not in unlocked:
-            return "Craft stone pickaxe (mine stone)"
+            return "Craft wood pickaxe (mine stone/coal)"
         elif 'collect_coal' not in unlocked:
             return "Collect coal (fuel for smelting)"
+        elif 'collect_iron' not in unlocked:
+            return "Collect iron (advanced tools)"
+        elif 'place_stone' not in unlocked:
+            return "Place stone (build structures)"
+        elif 'make_stone_pickaxe' not in unlocked:
+            return "Craft stone pickaxe (mine iron)"
+        elif 'place_furnace' not in unlocked:
+            return "Place furnace (smelt iron)"
         elif 'make_iron_pickaxe' not in unlocked:
-            return "Craft iron pickaxe (mine iron)"
+            return "Craft iron pickaxe (mine diamond)"
         elif 'collect_diamond' not in unlocked:
             return "Collect diamond (highest tier resource)"
+        elif 'collect_sapling' not in unlocked:
+            return "Collect sapling (plant trees)"
+        elif 'place_plant' not in unlocked:
+            return "Place plant (grow resources)"
+        elif 'eat_plant' not in unlocked:
+            return "Eat plant (restore food)"
+        elif 'collect_drink' not in unlocked:
+            return "Collect drink (restore hydration)"
+        elif 'wake_up' not in unlocked:
+            return "Sleep and wake up (restore energy)"
         else:
-            return "Explore and unlock remaining achievements"
+            return "Explore and unlock remaining achievements (combat, crafting)"
     
     def generate_action_sequence(self, state, info, previous_info=None):
         """
@@ -184,40 +224,78 @@ class CrafterHelper:
     
     def _build_sequence_prompt(self, game_description):
         """Build LLM prompt requesting action sequence."""
+        # List of ONLY the 17 official valid actions
+        official_actions = [
+            "move_up", "move_down", "move_left", "move_right",
+            "do", "sleep",
+            "place_stone", "place_table", "place_furnace", "place_plant",
+            "make_wood_pickaxe", "make_stone_pickaxe", "make_iron_pickaxe",
+            "make_wood_sword", "make_stone_sword", "make_iron_sword",
+            "noop"
+        ]
+        
+        actions_list = ", ".join(official_actions)
+        
         prompt = (
-            "You are a strategic game assistant for a survival crafting game (Crafter).\n\n"
+            "You are a strategic AI for Crafter. PRIMARY GOALS:\n"
+            "1. STAY ALIVE - avoid death at all costs\n"
+            "2. MAXIMIZE achievements unlocked\n"
+            "3. Be efficient and strategic\n\n"
             
-            "Your task is to generate a sequence of 3-5 coherent actions to progress toward "
-            "unlocking achievements and survival.\n\n"
+            "=== ALLOWED ACTIONS ONLY ===\n"
+            f"{actions_list}\n\n"
+            
+            "COMMON MISTAKES:\n"
+            "❌ collect_wood, gather, mine → use [do]\n"
+            "❌ place_rock → use [place_stone]\n"
+            "❌ wait, rest → use [noop] or [sleep]\n\n"
             
             f"{game_description}\n\n"
             
-            "Generate a sequence of 3-5 actions:\n"
-            "1. Each action MUST be in square brackets, e.g., [move_right], [do], [make_wood_pickaxe]\n"
-            "2. Separate actions with commas\n"
-            "3. Actions should be COHERENT and STRATEGIC (e.g., move to wood → do → move away)\n"
-            "4. Explain your reasoning (max 100 words)\n\n"
+            "=== SURVIVAL FIRST ===\n"
+            "• Health ≤ 5? URGENT - use [sleep] to recover\n"
+            "• Food/drink low? Prioritize gathering\n"
+            "• Avoid enemies until armed\n\n"
             
-            "Example:\n"
-            "[move_right], [move_right], [do], [move_left], [noop]\n"
-            "Reasoning: Move right twice to reach the tree, collect wood with [do], "
-            "then move left once and wait.\n\n"
+            "=== ACHIEVEMENT PATH ===\n"
+            "Fast progression:\n"
+            "1. Wood: [do] near trees\n"
+            "2. Table: [place_table]\n"
+            "3. Pickaxe: [make_wood_pickaxe]\n"
+            "4. Stone: [do] near rocks\n"
+            "5. Continue: coal → iron → advanced\n\n"
             
-            "Now generate your sequence:\n"
+            f"TASK: Generate {self.min_sequence_length}-{self.max_sequence_length} actions (target: {self.default_sequence_length}) for:\n"
+            "• Survival (monitor health/food/drink)\n"
+            "• Next Priority achievement\n"
+            "• Strategic movement\n\n"
+            
+            f"FORMAT: [action1], [action2], ... [{self.default_sequence_length} actions total]\n"
+            "Brief reasoning (max 25 words).\n\n"
+            
+            "EXAMPLES:\n"
+            "• [move_right], [do], [move_left], [noop] - Get wood safely\n"
+            "• [place_table], [make_wood_pickaxe], [sleep] - Craft then rest\n"
+            "• [sleep], [sleep], [noop] - URGENT health recovery\n\n"
+            
+            "Generate (prioritize survival + achievements):\n"
         )
         return prompt
     
-    def parse_action_sequence(self, llm_response, max_length=5):
+    def parse_action_sequence(self, llm_response, max_length=None):
         """
         Parse bracketed actions from LLM response.
         
         Args:
             llm_response: String response from LLM
-            max_length: Maximum sequence length (default 5)
+            max_length: Maximum sequence length (default: use self.max_sequence_length)
         
         Returns:
             List[int]: Action IDs, or None if parsing fails
         """
+        if max_length is None:
+            max_length = self.max_sequence_length
+        
         # Extract all bracketed text
         matches = re.findall(r'\[(.*?)\]', llm_response)
         
@@ -241,8 +319,8 @@ class CrafterHelper:
                     print(f"[Parser] Unknown action: '{action_str}' - skipping")
         
         # Validate sequence length
-        if len(action_sequence) < self.MIN_SEQUENCE_LENGTH:
-            print(f"[Parser] Sequence too short ({len(action_sequence)} < {self.MIN_SEQUENCE_LENGTH})")
+        if len(action_sequence) < self.min_sequence_length:
+            print(f"[Parser] Sequence too short ({len(action_sequence)} < {self.min_sequence_length})")
             return None
         
         return action_sequence
@@ -305,8 +383,20 @@ class CrafterHelper:
         # Check for critical health (if applicable in Crafter)
         curr_health = info.get('inventory', {}).get('health', 10)
         prev_health = previous_info.get('inventory', {}).get('health', 10)
+        
+        # Immediate re-plan if health is critically low
+        if curr_health <= self.REPLAN_THRESHOLD_HP_CRITICAL:
+            print(f"[Replan] CRITICAL HEALTH: {curr_health} - immediate survival action needed!")
+            return True
+        
+        # Re-plan if health drops below threshold
         if curr_health < self.REPLAN_THRESHOLD_HP * 20:  # Assuming max health ~20
-            print(f"[Replan] Health critical: {curr_health}")
+            print(f"[Replan] Low health: {curr_health}")
+            return True
+        
+        # Re-plan if health is decreasing rapidly
+        if curr_health < prev_health - 2:
+            print(f"[Replan] Rapid health loss: {prev_health} → {curr_health}")
             return True
         
         # Check for significant inventory changes
@@ -353,7 +443,7 @@ class SequenceExecutor:
         Execute next action from sequence, or get new sequence, or use DQN fallback.
         
         Args:
-            state: current state (41-dim array)
+            state: current state (43-dim array)
             info: current info dict
             previous_info: previous info dict
         

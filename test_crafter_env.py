@@ -2,7 +2,7 @@
 Test script per verificare integrazione CrafterEnv con DQN.
 Testa:
 1. CrafterEnv creation e feature extraction
-2. DQNAgent compatibility con state_size=41
+2. DQNAgent compatibility con state_size=43 (16 inventory + 2 pos + 3 status + 22 achievements)
 3. 5 episodi di 100 steps con azioni random
 4. Verifica shape, rewards, done flags
 """
@@ -33,7 +33,7 @@ def test_crafter_env():
         return False
     
     # === Test 2: Initialize DQN Agent ===
-    print("\n[2/5] Initializing DQNAgent with state_size=41...")
+    print("\n[2/5] Initializing DQNAgent with state_size=43...")
     try:
         agent = DQNAgent(
             state_size=env.get_state_size(),
@@ -43,7 +43,7 @@ def test_crafter_env():
         print(f"✓ DQNAgent initialized")
         print(f"  - State size: {agent.state_size}")
         print(f"  - Action size: {agent.action_size}")
-        print(f"  - Model layers: 41 → 128 → 128 → 64 → 17")
+        print(f"  - Model layers: 43 → 128 → 128 → 64 → 17")
     except Exception as e:
         print(f"✗ Failed to initialize DQNAgent: {e}")
         return False
@@ -52,11 +52,11 @@ def test_crafter_env():
     print("\n[3/5] Testing env.reset()...")
     try:
         state = env.reset()
-        print(f"✓ Environment reset successfully")
+        print(f"\u2713 Environment reset successfully")
         print(f"  - State shape: {state.shape}")
         print(f"  - State dtype: {state.dtype}")
         print(f"  - State sample: {state[:5]}...")
-        assert state.shape == (41,), f"Expected shape (41,), got {state.shape}"
+        assert state.shape == (43,), f"Expected shape (43,), got {state.shape}"
         assert state.dtype == np.float32, f"Expected float32, got {state.dtype}"
     except Exception as e:
         print(f"✗ Failed env.reset(): {e}")

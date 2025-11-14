@@ -381,9 +381,11 @@ class ReportGenerator:
         df = pd.DataFrame(rows)
         
         if output_file is None:
-            output_file = f"{self.output_dir}/summary_comparison_table.csv"
+            output_file = f"{self.output_dir}/summary_comparison_table.jsonl"
         
-        df.to_csv(output_file, index=False)
+        with open(output_file, 'w', encoding='utf-8') as f:
+            for _, row in df.iterrows():
+                f.write(json.dumps(row.to_dict(), ensure_ascii=False) + "\n")
         print(f"[ReportGenerator] Generated summary table: {output_file}")
         
         return df

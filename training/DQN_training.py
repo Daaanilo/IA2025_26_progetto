@@ -138,19 +138,81 @@ def plot_baseline_metrics(rewards, native_rewards, shaped_bonus, achievements, m
     print(f"[Baseline DQN] Saved {output_prefix}_dashboard.png")
 
 
-def export_baseline_metrics_csv(rewards, native_rewards, shaped_bonus, achievements, moves,
-                               output_file="baseline_crafter_dqn_metrics.csv"):
-    """Export baseline metrics to CSV."""
-    df = pd.DataFrame({
-        'episode': range(1, len(rewards) + 1),
-        'shaped_reward': rewards,
-        'native_reward': native_rewards,
-        'shaped_bonus': shaped_bonus,
-        'achievements_unlocked': achievements,
-        'moves': moves
-    })
-    df.to_csv(output_file, index=False)
+def export_baseline_metrics_jsonl(rewards, native_rewards, shaped_bonus, achievements, moves,
+                               output_file="baseline_crafter_dqn_metrics.jsonl"):
+    """Export baseline metrics to JSONL."""
+    import json
+    with open(output_file, 'w', encoding='utf-8') as f:
+        for i in range(len(rewards)):
+            record = {
+                'episode': i + 1,
+                'shaped_reward': rewards[i],
+                'native_reward': native_rewards[i],
+                'shaped_bonus': shaped_bonus[i],
+                'achievements_unlocked': achievements[i],
+                'moves': moves[i]
+            }
+            f.write(json.dumps(record) + "\n")
     print(f"[Baseline DQN] Exported metrics to {output_file}")
+
+
+def calculate_shaped_reward(native_reward, info, previous_info, achievements_this_step):
+    """
+    OTTIMIZZATO: Reward shaping avanzato per accelerare apprendimento.
+    
+    Bonus per:
+    - Achievements sbloccati (+1.0 ciascuno)
+    - Risorse raccolte (+0.1 per ogni risorsa)
+    - Crafting tools/weapons (+0.3)
+    - Sopravvivenza (health, food, drink) (+0.05)
+    - Esplorazione (+0.01 per nuove posizioni)
+    """
+    shaped_bonus = 0.0
+    
+    # Base achievement bonus
+    shaped_bonus += achievements_this_step * 1.0
+    
+    if previous_info is None:
+        return native_reward + shaped_bonus
+    
+    prev_inv = previous_info.get('inventory', {})
+    curr_inv = info.get('inventory', {})
+    
+    # Bonus risorse raccolte
+    resources = ['wood', 'stone', 'coal', 'iron', 'diamond', 'sapling']
+    for resource in resources:
+        prev_val = prev_inv.get(resource, 0)
+        curr_val = curr_inv.get(resource, 0)
+        if curr_val > prev_val:
+            shaped_bonus += 0.1 * (curr_val - prev_val)
+    
+    # Bonus crafting tools/weapons
+    tools = ['wood_pickaxe', 'stone_pickaxe', 'iron_pickaxe',
+             'wood_sword', 'stone_sword', 'iron_sword']
+    for tool in tools:
+        prev_val = prev_inv.get(tool, 0)
+        curr_val = curr_inv.get(tool, 0)
+        if curr_val > prev_val:
+            shaped_bonus += 0.3
+    
+    # Bonus sopravvivenza (health, food, drink positivi)
+    health = curr_inv.get('health', 0)
+    food = curr_inv.get('food', 0)
+    drink = curr_inv.get('drink', 0)
+    
+    if health > 5:  # Bonus se health sopra soglia
+        shaped_bonus += 0.02
+    if food > 5:
+        shaped_bonus += 0.02
+    if drink > 5:
+        shaped_bonus += 0.02
+    
+    # Penalizzazione morte (health a zero)
+    if health == 0 and prev_inv.get('health', 0) > 0:
+        shaped_bonus -= 1.0
+    
+    shaped_reward = native_reward + shaped_bonus
+    return shaped_reward, shaped_bonus
 
 
 def train_dqn_baseline(episodes=50, batch_size=32, episode_length=500, load_model_path=None):
@@ -170,7 +232,7 @@ def train_dqn_baseline(episodes=50, batch_size=32, episode_length=500, load_mode
     print(f"[Baseline DQN] State size: {env.state_size}, Action size: {env.action_size}")
     
     # Initialize DQN agent
-    agent = DQNAgent(env.state_size, env.action_size, load_model_path)
+    agent = DQNAgent(env.state_size, env.action_size, load_model_path=load_model_path)
     print(f"[Baseline DQN] DQN Agent initialized")
     
     # Initialize evaluation system
@@ -196,10 +258,11 @@ def train_dqn_baseline(episodes=50, batch_size=32, episode_length=500, load_mode
         episode_achievements = 0
         episode_moves = 0
         previous_achievements = len(info.get('achievements', {}))
+        previous_info = info.copy()  # Per reward shaping avanzato
         
         for step in range(episode_length):
             # DQN selects action (no LLM)
-            action = agent.act(state)
+            action = agent.act(state, env)
             
             # Execute action in environment
             next_state, native_reward, done, info = env.step(action)
@@ -210,12 +273,17 @@ def train_dqn_baseline(episodes=50, batch_size=32, episode_length=500, load_mode
             achievements_this_step = max(0, current_achievements - previous_achievements)
             previous_achievements = current_achievements
             
-            # Simple reward shaping: bonus for achievements
-            shaped_reward = native_reward + (0.5 * achievements_this_step)
-            shaped_bonus = shaped_reward - native_reward
+            # OTTIMIZZATO: Reward shaping avanzato
+            shaped_reward, shaped_bonus = calculate_shaped_reward(
+                native_reward, info, previous_info, achievements_this_step
+            )
             
             # Remember experience
             agent.remember(state, action, shaped_reward, next_state, done)
+            
+            # Train DQN when sufficient memory samples available
+            if len(agent.memory) > batch_size:
+                agent.replay(batch_size, env)
             
             # Update metrics
             episode_reward += shaped_reward
@@ -224,18 +292,11 @@ def train_dqn_baseline(episodes=50, batch_size=32, episode_length=500, load_mode
             episode_achievements += achievements_this_step
             episode_moves += 1
             
+            previous_info = info.copy()
             state = next_state
             
             if done:
                 break
-        
-        # Train on batch
-        if len(agent.memory) > batch_size:
-            agent.replay(batch_size)
-        
-        # Decay exploration
-        if agent.epsilon > agent.epsilon_min:
-            agent.epsilon *= agent.epsilon_decay
         
         # Record episode metrics
         rewards_per_episode.append(episode_reward)
@@ -275,10 +336,10 @@ def train_dqn_baseline(episodes=50, batch_size=32, episode_length=500, load_mode
     
     # Export metrics
     print("[Baseline DQN] Exporting metrics...")
-    export_baseline_metrics_csv(
+    export_baseline_metrics_jsonl(
         rewards_per_episode, native_rewards_per_episode, shaped_bonus_per_episode,
         achievements_per_episode, moves_per_episode,
-        output_file="baseline_crafter_dqn_metrics.csv"
+        output_file="baseline_crafter_dqn_metrics.jsonl"
     )
     
     # Generate plots

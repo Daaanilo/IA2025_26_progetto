@@ -56,15 +56,28 @@ class AchievementTracker:
         self.unlock_count = [0] * num_achievements  # Total times each was unlocked
         self.total_unlocks = 0
         self.unique_achievements_unlocked = set()
+        self.episode_achievement_matrix = []  # List of [num_achievements] arrays per episode
+        self.current_episode_count = -1  # Track current episode for matrix building
     
     def track_episode(self, episode: int, achievements_unlocked: set):
         """Record achievement unlocks for an episode."""
+        # Initialize episode achievement array if new episode
+        if episode > self.current_episode_count:
+            # Fill missing episodes with zeros
+            while len(self.episode_achievement_matrix) <= episode:
+                self.episode_achievement_matrix.append([0] * self.num_achievements)
+            self.current_episode_count = episode
+        
+        # Track achievements for this episode
         for ach_id in achievements_unlocked:
             if 0 <= ach_id < self.num_achievements:
                 self.unlock_episodes[ach_id].append(episode)
                 self.unlock_count[ach_id] += 1
                 self.total_unlocks += 1
                 self.unique_achievements_unlocked.add(ach_id)
+                
+                # Increment episode achievement matrix
+                self.episode_achievement_matrix[episode][ach_id] += 1
                 
                 if self.first_unlock_episode[ach_id] is None:
                     self.first_unlock_episode[ach_id] = episode
@@ -77,6 +90,12 @@ class AchievementTracker:
         # Achievement distribution
         unlocked_counts = [c for c in self.unlock_count if c > 0]
         
+        # Calculate cumulative unlock matrix (for plotting)
+        cumulative_matrix = self._compute_cumulative_matrix()
+        
+        # Compute per-achievement statistics across episodes
+        per_ach_stats = self._compute_per_achievement_episode_stats(cumulative_matrix)
+        
         return {
             'total_possible_achievements': total_possible,
             'unique_achievements_unlocked': unique_unlocked,
@@ -86,7 +105,10 @@ class AchievementTracker:
             'max_unlocks_per_achievement': max(self.unlock_count) if self.unlock_count else 0,
             'min_unlocks_per_achievement': min(c for c in self.unlock_count if c > 0) if unlocked_counts else 0,
             'never_unlocked': total_possible - unique_unlocked,
-            'per_achievement_stats': self._get_per_achievement_stats()
+            'per_achievement_stats': self._get_per_achievement_stats(),
+            'episode_achievement_matrix': self.episode_achievement_matrix,  # Raw matrix
+            'cumulative_achievement_matrix': cumulative_matrix,  # Cumulative for plotting
+            'per_achievement_episode_stats': per_ach_stats  # Min/max/mean per achievement
         }
     
     def _get_per_achievement_stats(self) -> List[Dict]:
@@ -99,6 +121,43 @@ class AchievementTracker:
                 'first_unlock_episode': self.first_unlock_episode[ach_id],
                 'first_unlock_move': None  # Populated in EvaluationSystem
             })
+        return stats
+    
+    def _compute_cumulative_matrix(self) -> List[List[int]]:
+        """Compute cumulative achievement matrix for plotting progression."""
+        if not self.episode_achievement_matrix:
+            return []
+        
+        num_episodes = len(self.episode_achievement_matrix)
+        cumulative = [[0] * self.num_achievements for _ in range(num_episodes)]
+        
+        for ep in range(num_episodes):
+            for ach_id in range(self.num_achievements):
+                prev_count = cumulative[ep-1][ach_id] if ep > 0 else 0
+                cumulative[ep][ach_id] = prev_count + self.episode_achievement_matrix[ep][ach_id]
+        
+        return cumulative
+    
+    def _compute_per_achievement_episode_stats(self, cumulative_matrix: List[List[int]]) -> List[Dict]:
+        """Compute min/max/mean unlock counts per achievement across episodes for shaded plotting."""
+        if not cumulative_matrix:
+            return []
+        
+        stats = []
+        num_episodes = len(cumulative_matrix)
+        
+        for ach_id in range(self.num_achievements):
+            # Extract this achievement's trajectory across episodes
+            trajectory = [cumulative_matrix[ep][ach_id] for ep in range(num_episodes)]
+            
+            stats.append({
+                'achievement_id': ach_id,
+                'min_unlock_count': min(trajectory) if trajectory else 0,
+                'max_unlock_count': max(trajectory) if trajectory else 0,
+                'mean_unlock_count': np.mean(trajectory) if trajectory else 0,
+                'final_unlock_count': trajectory[-1] if trajectory else 0
+            })
+        
         return stats
 
 
@@ -362,10 +421,12 @@ class EvaluationSystem:
         data = [asdict(m) for m in self.metrics_list]
         return pd.DataFrame(data)
     
-    def export_to_csv(self, filepath: str):
-        """Export metrics to CSV file."""
-        df = self.export_metrics_dataframe()
-        df.to_csv(filepath, index=False)
+    def export_to_jsonl(self, filepath: str):
+        """Export metrics to JSONL file (one JSON object per line)."""
+        with open(filepath, 'w', encoding='utf-8') as f:
+            for metric in self.metrics_list:
+                record = asdict(metric)
+                f.write(json.dumps(record, ensure_ascii=False) + "\n")
         print(f"[EvaluationSystem] Exported metrics to {filepath}")
     
     def export_summary_json(self, filepath: str):
@@ -481,8 +542,10 @@ class BaselineComparator:
         print(df.to_string(index=False))
         print("="*120 + "\n")
     
-    def export_comparison_csv(self, filepath: str):
-        """Export comparison to CSV."""
+    def export_comparison_jsonl(self, filepath: str):
+        """Export comparison to JSONL."""
         df = self.generate_comparison_table()
-        df.to_csv(filepath, index=False)
+        with open(filepath, 'w', encoding='utf-8') as f:
+            for _, row in df.iterrows():
+                f.write(json.dumps(row.to_dict(), ensure_ascii=False) + "\n")
         print(f"[BaselineComparator] Exported comparison to {filepath}")

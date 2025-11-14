@@ -9,14 +9,15 @@ class CrafterEnv:
     Wrapper per l'environment Crafter che estrae feature semantiche da info dict
     e le converte in vettore numerico compatibile con DQN.
     
-    Feature vector (41 dims):
-    - Inventario (13 dims): health, food, drink, energy, wood, stone, iron, coal, diamond, 
-                            wood_pickaxe, stone_pickaxe, iron_pickaxe, potion
+    Feature vector (43 dims) - Official Crafter Specification:
+    - Inventario (16 dims): health, food, drink, energy, sapling, wood, stone, coal, iron, diamond,
+                            wood_pickaxe, stone_pickaxe, iron_pickaxe,
+                            wood_sword, stone_sword, iron_sword
     - Posizione giocatore (2 dims): x, y
-    - Status (4 dims): discount (health/dead), sleeping, daylight, fence_count
+    - Status (3 dims): discount (alive/dead), sleeping, daylight
     - Achievements (22 dims): one-hot encoding per ogni achievement
     
-    Totale: 13 + 2 + 4 + 22 = 41 dims
+    Totale: 16 + 2 + 3 + 22 = 43 dims
     """
     
     def __init__(self, 
@@ -59,20 +60,20 @@ class CrafterEnv:
             'noop'                                                # 16
         ]
         
-        self.state_size = 41  # Aggiornato dopo primo reset
+        self.state_size = 43  # 16 inventory + 2 position + 3 status + 22 achievements
         self.action_size = 17
         self._last_info = None
         
     def reset(self):
         """
-        Reset environment e ritorna stato iniziale come vettore numerico.
+        Reset environment e ritorna stato iniziale come vettore numerico + info dict.
         """
         obs = self.env.reset()
         # Dummy step per ottenere info dict
         self._last_info = self._get_dummy_info()
         state = self._extract_state()
         self.state_size = len(state)
-        return state
+        return state, self._last_info
     
     def step(self, action):
         """
@@ -93,22 +94,24 @@ class CrafterEnv:
     def _extract_state(self):
         """
         Estrai feature semantiche da info dict e stato interno.
-        Ritorna vettore numpy (41 dims).
+        Ritorna vettore numpy (43 dims).
         """
         info = self._last_info
         if info is None:
-            return np.zeros(41, dtype=np.float32)
+            return np.zeros(43, dtype=np.float32)
         
         state_parts = []
         
-        # === Inventario (13 dims) ===
+        # === Inventario (16 dims) - Official Crafter Items ===
         inventory = info.get('inventory', {})
         inventory_keys = [
-            'health', 'food', 'drink', 'energy', 'wood', 'stone', 'iron', 
-            'coal', 'diamond', 'wood_pickaxe', 'stone_pickaxe', 'iron_pickaxe', 'potion'
+            'health', 'food', 'drink', 'energy', 'sapling',
+            'wood', 'stone', 'coal', 'iron', 'diamond',
+            'wood_pickaxe', 'stone_pickaxe', 'iron_pickaxe',
+            'wood_sword', 'stone_sword', 'iron_sword'
         ]
         
-        # Alcuni items potrebbe non essere in inventory, usa default 0
+        # Alcuni items potrebbero non essere in inventory, usa default 0
         for key in inventory_keys:
             state_parts.append(float(inventory.get(key, 0)))
         
@@ -123,7 +126,7 @@ class CrafterEnv:
         discount = info.get('discount', 1.0)
         state_parts.append(float(discount))
         
-        # Sleeping status (accedi direttamente)
+        # Sleeping status
         sleeping = float(self._env._player.sleeping) if hasattr(self._env, '_player') else 0.0
         state_parts.append(sleeping)
         
@@ -131,25 +134,24 @@ class CrafterEnv:
         daylight = float(self._env._world.daylight) if hasattr(self._env, '_world') else 0.5
         state_parts.append(daylight)
         
-        # === Achievements (22 dims) ===
+        # === Achievements (22 dims) - Official Crafter Achievements ===
         # One-hot: 1.0 se achievement sbloccato (count >= 1), 0.0 altrimenti
         achievements = info.get('achievements', {})
         achievement_keys = [
-            'collect_wood', 'collect_stone', 'collect_iron', 'collect_coal', 'collect_diamond',
-            'collect_food', 'collect_drink', 'collect_fence',
-            'place_stone', 'place_table', 'place_furnace', 'place_plant',
-            'make_wood_pickaxe', 'make_stone_pickaxe', 'make_iron_pickaxe',
-            'make_wood_sword', 'make_stone_sword', 'make_iron_sword',
-            'eat_plant', 'eat_cow', 'defeat_zombie', 'defeat_skeleton'
+            'collect_coal', 'collect_diamond', 'collect_drink', 'collect_iron',
+            'collect_sapling', 'collect_stone', 'collect_wood',
+            'defeat_skeleton', 'defeat_zombie',
+            'eat_cow', 'eat_plant',
+            'make_iron_pickaxe', 'make_iron_sword',
+            'make_stone_pickaxe', 'make_stone_sword',
+            'make_wood_pickaxe', 'make_wood_sword',
+            'place_furnace', 'place_plant', 'place_stone', 'place_table',
+            'wake_up'
         ]
         
         for key in achievement_keys:
             achievement_value = achievements.get(key, 0)
             state_parts.append(1.0 if achievement_value >= 1 else 0.0)
-        
-        # === Fence count (aggiunto manualmente) ===
-        fence_count = float(inventory.get('fence', 0))
-        state_parts.append(fence_count)
         
         state = np.array(state_parts, dtype=np.float32)
         return state
@@ -227,6 +229,6 @@ class CrafterEnvRecorded(CrafterEnv):
             'noop'
         ]
         
-        self.state_size = 41
+        self.state_size = 43
         self.action_size = 17
         self._last_info = None

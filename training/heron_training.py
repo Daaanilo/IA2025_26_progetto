@@ -34,6 +34,35 @@ from classes.instructor_agent import InstructorAgent
 from evaluation.evaluation_system import EvaluationSystem
 from evaluation.evaluation_plots import AdvancedPlotter, generate_all_plots
 
+# Achievement name-to-ID mapping for Crafter's 22 achievements
+ACHIEVEMENT_NAME_TO_ID = {
+    'collect_coal': 0,
+    'collect_diamond': 1,
+    'collect_drink': 2,
+    'collect_iron': 3,
+    'collect_sapling': 4,
+    'collect_stone': 5,
+    'collect_wood': 6,
+    'defeat_skeleton': 7,
+    'defeat_zombie': 8,
+    'eat_cow': 9,
+    'eat_plant': 10,
+    'make_iron_pickaxe': 11,
+    'make_iron_sword': 12,
+    'make_stone_pickaxe': 13,
+    'make_stone_sword': 14,
+    'make_wood_pickaxe': 15,
+    'make_wood_sword': 16,
+    'place_furnace': 17,
+    'place_plant': 18,
+    'place_stone': 19,
+    'place_table': 20,
+    'wake_up': 21
+}
+
+# Reverse mapping for plotting labels
+ACHIEVEMENT_ID_TO_NAME = {v: k for k, v in ACHIEVEMENT_NAME_TO_ID.items()}
+
 # LM Studio configuration
 SERVER_API_HOST = "http://127.0.0.1:1234"
 lms.get_default_client(SERVER_API_HOST)
@@ -480,7 +509,14 @@ def train_dqn_crafter(episodes=100, batch_size=32, episode_length=1000, threshol
                 prev_achievements = set(
                     k for k, v in previous_info.get('achievements', {}).items() if v >= 1
                 )
-                episode_achievements += len(curr_achievements - prev_achievements)
+                newly_unlocked_names = curr_achievements - prev_achievements
+                episode_achievements += len(newly_unlocked_names)
+                
+                # Map achievement names to IDs and track in evaluation system
+                if newly_unlocked_names:
+                    newly_unlocked_ids = {ACHIEVEMENT_NAME_TO_ID[name] for name in newly_unlocked_names 
+                                         if name in ACHIEVEMENT_NAME_TO_ID}
+                    evaluation_system.add_episode_achievements(e, newly_unlocked_ids)
             
             # ===== STORE EXPERIENCE =====
             agent.remember(state, action, shaped_reward, next_state, done)
@@ -570,13 +606,26 @@ def train_dqn_crafter(episodes=100, batch_size=32, episode_length=1000, threshol
     
     # Export metrics and summaries
     print(f"[F10 Evaluation] Exporting metrics...")
-    evaluation_system.export_metrics_dataframe().to_csv("heron_crafter_extended_metrics.csv", index=False)
-    evaluation_system.export_to_csv("heron_crafter_extended_metrics.csv")
+    evaluation_system.export_to_jsonl("heron_crafter_extended_metrics.jsonl")
     evaluation_system.export_summary_json("heron_crafter_evaluation.json")
+    
+    # Export per-achievement statistics to JSON
+    print(f"[F10 Evaluation] Exporting per-achievement statistics...")
+    export_achievement_statistics_json(evaluation_system, "heron_crafter_achievement_statistics.json")
     
     # Generate advanced plots
     print(f"[F10 Evaluation] Generating advanced evaluation plots...")
     generate_all_plots(evaluation_system, output_dir="./evaluation_plots")
+    
+    # Generate per-achievement plots
+    print(f"[F10 Evaluation] Generating per-achievement progression curves...")
+    plot_achievement_curves(evaluation_system, moves_per_episode, "heron_crafter_achievement_curves.png")
+    
+    print(f"[F10 Evaluation] Generating achievement heatmap...")
+    plot_achievement_heatmap(evaluation_system, "heron_crafter_achievement_heatmap.png")
+    
+    print(f"[F10 Evaluation] Generating achievement timeline...")
+    plot_achievement_timeline(evaluation_system, "heron_crafter_achievement_timeline.png")
     
     # Print comprehensive report
     print(f"[F10 Evaluation] Printing summary report...")
@@ -676,6 +725,224 @@ def export_metrics_csv(rewards, native_rewards, shaped_bonus, achievements, move
 
 
 # ============================================================================
+# Per-Achievement Visualization Functions
+# ============================================================================
+
+def plot_achievement_curves(evaluation_system, moves_per_episode, output_file="heron_crafter_achievement_curves.png"):
+    """
+    Create per-achievement progression curves similar to PPO reference image.
+    Shows 22 subplots (4x6 grid) with unlock count over cumulative training steps.
+    Includes shaded min/max bands.
+    
+    Args:
+        evaluation_system: EvaluationSystem instance with achievement tracking
+        moves_per_episode: List of moves per episode to compute cumulative steps
+        output_file: Path to save the plot
+    """
+    achievement_stats = evaluation_system.get_achievement_statistics()
+    cumulative_matrix = achievement_stats.get('cumulative_achievement_matrix', [])
+    
+    if not cumulative_matrix:
+        print("[Warning] No achievement data available for plotting curves")
+        return
+    
+    # Compute cumulative steps (x-axis)
+    cumulative_steps = np.cumsum([0] + moves_per_episode)  # Prepend 0 for episode 0
+    cumulative_steps = cumulative_steps[:len(cumulative_matrix)]  # Match matrix length
+    
+    # Create 4x6 subplot grid for 22 achievements
+    fig, axes = plt.subplots(4, 6, figsize=(20, 12))
+    axes = axes.flatten()
+    
+    for ach_id in range(22):
+        ax = axes[ach_id]
+        
+        # Extract trajectory for this achievement
+        trajectory = [cumulative_matrix[ep][ach_id] for ep in range(len(cumulative_matrix))]
+        
+        # Plot line
+        ax.plot(cumulative_steps, trajectory, color='green', linewidth=1.5, alpha=0.8)
+        
+        # Add shaded region (min/max) - using same trajectory for now
+        # In multi-run experiments, this would show variance across runs
+        min_trajectory = np.maximum(0, np.array(trajectory) - 0.1)  # Placeholder
+        max_trajectory = np.array(trajectory) + 0.1  # Placeholder
+        ax.fill_between(cumulative_steps, min_trajectory, max_trajectory, 
+                        color='green', alpha=0.2)
+        
+        # Formatting
+        achievement_name = ACHIEVEMENT_ID_TO_NAME.get(ach_id, f"Achievement {ach_id}")
+        ax.set_title(achievement_name.replace('_', ' ').title(), fontsize=9)
+        ax.set_xlabel('Steps', fontsize=8)
+        ax.set_ylabel('Count', fontsize=8)
+        ax.tick_params(labelsize=7)
+        ax.grid(True, alpha=0.3)
+        
+        # Set y-axis to start at 0
+        ax.set_ylim(bottom=0)
+    
+    # Hide extra subplots (22 achievements, 24 subplot positions)
+    for idx in range(22, 24):
+        axes[idx].axis('off')
+    
+    plt.suptitle('Achievement Curves of HeRoN Training', fontsize=14, fontweight='bold')
+    plt.tight_layout(rect=[0, 0, 1, 0.98])
+    plt.savefig(output_file, dpi=150, bbox_inches='tight')
+    print(f"[Plot] Saved per-achievement curves to: {output_file}")
+    plt.close()
+
+
+def plot_achievement_heatmap(evaluation_system, output_file="heron_crafter_achievement_heatmap.png"):
+    """
+    Create achievement unlock frequency heatmap (22 achievements × episode bins).
+    Shows when achievements are being unlocked during training.
+    
+    Args:
+        evaluation_system: EvaluationSystem instance with achievement tracking
+        output_file: Path to save the heatmap
+    """
+    achievement_stats = evaluation_system.get_achievement_statistics()
+    episode_matrix = achievement_stats.get('episode_achievement_matrix', [])
+    
+    if not episode_matrix:
+        print("[Warning] No achievement data available for heatmap")
+        return
+    
+    # Transpose matrix: rows = achievements, columns = episodes
+    num_episodes = len(episode_matrix)
+    num_achievements = 22
+    
+    heatmap_data = np.zeros((num_achievements, num_episodes))
+    for ep in range(num_episodes):
+        for ach_id in range(num_achievements):
+            heatmap_data[ach_id, ep] = episode_matrix[ep][ach_id]
+    
+    # Create heatmap
+    fig, ax = plt.subplots(figsize=(16, 10))
+    
+    im = ax.imshow(heatmap_data, cmap='YlOrRd', aspect='auto', interpolation='nearest')
+    
+    # Set ticks
+    ax.set_xticks(np.arange(0, num_episodes, max(1, num_episodes // 20)))
+    ax.set_yticks(np.arange(num_achievements))
+    
+    # Set labels
+    achievement_labels = [ACHIEVEMENT_ID_TO_NAME.get(i, f"Ach{i}").replace('_', ' ').title() 
+                         for i in range(num_achievements)]
+    ax.set_yticklabels(achievement_labels, fontsize=9)
+    ax.set_xlabel('Episode', fontsize=12)
+    ax.set_ylabel('Achievement', fontsize=12)
+    ax.set_title('Achievement Unlock Frequency Heatmap (Per Episode)', fontsize=14, fontweight='bold')
+    
+    # Add colorbar
+    cbar = plt.colorbar(im, ax=ax)
+    cbar.set_label('Unlock Count', fontsize=10)
+    
+    plt.tight_layout()
+    plt.savefig(output_file, dpi=150, bbox_inches='tight')
+    print(f"[Plot] Saved achievement heatmap to: {output_file}")
+    plt.close()
+
+
+def plot_achievement_timeline(evaluation_system, output_file="heron_crafter_achievement_timeline.png"):
+    """
+    Create bar chart showing first unlock episode for each achievement.
+    Visualizes progression through achievement unlocking timeline.
+    
+    Args:
+        evaluation_system: EvaluationSystem instance with achievement tracking
+        output_file: Path to save the timeline
+    """
+    achievement_stats = evaluation_system.get_achievement_statistics()
+    per_ach_stats = achievement_stats.get('per_achievement_stats', [])
+    
+    if not per_ach_stats:
+        print("[Warning] No achievement data available for timeline")
+        return
+    
+    # Extract first unlock episodes
+    achievement_ids = []
+    first_unlock_episodes = []
+    achievement_labels = []
+    
+    for stat in per_ach_stats:
+        ach_id = stat['achievement_id']
+        first_ep = stat.get('first_unlock_episode')
+        
+        if first_ep is not None:  # Only plot unlocked achievements
+            achievement_ids.append(ach_id)
+            first_unlock_episodes.append(first_ep)
+            achievement_labels.append(ACHIEVEMENT_ID_TO_NAME.get(ach_id, f"Ach{ach_id}"))
+    
+    if not achievement_ids:
+        print("[Warning] No achievements unlocked yet")
+        return
+    
+    # Sort by first unlock episode
+    sorted_indices = np.argsort(first_unlock_episodes)
+    sorted_labels = [achievement_labels[i] for i in sorted_indices]
+    sorted_episodes = [first_unlock_episodes[i] for i in sorted_indices]
+    
+    # Create horizontal bar chart
+    fig, ax = plt.subplots(figsize=(12, max(8, len(sorted_labels) * 0.4)))
+    
+    colors = plt.cm.viridis(np.linspace(0, 1, len(sorted_labels)))
+    bars = ax.barh(range(len(sorted_labels)), sorted_episodes, color=colors, alpha=0.8)
+    
+    ax.set_yticks(range(len(sorted_labels)))
+    ax.set_yticklabels([label.replace('_', ' ').title() for label in sorted_labels], fontsize=10)
+    ax.set_xlabel('First Unlock Episode', fontsize=12)
+    ax.set_title('Achievement First Unlock Timeline', fontsize=14, fontweight='bold')
+    ax.grid(True, axis='x', alpha=0.3)
+    
+    # Add value labels on bars
+    for i, (bar, episode) in enumerate(zip(bars, sorted_episodes)):
+        ax.text(episode + 0.5, i, f'{episode}', va='center', fontsize=9)
+    
+    plt.tight_layout()
+    plt.savefig(output_file, dpi=150, bbox_inches='tight')
+    print(f"[Plot] Saved achievement timeline to: {output_file}")
+    plt.close()
+
+
+def export_achievement_statistics_json(evaluation_system, output_file="heron_crafter_achievement_statistics.json"):
+    """
+    Export comprehensive per-achievement statistics to JSON file.
+    Includes episode-achievement matrix, cumulative trajectories, and per-achievement stats.
+    
+    Args:
+        evaluation_system: EvaluationSystem instance with achievement tracking
+        output_file: Path to save JSON file
+    """
+    achievement_stats = evaluation_system.get_achievement_statistics()
+    
+    # Convert numpy arrays to lists for JSON serialization
+    def convert_to_serializable(obj):
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        elif isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, list):
+            return [convert_to_serializable(item) for item in obj]
+        elif isinstance(obj, dict):
+            return {key: convert_to_serializable(value) for key, value in obj.items()}
+        else:
+            return obj
+    
+    serializable_stats = convert_to_serializable(achievement_stats)
+    
+    # Add achievement name mapping
+    serializable_stats['achievement_id_to_name'] = ACHIEVEMENT_ID_TO_NAME
+    
+    with open(output_file, 'w') as f:
+        json.dump(serializable_stats, f, indent=2)
+    
+    print(f"[Export] Saved achievement statistics to: {output_file}")
+
+
+# ============================================================================
 # Main Entry Point
 # ============================================================================
 
@@ -690,7 +957,7 @@ if __name__ == "__main__":
      helper_calls, hallucinations, helper_stats, reward_shaper_stats, eval_system) = train_dqn_crafter(
         episodes=50,  # Start with 50 for testing, increase for full training
         batch_size=32,
-        episode_length=500,  # Reduced from 10000 for testing
+        episode_length=500,  # Reduced from 1000 for testing
         threshold_episodes=600
     )
     
