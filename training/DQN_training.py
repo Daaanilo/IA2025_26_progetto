@@ -19,7 +19,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from classes.crafter_environment import CrafterEnv
 from classes.agent import DQNAgent
-from evaluation.evaluation_system import EvaluationSystem
+from evaluation.evaluation_system import EvaluationSystem, ACHIEVEMENT_NAME_TO_ID
 import os
 
 
@@ -40,9 +40,15 @@ def plot_baseline_metrics(rewards, native_rewards, shaped_bonus, achievements, m
     plt.legend(fontsize=10)
     plt.grid(alpha=0.3)
     plt.tight_layout()
-    plt.savefig(f'{output_prefix}_rewards.png', dpi=300, bbox_inches='tight')
+    
+    # Ensure output directory exists
+    output_dir = Path(__file__).parent / 'baseline_dqn_output'
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    output_file = output_dir / f'{output_prefix}_rewards.png'
+    plt.savefig(output_file, dpi=300, bbox_inches='tight')
     plt.close()
-    print(f"[Baseline DQN] Saved {output_prefix}_rewards.png")
+    print(f"[Baseline DQN] Saved {output_file}")
     
     # 2. Cumulative achievements
     cumulative_achievements = np.cumsum(achievements)
@@ -54,9 +60,11 @@ def plot_baseline_metrics(rewards, native_rewards, shaped_bonus, achievements, m
     plt.title('DQN Baseline - Cumulative Achievement Unlocks', fontsize=13, fontweight='bold')
     plt.grid(alpha=0.3)
     plt.tight_layout()
-    plt.savefig(f'{output_prefix}_achievements.png', dpi=300, bbox_inches='tight')
+    
+    output_file = output_dir / f'{output_prefix}_achievements.png'
+    plt.savefig(output_file, dpi=300, bbox_inches='tight')
     plt.close()
-    print(f"[Baseline DQN] Saved {output_prefix}_achievements.png")
+    print(f"[Baseline DQN] Saved {output_file}")
     
     # 3. Moves per episode
     plt.figure(figsize=(14, 6))
@@ -67,9 +75,11 @@ def plot_baseline_metrics(rewards, native_rewards, shaped_bonus, achievements, m
     plt.title('DQN Baseline - Episode Length (Moves)', fontsize=13, fontweight='bold')
     plt.grid(alpha=0.3, axis='y')
     plt.tight_layout()
-    plt.savefig(f'{output_prefix}_moves.png', dpi=300, bbox_inches='tight')
+    
+    output_file = output_dir / f'{output_prefix}_moves.png'
+    plt.savefig(output_file, dpi=300, bbox_inches='tight')
     plt.close()
-    print(f"[Baseline DQN] Saved {output_prefix}_moves.png")
+    print(f"[Baseline DQN] Saved {output_file}")
     
     # 4. Efficiency metrics
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
@@ -93,9 +103,11 @@ def plot_baseline_metrics(rewards, native_rewards, shaped_bonus, achievements, m
     ax2.grid(alpha=0.3)
     
     plt.tight_layout()
-    plt.savefig(f'{output_prefix}_efficiency.png', dpi=300, bbox_inches='tight')
+    
+    output_file = output_dir / f'{output_prefix}_efficiency.png'
+    plt.savefig(output_file, dpi=300, bbox_inches='tight')
     plt.close()
-    print(f"[Baseline DQN] Saved {output_prefix}_efficiency.png")
+    print(f"[Baseline DQN] Saved {output_file}")
     
     # 5. Multi-metric dashboard
     fig, axes = plt.subplots(2, 2, figsize=(16, 12))
@@ -134,16 +146,24 @@ def plot_baseline_metrics(rewards, native_rewards, shaped_bonus, achievements, m
     
     plt.suptitle('DQN Baseline - Multi-Metric Dashboard', fontsize=14, fontweight='bold')
     plt.tight_layout()
-    plt.savefig(f'{output_prefix}_dashboard.png', dpi=300, bbox_inches='tight')
+    
+    output_file = output_dir / f'{output_prefix}_dashboard.png'
+    plt.savefig(output_file, dpi=300, bbox_inches='tight')
     plt.close()
-    print(f"[Baseline DQN] Saved {output_prefix}_dashboard.png")
+    print(f"[Baseline DQN] Saved {output_file}")
 
 
 def export_baseline_metrics_jsonl(rewards, native_rewards, shaped_bonus, achievements, moves,
                                output_file="baseline_crafter_dqn_metrics.jsonl"):
     """Export baseline metrics to JSONL."""
     import json
-    with open(output_file, 'w', encoding='utf-8') as f:
+    
+    # Ensure output directory exists
+    output_dir = Path(__file__).parent / 'baseline_dqn_output'
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / output_file
+    
+    with open(output_path, 'w', encoding='utf-8') as f:
         for i in range(len(rewards)):
             record = {
                 'episode': i + 1,
@@ -154,7 +174,7 @@ def export_baseline_metrics_jsonl(rewards, native_rewards, shaped_bonus, achieve
                 'moves': moves[i]
             }
             f.write(json.dumps(record) + "\n")
-    print(f"[Baseline DQN] Exported metrics to {output_file}")
+    print(f"[Baseline DQN] Exported metrics to {output_path}")
 
 
 def calculate_shaped_reward(native_reward, info, previous_info, achievements_this_step):
@@ -246,6 +266,10 @@ def train_dqn_baseline(episodes=200, batch_size=32, episode_length=500, load_mod
     achievements_per_episode = []
     moves_per_episode = []
     
+    # Best model tracking
+    best_achievement_count = 0
+    best_episode = 0
+    
     print(f"\n[Baseline DQN] Starting training for {episodes} episodes...")
     print("="*70)
     
@@ -258,7 +282,8 @@ def train_dqn_baseline(episodes=200, batch_size=32, episode_length=500, load_mod
         episode_shaped_bonus = 0
         episode_achievements = 0
         episode_moves = 0
-        previous_achievements = len(info.get('achievements', {}))
+        # Track achievements by name for proper ID mapping
+        previous_achievements_set = set(k for k, v in info.get('achievements', {}).items() if v >= 1)
         previous_info = info.copy()  # Per reward shaping avanzato
         
         for step in range(episode_length):
@@ -269,10 +294,18 @@ def train_dqn_baseline(episodes=200, batch_size=32, episode_length=500, load_mod
             next_state, native_reward, done, info = env.step(action)
             next_state = np.reshape(next_state, [1, env.state_size])
             
-            # Count achievements unlocked this step
-            current_achievements = len(info.get('achievements', {}))
-            achievements_this_step = max(0, current_achievements - previous_achievements)
-            previous_achievements = current_achievements
+            # Track achievements unlocked this step
+            current_achievements_set = set(k for k, v in info.get('achievements', {}).items() if v >= 1)
+            newly_unlocked_names = current_achievements_set - previous_achievements_set
+            achievements_this_step = len(newly_unlocked_names)
+            
+            # Add achievement IDs to evaluation system
+            if newly_unlocked_names:
+                newly_unlocked_ids = {ACHIEVEMENT_NAME_TO_ID[name] for name in newly_unlocked_names 
+                                     if name in ACHIEVEMENT_NAME_TO_ID}
+                evaluation_system.add_episode_achievements(episode, newly_unlocked_ids, step)
+            
+            previous_achievements_set = current_achievements_set
             
             # OTTIMIZZATO: Reward shaping avanzato
             shaped_reward, shaped_bonus = calculate_shaped_reward(
@@ -318,6 +351,16 @@ def train_dqn_baseline(episodes=200, batch_size=32, episode_length=500, load_mod
             hallucinations=0  # No LLM in baseline
         )
         
+        # Save best model checkpoint
+        if episode_achievements > best_achievement_count:
+            best_achievement_count = episode_achievements
+            best_episode = episode
+            checkpoint_dir = Path(__file__).parent / 'baseline_dqn_output' / 'checkpoints'
+            checkpoint_dir.mkdir(parents=True, exist_ok=True)
+            checkpoint_path = checkpoint_dir / f"baseline_dqn_best_ep{episode}_ach{episode_achievements}"
+            agent.save(str(checkpoint_path))
+            print(f"[Baseline DQN] ✓ New best model saved: {episode_achievements} achievements (episode {episode})")
+        
         # Progress logging
         if (episode + 1) % 5 == 0:
             avg_reward = np.mean(rewards_per_episode[-10:])
@@ -327,14 +370,22 @@ def train_dqn_baseline(episodes=200, batch_size=32, episode_length=500, load_mod
     
     print("="*70)
     print("[Baseline DQN] Training completed.")
+    print(f"[Baseline DQN] Best performance: {best_achievement_count} achievements at episode {best_episode}")
     
     # Finalize evaluation
     evaluation_system.finalize()
     
-    # Save model
-    print("[Baseline DQN] Saving model...")
-    os.makedirs("../models", exist_ok=True)
-    agent.save("../models/baseline_crafter_dqn")
+    # Save final model
+    print("[Baseline DQN] Saving final model...")
+    models_dir = Path(__file__).parent / 'baseline_dqn_output' / 'models'
+    models_dir.mkdir(parents=True, exist_ok=True)
+    final_model_path = models_dir / "baseline_crafter_dqn_final"
+    agent.save(str(final_model_path))
+    print(f"[Baseline DQN] ✓ Final model saved: {final_model_path}.*")
+    
+    checkpoint_dir = Path(__file__).parent / 'baseline_dqn_output' / 'checkpoints'
+    best_checkpoint = checkpoint_dir / f"baseline_dqn_best_ep{best_episode}_ach{best_achievement_count}"
+    print(f"[Baseline DQN] ✓ Best model saved: {best_checkpoint}.*")
     
     # Export metrics
     print("[Baseline DQN] Exporting metrics...")
@@ -357,7 +408,9 @@ def train_dqn_baseline(episodes=200, batch_size=32, episode_length=500, load_mod
     evaluation_system.print_summary_report()
     
     # Export evaluation summary
-    evaluation_system.export_summary_json("baseline_crafter_dqn_evaluation.json")
+    output_dir = Path(__file__).parent / 'baseline_dqn_output'
+    evaluation_json = output_dir / "baseline_crafter_dqn_evaluation.json"
+    evaluation_system.export_summary_json(str(evaluation_json))
     
     return evaluation_system
 

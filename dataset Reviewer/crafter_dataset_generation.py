@@ -712,13 +712,14 @@ class CrafterDatasetGenerator:
 class SyntheticHelper:
     """Rule-based synthetic helper for generating diverse, state-aware action sequences without LLM."""
     
+    # OFFICIAL CRAFTER ACTION MAPPING (corrected)
     ACTION_NAMES = {
-        0: 'move_up', 1: 'move_down', 2: 'move_left', 3: 'move_right',
-        4: 'do', 5: 'sleep',
-        6: 'place_stone', 7: 'place_table', 8: 'place_furnace', 9: 'place_plant',
-        10: 'make_wood_pickaxe', 11: 'make_stone_pickaxe', 12: 'make_iron_pickaxe',
-        13: 'make_wood_sword', 14: 'make_stone_sword', 15: 'make_iron_sword',
-        16: 'noop'
+        0: 'noop',
+        1: 'move_left', 2: 'move_right', 3: 'move_up', 4: 'move_down',
+        5: 'do', 6: 'sleep',
+        7: 'place_stone', 8: 'place_table', 9: 'place_furnace', 10: 'place_plant',
+        11: 'make_wood_pickaxe', 12: 'make_stone_pickaxe', 13: 'make_iron_pickaxe',
+        14: 'make_wood_sword', 15: 'make_stone_sword', 16: 'make_iron_sword'
     }
     
     ACTION_ID_MAP = {v: k for k, v in ACTION_NAMES.items()}

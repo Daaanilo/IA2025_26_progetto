@@ -118,20 +118,26 @@ class DQNAgent:
     def act(self, state, env):
         valid_actions = env.get_valid_actions()
         if np.random.rand() <= self.epsilon:
-            return random.choice(valid_actions)
+            action = random.choice(valid_actions)
+        else:
+            # PyTorch prediction on GPU
+            state_tensor = torch.FloatTensor(state).to(self.device)
+            self.model.eval()
+            with torch.no_grad():
+                act_values = self.model(state_tensor).cpu().numpy()[0]
+            
+            if len(valid_actions) < self.action_size:
+                masked_q_values = np.full_like(act_values, -np.inf)  
+                masked_q_values[valid_actions] = act_values[valid_actions] 
+                action = np.argmax(masked_q_values)
+            else:
+                action = np.argmax(act_values)
         
-        # PyTorch prediction on GPU
-        state_tensor = torch.FloatTensor(state).to(self.device)
-        self.model.eval()
-        with torch.no_grad():
-            act_values = self.model(state_tensor).cpu().numpy()[0]
+        # Decay epsilon after each action (not just in replay)
+        if self.epsilon > self.epsilon_min:
+            self.epsilon *= self.epsilon_decay
         
-        if len(valid_actions) < self.action_size:
-            masked_q_values = np.full_like(act_values, -np.inf)  
-            masked_q_values[valid_actions] = act_values[valid_actions] 
-            return np.argmax(masked_q_values)
-
-        return np.argmax(act_values)
+        return action
 
     def replay(self, batch_size, env):
         """OTTIMIZZATO: Prioritized Replay + Double DQN + Gradient Clipping."""
@@ -223,9 +229,7 @@ class DQNAgent:
         if self.train_step_counter % self.target_update_freq == 0:
             self._update_target_model()
         
-        # Epsilon decay
-        if self.epsilon > self.epsilon_min:
-            self.epsilon *= self.epsilon_decay
+        # NOTE: Epsilon decay now happens in act() after each action
 
     def save(self, path_prefix):
         # F09: Convert to relative paths for cross-platform compatibility

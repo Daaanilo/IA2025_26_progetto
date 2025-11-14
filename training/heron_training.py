@@ -516,7 +516,7 @@ def train_dqn_crafter(episodes=100, batch_size=32, episode_length=1000, threshol
                 if newly_unlocked_names:
                     newly_unlocked_ids = {ACHIEVEMENT_NAME_TO_ID[name] for name in newly_unlocked_names 
                                          if name in ACHIEVEMENT_NAME_TO_ID}
-                    evaluation_system.add_episode_achievements(e, newly_unlocked_ids)
+                    evaluation_system.add_episode_achievements(e, newly_unlocked_ids, moves)
             
             # ===== STORE EXPERIENCE =====
             agent.remember(state, action, shaped_reward, next_state, done)

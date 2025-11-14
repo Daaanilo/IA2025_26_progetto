@@ -18,6 +18,38 @@ from pathlib import Path
 import json
 
 
+# ============================================================================
+# Crafter Achievement Mapping (Official 22 Achievements)
+# ============================================================================
+
+ACHIEVEMENT_NAME_TO_ID = {
+    'collect_coal': 0,
+    'collect_diamond': 1,
+    'collect_drink': 2,
+    'collect_iron': 3,
+    'collect_sapling': 4,
+    'collect_stone': 5,
+    'collect_wood': 6,
+    'defeat_skeleton': 7,
+    'defeat_zombie': 8,
+    'eat_cow': 9,
+    'eat_plant': 10,
+    'make_iron_pickaxe': 11,
+    'make_iron_sword': 12,
+    'make_stone_pickaxe': 13,
+    'make_stone_sword': 14,
+    'make_wood_pickaxe': 15,
+    'make_wood_sword': 16,
+    'place_furnace': 17,
+    'place_plant': 18,
+    'place_stone': 19,
+    'place_table': 20,
+    'wake_up': 21
+}
+
+ACHIEVEMENT_ID_TO_NAME = {v: k for k, v in ACHIEVEMENT_NAME_TO_ID.items()}
+
+
 @dataclass
 class EpisodeMetrics:
     """Per-episode metrics snapshot."""
@@ -53,19 +85,30 @@ class AchievementTracker:
         self.num_achievements = num_achievements
         self.unlock_episodes = [[] for _ in range(num_achievements)]  # Episodes when each achievement unlocked
         self.first_unlock_episode = [None] * num_achievements  # First episode each was unlocked
+        self.first_unlock_move = [None] * num_achievements  # First move when unlocked
         self.unlock_count = [0] * num_achievements  # Total times each was unlocked
         self.total_unlocks = 0
         self.unique_achievements_unlocked = set()
+        self.unique_achievement_names = set()  # NEW: Track achievement names
         self.episode_achievement_matrix = []  # List of [num_achievements] arrays per episode
         self.current_episode_count = -1  # Track current episode for matrix building
+        self.achievements_per_episode = []  # NEW: Track which achievements were unlocked per episode
     
-    def track_episode(self, episode: int, achievements_unlocked: set):
-        """Record achievement unlocks for an episode."""
+    def track_episode(self, episode: int, achievements_unlocked: set, current_move: int = None):
+        """Record achievement unlocks for an episode.
+        
+        Args:
+            episode: Episode number
+            achievements_unlocked: Set of achievement IDs unlocked in this step
+            current_move: Current step/move count within episode (optional)
+        """
         # Initialize episode achievement array if new episode
         if episode > self.current_episode_count:
             # Fill missing episodes with zeros
             while len(self.episode_achievement_matrix) <= episode:
                 self.episode_achievement_matrix.append([0] * self.num_achievements)
+            while len(self.achievements_per_episode) <= episode:
+                self.achievements_per_episode.append(set())
             self.current_episode_count = episode
         
         # Track achievements for this episode
@@ -76,11 +119,18 @@ class AchievementTracker:
                 self.total_unlocks += 1
                 self.unique_achievements_unlocked.add(ach_id)
                 
+                # Track achievement name
+                ach_name = ACHIEVEMENT_ID_TO_NAME.get(ach_id, f"unknown_{ach_id}")
+                self.unique_achievement_names.add(ach_name)
+                self.achievements_per_episode[episode].add(ach_name)
+                
                 # Increment episode achievement matrix
                 self.episode_achievement_matrix[episode][ach_id] += 1
                 
                 if self.first_unlock_episode[ach_id] is None:
                     self.first_unlock_episode[ach_id] = episode
+                    if current_move is not None:
+                        self.first_unlock_move[ach_id] = current_move
     
     def get_statistics(self) -> Dict:
         """Return achievement-level statistics."""
@@ -96,9 +146,18 @@ class AchievementTracker:
         # Compute per-achievement statistics across episodes
         per_ach_stats = self._compute_per_achievement_episode_stats(cumulative_matrix)
         
+        # Get list of unlocked achievement names (sorted)
+        unlocked_names = sorted(list(self.unique_achievement_names))
+        
+        # Get list of never unlocked achievement names
+        never_unlocked_ids = [i for i in range(self.num_achievements) if self.unlock_count[i] == 0]
+        never_unlocked_names = sorted([ACHIEVEMENT_ID_TO_NAME.get(i, f"unknown_{i}") for i in never_unlocked_ids])
+        
         return {
             'total_possible_achievements': total_possible,
             'unique_achievements_unlocked': unique_unlocked,
+            'unique_achievement_names': unlocked_names,  # NEW: List of unlocked names
+            'never_unlocked_names': never_unlocked_names,  # NEW: List of never unlocked names
             'unlock_ratio': unique_unlocked / total_possible if total_possible > 0 else 0,
             'total_unlock_instances': self.total_unlocks,
             'avg_unlocks_per_achievement': np.mean(unlocked_counts) if unlocked_counts else 0,
@@ -108,18 +167,22 @@ class AchievementTracker:
             'per_achievement_stats': self._get_per_achievement_stats(),
             'episode_achievement_matrix': self.episode_achievement_matrix,  # Raw matrix
             'cumulative_achievement_matrix': cumulative_matrix,  # Cumulative for plotting
-            'per_achievement_episode_stats': per_ach_stats  # Min/max/mean per achievement
+            'per_achievement_episode_stats': per_ach_stats,  # Min/max/mean per achievement
+            'achievements_per_episode': [sorted(list(achs)) for achs in self.achievements_per_episode]  # NEW: Per-episode achievements
         }
     
     def _get_per_achievement_stats(self) -> List[Dict]:
         """Detailed stats per achievement."""
         stats = []
         for ach_id in range(self.num_achievements):
+            ach_name = ACHIEVEMENT_ID_TO_NAME.get(ach_id, f"unknown_{ach_id}")
             stats.append({
                 'achievement_id': ach_id,
+                'achievement_name': ach_name,  # NEW: Human-readable name
                 'unlock_count': self.unlock_count[ach_id],
                 'first_unlock_episode': self.first_unlock_episode[ach_id],
-                'first_unlock_move': None  # Populated in EvaluationSystem
+                'first_unlock_move': self.first_unlock_move[ach_id],
+                'unlocked': self.unlock_count[ach_id] > 0  # NEW: Boolean flag
             })
         return stats
     
@@ -325,9 +388,15 @@ class EvaluationSystem:
         
         self.metrics_list.append(metric)
     
-    def add_episode_achievements(self, episode: int, achievements_unlocked: set):
-        """Add detailed achievement unlock information."""
-        self.achievement_tracker.track_episode(episode, achievements_unlocked)
+    def add_episode_achievements(self, episode: int, achievements_unlocked: set, current_move: int = None):
+        """Add detailed achievement unlock information.
+        
+        Args:
+            episode: Episode number
+            achievements_unlocked: Set of achievement IDs unlocked
+            current_move: Current move/step count within episode (optional)
+        """
+        self.achievement_tracker.track_episode(episode, achievements_unlocked, current_move)
     
     def finalize(self):
         """Compute all statistics after training completes."""

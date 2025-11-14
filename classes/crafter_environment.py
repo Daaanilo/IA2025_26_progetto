@@ -49,15 +49,25 @@ class CrafterEnv:
         # Observation space è immagine RGB
         self.observation_space = spaces.Box(low=0, high=255, shape=(64, 64, 3), dtype=np.uint8)
         
-        # Action names mapping
+        # Action names mapping (OFFICIAL CRAFTER ORDER)
         self.action_names = [
-            'move_up', 'move_down', 'move_left', 'move_right',  # 0-3
-            'do',                                                 # 4
-            'sleep',                                              # 5
-            'place_stone', 'place_table', 'place_furnace', 'place_plant',  # 6-9
-            'make_wood_pickaxe', 'make_stone_pickaxe', 'make_iron_pickaxe',  # 10-12
-            'make_wood_sword', 'make_stone_sword', 'make_iron_sword',  # 13-15
-            'noop'                                                # 16
+            'noop',              # 0
+            'move_left',         # 1
+            'move_right',        # 2
+            'move_up',           # 3
+            'move_down',         # 4
+            'do',                # 5
+            'sleep',             # 6
+            'place_stone',       # 7
+            'place_table',       # 8
+            'place_furnace',     # 9
+            'place_plant',       # 10
+            'make_wood_pickaxe', # 11
+            'make_stone_pickaxe',# 12
+            'make_iron_pickaxe', # 13
+            'make_wood_sword',   # 14
+            'make_stone_sword',  # 15
+            'make_iron_sword'    # 16
         ]
         
         self.state_size = 43  # 16 inventory + 2 position + 3 status + 22 achievements
@@ -86,7 +96,7 @@ class CrafterEnv:
     
     def _get_dummy_info(self):
         """Ritorna un info dict dummy con tutti i campi necessari."""
-        obs, reward, done, info = self.env.step(16)  # noop action
+        obs, reward, done, info = self.env.step(0)  # noop action (now at index 0)
         if done:
             self.env.reset()
         return info
@@ -221,12 +231,12 @@ class CrafterEnvRecorded(CrafterEnv):
         self.observation_space = spaces.Box(low=0, high=255, shape=(64, 64, 3), dtype=np.uint8)
         
         self.action_names = [
-            'move_up', 'move_down', 'move_left', 'move_right',
+            'noop',
+            'move_left', 'move_right', 'move_up', 'move_down',
             'do', 'sleep',
             'place_stone', 'place_table', 'place_furnace', 'place_plant',
             'make_wood_pickaxe', 'make_stone_pickaxe', 'make_iron_pickaxe',
-            'make_wood_sword', 'make_stone_sword', 'make_iron_sword',
-            'noop'
+            'make_wood_sword', 'make_stone_sword', 'make_iron_sword'
         ]
         
         self.state_size = 43
