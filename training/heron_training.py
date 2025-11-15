@@ -1,20 +1,4 @@
-"""
-F08: HeRoN Integration for Crafter Environment
-Three-agent system: DQNAgent (NPC) + CrafterHelper (LLM) + InstructorAgent (Reviewer)
-
-Training loop:
-1. Probability threshold decay controls LLM involvement (starts at 1.0, decays by 0.1 per episode)
-2. On each step: if p > threshold and e < 600, invoke Helper→Reviewer→Helper workflow
-3. Otherwise, use DQN directly or via SequenceExecutor fallback
-4. Intrinsic reward shaping enhances sparse Crafter rewards (+0.1 resources, +0.05 health/tier, +0.02 tools)
-5. Track achievements, helper calls, hallucinations, moves, and shaped rewards separately
-
-Note: Reviewer model path is a placeholder - update after F06 fine-tuning completion
-"""
-
 import numpy as np
-import matplotlib.pyplot as plt
-import pandas as pd
 import re
 import os
 import sys
@@ -33,6 +17,7 @@ from classes.agent import DQNAgent
 from classes.crafter_helper import CrafterHelper, SequenceExecutor
 from classes.instructor_agent import InstructorAgent
 from evaluation.evaluation_system import EvaluationSystem
+from training.reward_shaper import CrafterRewardShaper
 from evaluation.evaluation_plots import AdvancedPlotter, generate_all_plots
 
 # Achievement name-to-ID mapping for Crafter's 22 achievements
@@ -64,10 +49,6 @@ ACHIEVEMENT_NAME_TO_ID = {
 # Reverse mapping for plotting labels
 ACHIEVEMENT_ID_TO_NAME = {v: k for k, v in ACHIEVEMENT_NAME_TO_ID.items()}
 
-# LM Studio configuration
-# Note: lmstudio v1.5.0 uses context manager syntax - connection handled in CrafterHelper
-# No need to initialize global client here
-
 # Device selection: CUDA (NVIDIA) or CPU only (NO MPS - Crafter incompatible)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"[Config] Using device: {device}")
@@ -89,192 +70,6 @@ except Exception as e:
     print("[WARNING] Training will proceed without Reviewer refinement")
     tokenizer_reviewer = None
     model_reviewer = None
-
-
-# ============================================================================
-# Reward Shaping for Sparse Crafter Rewards
-# ============================================================================
-
-class CrafterRewardShaper:
-    """
-    Augments sparse Crafter rewards with intrinsic bonuses for learning signal.
-    ALIGNED WITH BASELINE DQN for fair comparison.
-    
-    Bonuses (EXACTLY matching baseline DQN):
-    - Resource collection: +0.1 per unit collected (cumulative)
-    - Health management: +0.02 if health/food/drink > 5 (static presence)
-    - Tool crafting: +0.3 per tool/weapon crafted
-    - Death penalty: -1.0 (to encourage survival)
-    """
-    
-    # Crafter action ID mapping
-    # OFFICIAL CRAFTER ACTION MAPPING (corrected)
-    ACTION_NAMES = {
-        0: 'noop',
-        1: 'move_left', 2: 'move_right', 3: 'move_up', 4: 'move_down',
-        5: 'do', 6: 'sleep',
-        7: 'place_stone', 8: 'place_table', 9: 'place_furnace', 10: 'place_plant',
-        11: 'make_wood_pickaxe', 12: 'make_stone_pickaxe', 13: 'make_iron_pickaxe',
-        14: 'make_wood_sword', 15: 'make_stone_sword', 16: 'make_iron_sword'
-    }
-    
-    def __init__(self):
-        self.bonus_tracker = {
-            'resource_collection': [],
-            'health_management': [],
-            'tool_usage': [],
-            'death_penalty': []
-        }
-    
-    def calculate_shaped_reward(self, native_reward, state, info, previous_info, action):
-        """
-        Calculate total shaped reward = native + intrinsic bonuses.
-        
-        Args:
-            native_reward: Sparse reward from Crafter (+1 for achievement, 0 otherwise)
-            state: Current 41-dim state vector
-            info: Current info dict (inventory, achievements, etc)
-            previous_info: Previous info dict for state change detection
-            action: Action ID (0-16)
-        
-        Returns:
-            tuple: (shaped_reward, bonus_components_dict)
-        """
-        shaped_reward = native_reward
-        bonuses = {
-            'resource_collection': 0.0,
-            'health_management': 0.0,
-            'tool_usage': 0.0,
-            'death_penalty': 0.0
-        }
-        
-        if previous_info is None:
-            return shaped_reward, bonuses
-        
-        # ===== DEATH PENALTY (-1.0) =====
-        # Penalize agent for dying to encourage survival
-        curr_health = info.get('inventory', {}).get('health', 10)
-        prev_health = previous_info.get('inventory', {}).get('health', 10)
-        if curr_health == 0 and prev_health > 0:
-            bonuses['death_penalty'] = -1.0
-        
-        if previous_info is None:
-            return shaped_reward, bonuses
-        
-        # ===== 1. Resource Collection Bonus (+0.1 per unit) =====
-        # Reward agent for collecting resources (wood, stone, iron, coal, diamond, sapling)
-        # ALIGNED: Cumulative like baseline DQN
-        bonuses['resource_collection'] = self._calculate_resource_bonus(
-            info, previous_info, action
-        )
-        
-        # ===== 2. Health Management Bonus (+0.02 per stat) =====
-        # Reward agent for maintaining health/food/drink above threshold
-        # ALIGNED: Static presence check like baseline DQN
-        bonuses['health_management'] = self._calculate_health_bonus(
-            info, previous_info, action
-        )
-        
-        # ===== 3. Tool Crafting Bonus (+0.3) =====
-        # Reward agent for crafting tools/weapons
-        # ALIGNED: Exactly matches baseline DQN
-        bonuses['tool_usage'] = self._calculate_tool_bonus(
-            info, previous_info, action
-        )
-        
-        # Sum all bonuses
-        total_bonus = sum(bonuses.values())
-        shaped_reward += total_bonus
-        
-        # Track for statistics
-        for key in bonuses:
-            self.bonus_tracker[key].append(bonuses[key])
-        
-        return shaped_reward, bonuses
-    
-    def _calculate_resource_bonus(self, info, previous_info, action):
-        """
-        +0.1 per unit of resource collected (ALIGNED WITH BASELINE DQN).
-        Cumulative across all resources: wood, stone, iron, coal, diamond, sapling.
-        """
-        bonus = 0.0
-        resources = ['wood', 'stone', 'coal', 'iron', 'diamond', 'sapling']
-        
-        curr_inv = info.get('inventory', {})
-        prev_inv = previous_info.get('inventory', {})
-        
-        for resource in resources:
-            curr_count = curr_inv.get(resource, 0)
-            prev_count = prev_inv.get(resource, 0)
-            if curr_count > prev_count:
-                bonus += 0.1 * (curr_count - prev_count)  # CRITICAL: Cumulative like baseline
-        
-        return bonus  # No cap - cumulative reward like baseline DQN
-    
-    def _calculate_health_bonus(self, info, previous_info, action):
-        """
-        +0.02 for maintaining survival stats above threshold (ALIGNED WITH BASELINE DQN).
-        Rewards agent for keeping health, food, drink above safe levels.
-        """
-        bonus = 0.0
-        
-        curr_inv = info.get('inventory', {})
-        
-        health = curr_inv.get('health', 0)
-        food = curr_inv.get('food', 0)
-        drink = curr_inv.get('drink', 0)
-        
-        # CRITICAL: Match baseline DQN exactly - static presence check
-        if health > 5:
-            bonus += 0.02
-        if food > 5:
-            bonus += 0.02
-        if drink > 5:
-            bonus += 0.02
-        
-        return bonus  # No cap - cumulative like baseline
-    
-    
-    def _calculate_tool_bonus(self, info, previous_info, action):
-        """
-        +0.3 for crafting tools/weapons (aligned with baseline DQN).
-        E.g., crafting pickaxes or swords to improve survival and resource gathering.
-        """
-        bonus = 0.0
-        
-        curr_inv = info.get('inventory', {})
-        prev_inv = previous_info.get('inventory', {})
-        
-        # Bonus for crafting any tool or weapon (ALIGNED WITH BASELINE DQN)
-        tools = ['wood_pickaxe', 'stone_pickaxe', 'iron_pickaxe',
-                 'wood_sword', 'stone_sword', 'iron_sword']
-        
-        for tool in tools:
-            prev_val = prev_inv.get(tool, 0)
-            curr_val = curr_inv.get(tool, 0)
-            if curr_val > prev_val:
-                bonus += 0.3  # CRITICAL: Must match baseline DQN exactly
-        
-        return min(bonus, 0.3)  # Cap at 0.3 per step
-    
-    def get_statistics(self):
-        """Return average bonuses across tracked steps."""
-        stats = {}
-        for key, values in self.bonus_tracker.items():
-            if values:
-                stats[key] = {
-                    'mean': np.mean(values),
-                    'total': np.sum(values),
-                    'count': len(values)
-                }
-            else:
-                stats[key] = {'mean': 0.0, 'total': 0.0, 'count': 0}
-        return stats
-    
-    def reset_episode(self):
-        """Reset statistics tracker for new episode."""
-        for key in self.bonus_tracker:
-            self.bonus_tracker[key] = []
 
 
 # ============================================================================
@@ -312,13 +107,7 @@ def train_dqn_crafter(episodes=100, batch_size=32, episode_length=1000, threshol
     
     # Initialize CrafterHelper (LLM)
     print("[Init] Initializing CrafterHelper...")
-    # Using Qwen3-4B-2507 (4B params, 256K context window)
-    # Q6_K quantization for optimal quality/speed balance
-    # Alternative models for comparison:
-    # - 'llama-3.1-8b-instruct' (better instruction following)
-    # - 'qwen2.5-7b-instruct' (larger Qwen variant)
-    # - 'mistral-7b-instruct-v0.3' (strong reasoning)
-    helper = CrafterHelper(model_name="qwen3-4b-2507")
+    helper = CrafterHelper(model_name="qwen/qwen3-4b-2507")
     
     # Initialize Reviewer (fine-tuned model)
     print("[Init] Initializing InstructorAgent (Reviewer)...")
@@ -346,14 +135,14 @@ def train_dqn_crafter(episodes=100, batch_size=32, episode_length=1000, threshol
     native_rewards_per_episode = []
     shaped_bonus_per_episode = []
     
-    # F09: Performance tracking for checkpointing
+    # Performance tracking for checkpointing
     best_achievement_count = 0
     best_episode = -1
     
-    # Initialize F10 Evaluation System
+    # Initialize Evaluation System
     evaluation_system = EvaluationSystem(num_achievements=22)
     
-    # F09: Threshold decay per EPISODE (not per step)
+    # Threshold decay per EPISODE (not per step)
     threshold = 1.0
     threshold_decay_per_episode = 0.01  # Decays from 1.0 to 0.0 over 100 episodes
     
@@ -507,7 +296,7 @@ def train_dqn_crafter(episodes=100, batch_size=32, episode_length=1000, threshol
             
             # ===== REWARD SHAPING =====
             shaped_reward, bonus_components = reward_shaper.calculate_shaped_reward(
-                native_reward, next_state, info, previous_info, action
+                native_reward, info, previous_info
             )
             
             total_native_reward += native_reward
@@ -590,7 +379,7 @@ def train_dqn_crafter(episodes=100, batch_size=32, episode_length=1000, threshol
         print(f"  Epsilon: {agent.epsilon:.4f}, Threshold: {threshold:.4f}")
         print(f"  Helper Stats: {helper.get_statistics()}")
         
-        # F09: Decay threshold PER EPISODE (not per step) - FIX #1
+        # Decay threshold PER EPISODE (not per step) - FIX #1
         if e < threshold_episodes:
             print(f"  Current Threshold Used: {threshold:.4f}")
             threshold = max(0, threshold - threshold_decay_per_episode)
@@ -633,16 +422,6 @@ def train_dqn_crafter(episodes=100, batch_size=32, episode_length=1000, threshol
     print(f"[F10 Evaluation] Generating advanced evaluation plots...")
     generate_all_plots(evaluation_system, output_dir="./evaluation_plots")
     
-    # Generate per-achievement plots
-    print(f"[F10 Evaluation] Generating per-achievement progression curves...")
-    plot_achievement_curves(evaluation_system, moves_per_episode, "heron_crafter_achievement_curves.png")
-    
-    print(f"[F10 Evaluation] Generating achievement heatmap...")
-    plot_achievement_heatmap(evaluation_system, "heron_crafter_achievement_heatmap.png")
-    
-    print(f"[F10 Evaluation] Generating achievement timeline...")
-    plot_achievement_timeline(evaluation_system, "heron_crafter_achievement_timeline.png")
-    
     # Print comprehensive report
     print(f"[F10 Evaluation] Printing summary report...")
     evaluation_system.print_summary_report()
@@ -656,348 +435,9 @@ def train_dqn_crafter(episodes=100, batch_size=32, episode_length=1000, threshol
 # Visualization and Export
 # ============================================================================
 
-def plot_training(rewards, native_rewards, shaped_bonus, achievements, moves, 
-                  helper_calls, hallucinations):
-    """Create comprehensive training visualization plots (same as DQN baseline)."""
-    
-    episodes = range(1, len(rewards) + 1)
-    output_prefix = "heron_crafter"
-    
-    # 1. Rewards over time
-    plt.figure(figsize=(14, 6))
-    plt.plot(episodes, rewards, label='Shaped Reward (native + bonus)', linewidth=2, marker='o', markersize=4)
-    plt.plot(episodes, native_rewards, label='Native Reward (sparse)', linewidth=2, marker='s', markersize=4)
-    plt.plot(episodes, shaped_bonus, label='Shaped Bonus Total', linewidth=2, marker='^', markersize=4)
-    plt.xlabel('Episode', fontsize=12, fontweight='bold')
-    plt.ylabel('Reward', fontsize=12, fontweight='bold')
-    plt.title('HeRoN Training - Reward Trends', fontsize=13, fontweight='bold')
-    plt.legend(fontsize=10)
-    plt.grid(alpha=0.3)
-    plt.tight_layout()
-    plt.savefig(f'{output_prefix}_rewards.png', dpi=300, bbox_inches='tight')
-    plt.close()
-    print(f"[Plot] Saved: {output_prefix}_rewards.png")
-    
-    # 2. Cumulative achievements
-    cumulative_achievements = np.cumsum(achievements)
-    plt.figure(figsize=(14, 6))
-    plt.plot(episodes, cumulative_achievements, linewidth=2.5, marker='o', markersize=5, color='green')
-    plt.fill_between(episodes, cumulative_achievements, alpha=0.3, color='green')
-    plt.xlabel('Episode', fontsize=12, fontweight='bold')
-    plt.ylabel('Cumulative Achievements', fontsize=12, fontweight='bold')
-    plt.title('HeRoN Training - Cumulative Achievement Unlocks', fontsize=13, fontweight='bold')
-    plt.grid(alpha=0.3)
-    plt.tight_layout()
-    plt.savefig(f'{output_prefix}_achievements.png', dpi=300, bbox_inches='tight')
-    plt.close()
-    print(f"[Plot] Saved: {output_prefix}_achievements.png")
-    
-    # 3. Moves per episode
-    plt.figure(figsize=(14, 6))
-    plt.bar(episodes, moves, color='steelblue', alpha=0.7, edgecolor='black')
-    plt.plot(episodes, moves, color='darkblue', linewidth=2, marker='o', markersize=4)
-    plt.xlabel('Episode', fontsize=12, fontweight='bold')
-    plt.ylabel('Moves per Episode', fontsize=12, fontweight='bold')
-    plt.title('HeRoN Training - Episode Length (Moves)', fontsize=13, fontweight='bold')
-    plt.grid(alpha=0.3, axis='y')
-    plt.tight_layout()
-    plt.savefig(f'{output_prefix}_moves.png', dpi=300, bbox_inches='tight')
-    plt.close()
-    print(f"[Plot] Saved: {output_prefix}_moves.png")
-    
-    # 4. Efficiency metrics
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
-    
-    # Reward per move
-    reward_per_move = [r / m if m > 0 else 0 for r, m in zip(rewards, moves)]
-    ax1.plot(episodes, reward_per_move, linewidth=2.5, marker='o', markersize=4, color='steelblue')
-    ax1.fill_between(episodes, reward_per_move, alpha=0.3, color='steelblue')
-    ax1.set_xlabel('Episode', fontsize=11, fontweight='bold')
-    ax1.set_ylabel('Reward per Move', fontsize=11, fontweight='bold')
-    ax1.set_title('Efficiency: Reward per Move', fontsize=12, fontweight='bold')
-    ax1.grid(alpha=0.3)
-    
-    # Achievements per move
-    ach_per_move = [a / m if m > 0 else 0 for a, m in zip(achievements, moves)]
-    ax2.plot(episodes, ach_per_move, linewidth=2.5, marker='s', markersize=4, color='green')
-    ax2.fill_between(episodes, ach_per_move, alpha=0.3, color='green')
-    ax2.set_xlabel('Episode', fontsize=11, fontweight='bold')
-    ax2.set_ylabel('Achievements per Move', fontsize=11, fontweight='bold')
-    ax2.set_title('Efficiency: Achievements per Move', fontsize=12, fontweight='bold')
-    ax2.grid(alpha=0.3)
-    
-    plt.tight_layout()
-    plt.savefig(f'{output_prefix}_efficiency.png', dpi=300, bbox_inches='tight')
-    plt.close()
-    print(f"[Plot] Saved: {output_prefix}_efficiency.png")
-    
-    # 5. Multi-metric dashboard
-    fig, axes = plt.subplots(2, 2, figsize=(16, 12))
-    
-    # Rewards
-    axes[0, 0].plot(episodes, rewards, linewidth=2, marker='o', markersize=3, color='steelblue', label='Shaped')
-    axes[0, 0].plot(episodes, native_rewards, linewidth=2, marker='s', markersize=3, color='coral', label='Native')
-    axes[0, 0].set_xlabel('Episode', fontsize=10, fontweight='bold')
-    axes[0, 0].set_ylabel('Reward', fontsize=10, fontweight='bold')
-    axes[0, 0].set_title('A. Reward Trends', fontsize=11, fontweight='bold')
-    axes[0, 0].legend()
-    axes[0, 0].grid(alpha=0.3)
-    
-    # Achievements
-    axes[0, 1].plot(episodes, cumulative_achievements, linewidth=2.5, marker='o', markersize=3, color='green')
-    axes[0, 1].fill_between(episodes, cumulative_achievements, alpha=0.3, color='green')
-    axes[0, 1].set_xlabel('Episode', fontsize=10, fontweight='bold')
-    axes[0, 1].set_ylabel('Cumulative Achievements', fontsize=10, fontweight='bold')
-    axes[0, 1].set_title('B. Achievement Unlocks', fontsize=11, fontweight='bold')
-    axes[0, 1].grid(alpha=0.3)
-    
-    # Moves
-    axes[1, 0].bar(episodes, moves, color='steelblue', alpha=0.5, edgecolor='black')
-    axes[1, 0].plot(episodes, moves, color='darkblue', linewidth=2, marker='o', markersize=3)
-    axes[1, 0].set_xlabel('Episode', fontsize=10, fontweight='bold')
-    axes[1, 0].set_ylabel('Moves per Episode', fontsize=10, fontweight='bold')
-    axes[1, 0].set_title('C. Episode Length', fontsize=11, fontweight='bold')
-    axes[1, 0].grid(alpha=0.3, axis='y')
-    
-    # Efficiency scatter
-    axes[1, 1].scatter(moves, achievements, c=rewards, s=80, cmap='viridis', alpha=0.6, edgecolor='black')
-    axes[1, 1].set_xlabel('Moves per Episode', fontsize=10, fontweight='bold')
-    axes[1, 1].set_ylabel('Achievements Unlocked', fontsize=10, fontweight='bold')
-    axes[1, 1].set_title('D. Efficiency Trade-off', fontsize=11, fontweight='bold')
-    axes[1, 1].grid(alpha=0.3)
-    
-    plt.suptitle('HeRoN Training - Multi-Metric Dashboard', fontsize=14, fontweight='bold')
-    plt.tight_layout()
-    plt.savefig(f'{output_prefix}_dashboard.png', dpi=300, bbox_inches='tight')
-    plt.close()
-    print(f"[Plot] Saved: {output_prefix}_dashboard.png")
-    
-    # 6. Helper Usage and Hallucinations (HeRoN-specific)
-    plt.figure(figsize=(12, 6))
-    
-    ax1 = plt.subplot(1, 2, 1)
-    ax1.plot(episodes, helper_calls, color='blue', alpha=0.7, label='Helper Calls', linewidth=2, marker='o', markersize=3)
-    ax1.set_title('Helper Calls per Episode', fontsize=12, fontweight='bold')
-    ax1.set_xlabel('Episode', fontsize=11, fontweight='bold')
-    ax1.set_ylabel('Number of Calls', fontsize=11, fontweight='bold')
-    ax1.grid(True, alpha=0.3)
-    ax1.legend()
-    
-    ax2 = plt.subplot(1, 2, 2)
-    hallucination_rate = [h / max(1, c) for h, c in zip(hallucinations, helper_calls)]
-    ax2.plot(episodes, hallucination_rate, color='red', alpha=0.7, label='Hallucination Rate', linewidth=2, marker='s', markersize=3)
-    ax2.set_title('LLM Hallucination Rate per Episode', fontsize=12, fontweight='bold')
-    ax2.set_xlabel('Episode', fontsize=11, fontweight='bold')
-    ax2.set_ylabel('Hallucination Rate', fontsize=11, fontweight='bold')
-    ax2.set_ylim([0, 1])
-    ax2.grid(True, alpha=0.3)
-    ax2.legend()
-    
-    plt.tight_layout()
-    plt.savefig(f'{output_prefix}_helper_stats.png', dpi=300, bbox_inches='tight')
-    plt.close()
-    print(f"[Plot] Saved: {output_prefix}_helper_stats.png")
-
-
-def export_metrics_csv(rewards, native_rewards, shaped_bonus, achievements, moves,
-                      helper_calls, hallucinations, output_file="heron_crafter_metrics.csv"):
-    """Export training metrics to CSV."""
-    
-    df = pd.DataFrame({
-        'episode': list(range(len(rewards))),
-        'shaped_reward': rewards,
-        'native_reward': native_rewards,
-        'shaped_bonus': shaped_bonus,
-        'achievements_unlocked': achievements,
-        'moves': moves,
-        'helper_calls': helper_calls,
-        'hallucinations': hallucinations,
-        'hallucination_rate': [h / max(1, c) for h, c in zip(hallucinations, helper_calls)]
-    })
-    
-    df.to_csv(output_file, index=False)
-    print(f"[Export] Saved metrics to: {output_file}")
-
-
 # ============================================================================
 # Per-Achievement Visualization Functions
 # ============================================================================
-
-def plot_achievement_curves(evaluation_system, moves_per_episode, output_file="heron_crafter_achievement_curves.png"):
-    """
-    Create per-achievement progression curves similar to PPO reference image.
-    Shows 22 subplots (4x6 grid) with unlock count over cumulative training steps.
-    Includes shaded min/max bands.
-    
-    Args:
-        evaluation_system: EvaluationSystem instance with achievement tracking
-        moves_per_episode: List of moves per episode to compute cumulative steps
-        output_file: Path to save the plot
-    """
-    achievement_stats = evaluation_system.get_achievement_statistics()
-    cumulative_matrix = achievement_stats.get('cumulative_achievement_matrix', [])
-    
-    if not cumulative_matrix:
-        print("[Warning] No achievement data available for plotting curves")
-        return
-    
-    # Compute cumulative steps (x-axis)
-    cumulative_steps = np.cumsum([0] + moves_per_episode)  # Prepend 0 for episode 0
-    cumulative_steps = cumulative_steps[:len(cumulative_matrix)]  # Match matrix length
-    
-    # Create 4x6 subplot grid for 22 achievements
-    fig, axes = plt.subplots(4, 6, figsize=(20, 12))
-    axes = axes.flatten()
-    
-    for ach_id in range(22):
-        ax = axes[ach_id]
-        
-        # Extract trajectory for this achievement
-        trajectory = [cumulative_matrix[ep][ach_id] for ep in range(len(cumulative_matrix))]
-        
-        # Plot line
-        ax.plot(cumulative_steps, trajectory, color='green', linewidth=1.5, alpha=0.8)
-        
-        # Add shaded region (min/max) - using same trajectory for now
-        # In multi-run experiments, this would show variance across runs
-        min_trajectory = np.maximum(0, np.array(trajectory) - 0.1)  # Placeholder
-        max_trajectory = np.array(trajectory) + 0.1  # Placeholder
-        ax.fill_between(cumulative_steps, min_trajectory, max_trajectory, 
-                        color='green', alpha=0.2)
-        
-        # Formatting
-        achievement_name = ACHIEVEMENT_ID_TO_NAME.get(ach_id, f"Achievement {ach_id}")
-        ax.set_title(achievement_name.replace('_', ' ').title(), fontsize=9)
-        ax.set_xlabel('Steps', fontsize=8)
-        ax.set_ylabel('Count', fontsize=8)
-        ax.tick_params(labelsize=7)
-        ax.grid(True, alpha=0.3)
-        
-        # Set y-axis to start at 0
-        ax.set_ylim(bottom=0)
-    
-    # Hide extra subplots (22 achievements, 24 subplot positions)
-    for idx in range(22, 24):
-        axes[idx].axis('off')
-    
-    plt.suptitle('Achievement Curves of HeRoN Training', fontsize=14, fontweight='bold')
-    plt.tight_layout(rect=[0, 0, 1, 0.98])
-    plt.savefig(output_file, dpi=150, bbox_inches='tight')
-    print(f"[Plot] Saved per-achievement curves to: {output_file}")
-    plt.close()
-
-
-def plot_achievement_heatmap(evaluation_system, output_file="heron_crafter_achievement_heatmap.png"):
-    """
-    Create achievement unlock frequency heatmap (22 achievements × episode bins).
-    Shows when achievements are being unlocked during training.
-    
-    Args:
-        evaluation_system: EvaluationSystem instance with achievement tracking
-        output_file: Path to save the heatmap
-    """
-    achievement_stats = evaluation_system.get_achievement_statistics()
-    episode_matrix = achievement_stats.get('episode_achievement_matrix', [])
-    
-    if not episode_matrix:
-        print("[Warning] No achievement data available for heatmap")
-        return
-    
-    # Transpose matrix: rows = achievements, columns = episodes
-    num_episodes = len(episode_matrix)
-    num_achievements = 22
-    
-    heatmap_data = np.zeros((num_achievements, num_episodes))
-    for ep in range(num_episodes):
-        for ach_id in range(num_achievements):
-            heatmap_data[ach_id, ep] = episode_matrix[ep][ach_id]
-    
-    # Create heatmap
-    fig, ax = plt.subplots(figsize=(16, 10))
-    
-    im = ax.imshow(heatmap_data, cmap='YlOrRd', aspect='auto', interpolation='nearest')
-    
-    # Set ticks
-    ax.set_xticks(np.arange(0, num_episodes, max(1, num_episodes // 20)))
-    ax.set_yticks(np.arange(num_achievements))
-    
-    # Set labels
-    achievement_labels = [ACHIEVEMENT_ID_TO_NAME.get(i, f"Ach{i}").replace('_', ' ').title() 
-                         for i in range(num_achievements)]
-    ax.set_yticklabels(achievement_labels, fontsize=9)
-    ax.set_xlabel('Episode', fontsize=12)
-    ax.set_ylabel('Achievement', fontsize=12)
-    ax.set_title('Achievement Unlock Frequency Heatmap (Per Episode)', fontsize=14, fontweight='bold')
-    
-    # Add colorbar
-    cbar = plt.colorbar(im, ax=ax)
-    cbar.set_label('Unlock Count', fontsize=10)
-    
-    plt.tight_layout()
-    plt.savefig(output_file, dpi=150, bbox_inches='tight')
-    print(f"[Plot] Saved achievement heatmap to: {output_file}")
-    plt.close()
-
-
-def plot_achievement_timeline(evaluation_system, output_file="heron_crafter_achievement_timeline.png"):
-    """
-    Create bar chart showing first unlock episode for each achievement.
-    Visualizes progression through achievement unlocking timeline.
-    
-    Args:
-        evaluation_system: EvaluationSystem instance with achievement tracking
-        output_file: Path to save the timeline
-    """
-    achievement_stats = evaluation_system.get_achievement_statistics()
-    per_ach_stats = achievement_stats.get('per_achievement_stats', [])
-    
-    if not per_ach_stats:
-        print("[Warning] No achievement data available for timeline")
-        return
-    
-    # Extract first unlock episodes
-    achievement_ids = []
-    first_unlock_episodes = []
-    achievement_labels = []
-    
-    for stat in per_ach_stats:
-        ach_id = stat['achievement_id']
-        first_ep = stat.get('first_unlock_episode')
-        
-        if first_ep is not None:  # Only plot unlocked achievements
-            achievement_ids.append(ach_id)
-            first_unlock_episodes.append(first_ep)
-            achievement_labels.append(ACHIEVEMENT_ID_TO_NAME.get(ach_id, f"Ach{ach_id}"))
-    
-    if not achievement_ids:
-        print("[Warning] No achievements unlocked yet")
-        return
-    
-    # Sort by first unlock episode
-    sorted_indices = np.argsort(first_unlock_episodes)
-    sorted_labels = [achievement_labels[i] for i in sorted_indices]
-    sorted_episodes = [first_unlock_episodes[i] for i in sorted_indices]
-    
-    # Create horizontal bar chart
-    fig, ax = plt.subplots(figsize=(12, max(8, len(sorted_labels) * 0.4)))
-    
-    colors = plt.cm.viridis(np.linspace(0, 1, len(sorted_labels)))
-    bars = ax.barh(range(len(sorted_labels)), sorted_episodes, color=colors, alpha=0.8)
-    
-    ax.set_yticks(range(len(sorted_labels)))
-    ax.set_yticklabels([label.replace('_', ' ').title() for label in sorted_labels], fontsize=10)
-    ax.set_xlabel('First Unlock Episode', fontsize=12)
-    ax.set_title('Achievement First Unlock Timeline', fontsize=14, fontweight='bold')
-    ax.grid(True, axis='x', alpha=0.3)
-    
-    # Add value labels on bars
-    for i, (bar, episode) in enumerate(zip(bars, sorted_episodes)):
-        ax.text(episode + 0.5, i, f'{episode}', va='center', fontsize=9)
-    
-    plt.tight_layout()
-    plt.savefig(output_file, dpi=150, bbox_inches='tight')
-    print(f"[Plot] Saved achievement timeline to: {output_file}")
-    plt.close()
 
 
 def export_achievement_statistics_json(evaluation_system, output_file="heron_crafter_achievement_statistics.json"):
@@ -1055,14 +495,6 @@ if __name__ == "__main__":
         episode_length=1000,  # Reduced from 1000 for testing
         threshold_episodes=600
     )
-    
-    # Visualize
-    plot_training(rewards, native_rewards, shaped_bonus, achievements, moves,
-                  helper_calls, hallucinations)
-    
-    # Export
-    export_metrics_csv(rewards, native_rewards, shaped_bonus, achievements, moves,
-                      helper_calls, hallucinations)
     
     print("\n" + "="*80)
     print("Training Complete!")

@@ -35,14 +35,14 @@ class CrafterHelper:
     REPLAN_THRESHOLD_ACHIEVEMENT = True  # Re-plan on achievement unlock
     REPLAN_THRESHOLD_INVENTORY_CHANGE = True  # Re-plan on significant inventory change
     
-    def __init__(self, server_host="http://127.0.0.1:1234", model_name="qwen3-4b-2507",
+    def __init__(self, server_host="http://127.0.0.1:1234", model_name="qwen/qwen3-4b-2507",
                  min_sequence_length=3, max_sequence_length=5, default_sequence_length=4):
         """
         Initialize Crafter Helper with LM Studio connection.
         
         Args:
             server_host: LM Studio API host
-            model_name: LLM model name (default: qwen3-4b-2507)
+            model_name: LLM model name (default: qwen/qwen3-4b-2507)
             min_sequence_length: Minimum actions per sequence (default: 3)
             max_sequence_length: Maximum actions per sequence (default: 5)
             default_sequence_length: Target sequence length for prompts (default: 4)
