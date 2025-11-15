@@ -264,54 +264,44 @@ class CrafterHelper:
         actions_list = ", ".join(official_actions)
         
         prompt = (
-            "You are a strategic AI for Crafter. PRIMARY GOALS:\n"
-            "1. STAY ALIVE - avoid death at all costs\n"
-            "2. MAXIMIZE achievements unlocked\n"
-            "3. Be efficient and strategic\n\n"
+            "You are a Crafter AI. GOALS: 1) Survive 2) Unlock achievements 3) Be efficient.\n\n"
             
-            "=== ALLOWED ACTIONS ONLY ===\n"
-            f"{actions_list}\n\n"
+            f"VALID ACTIONS: {actions_list}\n\n"
             
-            "COMMON MISTAKES:\n"
-            "❌ collect_wood, gather, mine → use [do]\n"
-            "❌ place_rock → use [place_stone]\n"
-            "❌ wait, rest → use [noop] or [sleep]\n\n"
+            "MISTAKES TO AVOID:\n"
+            "❌ collect_wood/gather/mine → use [do]\n"
+            "❌ place_rock → use [place_stone]\n\n"
             
-            f"{game_description}\n\n"
+            f"CURRENT STATE:\n{game_description}\n\n"
             
-            "=== SURVIVAL FIRST ===\n"
-            "• Health ≤ 5? URGENT - use [sleep] to recover\n"
-            "• Food/drink low? Prioritize gathering\n"
-            "• Avoid enemies until armed\n\n"
+            "SURVIVAL:\n"
+            "• Health ≤5? Use [sleep]\n"
+            "• Food/drink low? Gather resources\n\n"
             
-            "=== ACHIEVEMENT PATH ===\n"
-            "Fast progression:\n"
-            "1. Wood: [do] near trees\n"
-            "2. Table: [place_table]\n"
-            "3. Pickaxe: [make_wood_pickaxe]\n"
-            "4. Stone: [do] near rocks\n"
-            "5. Continue: coal → iron → advanced\n\n"
+            "ACHIEVEMENT CHAIN:\n"
+            "Wood→Table→Pickaxe→Stone→Coal→Iron→Diamond\n\n"
             
-            f"TASK: Generate {self.min_sequence_length}-{self.max_sequence_length} actions (target: {self.default_sequence_length}) for:\n"
-            "• Survival (monitor health/food/drink)\n"
-            "• Next Priority achievement\n"
-            "• Strategic movement\n\n"
+            f"TASK: Generate EXACTLY ONE sequence of {self.default_sequence_length} actions.\n\n"
             
-            f"FORMAT: [action1], [action2], ... [{self.default_sequence_length} actions total]\n"
-            "Brief reasoning (max 25 words).\n\n"
+            "FORMAT (MANDATORY):\n"
+            f"[action1], [action2], [action3], [action4]\n"
+            "One-line reason (max 15 words).\n\n"
             
             "EXAMPLES:\n"
-            "• [move_right], [do], [move_left], [noop] - Get wood safely\n"
-            "• [place_table], [make_wood_pickaxe], [sleep] - Craft then rest\n"
-            "• [sleep], [sleep], [noop] - URGENT health recovery\n\n"
+            "[move_right], [do], [move_left], [noop]\n"
+            "Collect wood safely.\n\n"
             
-            "Generate (prioritize survival + achievements):\n"
+            "[place_table], [make_wood_pickaxe], [sleep], [noop]\n"
+            "Craft pickaxe then rest.\n\n"
+            
+            "YOUR TURN (ONE sequence only):\n"
         )
         return prompt
     
     def parse_action_sequence(self, llm_response, max_length=None):
         """
         Parse bracketed actions from LLM response.
+        Takes ONLY the first line containing bracketed actions to avoid multi-sequence parsing.
         
         Args:
             llm_response: String response from LLM
@@ -323,11 +313,23 @@ class CrafterHelper:
         if max_length is None:
             max_length = self.max_sequence_length
         
-        # Extract all bracketed text
-        matches = re.findall(r'\[(.*?)\]', llm_response)
+        # Split response into lines and find first line with brackets
+        lines = llm_response.split('\n')
+        first_action_line = None
+        for line in lines:
+            if '[' in line and ']' in line:
+                first_action_line = line
+                break
+        
+        if not first_action_line:
+            print("[Parser] No bracketed actions found")
+            return None
+        
+        # Extract all bracketed text from FIRST line only
+        matches = re.findall(r'\[(.*?)\]', first_action_line)
         
         if not matches:
-            print("[Parser] No bracketed actions found")
+            print("[Parser] No valid actions in first bracket line")
             return None
         
         action_sequence = []

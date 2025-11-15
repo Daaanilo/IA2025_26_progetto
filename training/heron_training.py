@@ -98,12 +98,12 @@ except Exception as e:
 class CrafterRewardShaper:
     """
     Augments sparse Crafter rewards with intrinsic bonuses for learning signal.
+    ALIGNED WITH BASELINE DQN for fair comparison.
     
-    Bonuses:
-    - Resource collection: +0.1
-    - Health management: +0.05
-    - Tier progression: +0.05
-    - Tool crafting: +0.3 (aligned with baseline DQN)
+    Bonuses (EXACTLY matching baseline DQN):
+    - Resource collection: +0.1 per unit collected (cumulative)
+    - Health management: +0.02 if health/food/drink > 5 (static presence)
+    - Tool crafting: +0.3 per tool/weapon crafted
     - Death penalty: -1.0 (to encourage survival)
     """
     
@@ -122,8 +122,8 @@ class CrafterRewardShaper:
         self.bonus_tracker = {
             'resource_collection': [],
             'health_management': [],
-            'tier_progression': [],
-            'tool_usage': []
+            'tool_usage': [],
+            'death_penalty': []
         }
     
     def calculate_shaped_reward(self, native_reward, state, info, previous_info, action):
@@ -144,7 +144,6 @@ class CrafterRewardShaper:
         bonuses = {
             'resource_collection': 0.0,
             'health_management': 0.0,
-            'tier_progression': 0.0,
             'tool_usage': 0.0,
             'death_penalty': 0.0
         }
@@ -162,26 +161,23 @@ class CrafterRewardShaper:
         if previous_info is None:
             return shaped_reward, bonuses
         
-        # ===== 1. Resource Collection Bonus (+0.1) =====
-        # Reward agent for collecting resources (wood, stone, iron, coal, diamond)
+        # ===== 1. Resource Collection Bonus (+0.1 per unit) =====
+        # Reward agent for collecting resources (wood, stone, iron, coal, diamond, sapling)
+        # ALIGNED: Cumulative like baseline DQN
         bonuses['resource_collection'] = self._calculate_resource_bonus(
             info, previous_info, action
         )
         
-        # ===== 2. Health Management Bonus (+0.05) =====
-        # Reward agent for maintaining health through food/drink
+        # ===== 2. Health Management Bonus (+0.02 per stat) =====
+        # Reward agent for maintaining health/food/drink above threshold
+        # ALIGNED: Static presence check like baseline DQN
         bonuses['health_management'] = self._calculate_health_bonus(
             info, previous_info, action
         )
         
-        # ===== 3. Tier Progression Bonus (+0.05) =====
-        # Reward agent for advancing achievement tiers (collect→place→craft→interact)
-        bonuses['tier_progression'] = self._calculate_tier_bonus(
-            info, previous_info
-        )
-        
-        # ===== 4. Tool Usage Bonus (+0.02) =====
-        # Reward agent for using correct tool on resource type
+        # ===== 3. Tool Crafting Bonus (+0.3) =====
+        # Reward agent for crafting tools/weapons
+        # ALIGNED: Exactly matches baseline DQN
         bonuses['tool_usage'] = self._calculate_tool_bonus(
             info, previous_info, action
         )
@@ -198,14 +194,11 @@ class CrafterRewardShaper:
     
     def _calculate_resource_bonus(self, info, previous_info, action):
         """
-        +0.1 for successful resource collection.
-        Detect: inventory increase for wood, stone, iron, coal, diamond after [do] action
+        +0.1 per unit of resource collected (ALIGNED WITH BASELINE DQN).
+        Cumulative across all resources: wood, stone, iron, coal, diamond, sapling.
         """
-        if action != 5:  # [do] action (ID 5, not 4!)
-            return 0.0
-        
         bonus = 0.0
-        resources = ['wood', 'stone', 'iron', 'coal', 'diamond']
+        resources = ['wood', 'stone', 'coal', 'iron', 'diamond', 'sapling']
         
         curr_inv = info.get('inventory', {})
         prev_inv = previous_info.get('inventory', {})
@@ -214,68 +207,33 @@ class CrafterRewardShaper:
             curr_count = curr_inv.get(resource, 0)
             prev_count = prev_inv.get(resource, 0)
             if curr_count > prev_count:
-                bonus += 0.1
+                bonus += 0.1 * (curr_count - prev_count)  # CRITICAL: Cumulative like baseline
         
-        return min(bonus, 0.1)  # Cap at 0.1 per step (even if multiple resources collected)
+        return bonus  # No cap - cumulative reward like baseline DQN
     
     def _calculate_health_bonus(self, info, previous_info, action):
         """
-        +0.05 for maintaining/restoring health through food/drink consumption.
-        Detect: health increase or food/drink decrease
+        +0.02 for maintaining survival stats above threshold (ALIGNED WITH BASELINE DQN).
+        Rewards agent for keeping health, food, drink above safe levels.
         """
         bonus = 0.0
         
         curr_inv = info.get('inventory', {})
-        prev_inv = previous_info.get('inventory', {})
         
-        curr_health = curr_inv.get('health', 10)
-        prev_health = prev_inv.get('health', 10)
+        health = curr_inv.get('health', 0)
+        food = curr_inv.get('food', 0)
+        drink = curr_inv.get('drink', 0)
         
-        # Health increased (via food/drink/healing)
-        if curr_health > prev_health:
-            bonus += 0.05
+        # CRITICAL: Match baseline DQN exactly - static presence check
+        if health > 5:
+            bonus += 0.02
+        if food > 5:
+            bonus += 0.02
+        if drink > 5:
+            bonus += 0.02
         
-        # Food or drink consumed (inventory decreased)
-        if prev_inv.get('food', 0) > curr_inv.get('food', 0):
-            bonus += 0.03
-        if prev_inv.get('drink', 0) > curr_inv.get('drink', 0):
-            bonus += 0.03
-        
-        return min(bonus, 0.05)  # Cap at 0.05 per step
+        return bonus  # No cap - cumulative like baseline
     
-    def _calculate_tier_bonus(self, info, previous_info):
-        """
-        +0.05 for advancing through achievement tier chains.
-        E.g., collecting resources→placing structures→crafting tools→defeating enemies
-        """
-        bonus = 0.0
-        
-        curr_achievements = set(
-            k for k, v in info.get('achievements', {}).items() if v >= 1
-        )
-        prev_achievements = set(
-            k for k, v in previous_info.get('achievements', {}).items() if v >= 1
-        )
-        
-        # Define tier chains
-        tiers = {
-            'collect': ['collect_wood', 'collect_stone', 'collect_iron', 'collect_coal', 'collect_diamond'],
-            'place': ['place_stone', 'place_table', 'place_furnace', 'place_plant'],
-            'make': ['make_wood_pickaxe', 'make_stone_pickaxe', 'make_iron_pickaxe'],
-            'interact': ['eat_plant', 'eat_cow', 'defeat_zombie', 'defeat_skeleton']
-        }
-        
-        # Check for progression from collect → place → make → interact
-        tier_order = ['collect', 'place', 'make', 'interact']
-        for i, current_tier in enumerate(tier_order):
-            current_tier_achievements = set(tiers[current_tier])
-            if current_tier_achievements & curr_achievements and \
-               not (current_tier_achievements & prev_achievements):
-                # This tier was unlocked in this step
-                bonus += 0.05 * (i + 1) / 4  # Scale bonus by tier level
-                break
-        
-        return min(bonus, 0.05)
     
     def _calculate_tool_bonus(self, info, previous_info, action):
         """
@@ -287,7 +245,7 @@ class CrafterRewardShaper:
         curr_inv = info.get('inventory', {})
         prev_inv = previous_info.get('inventory', {})
         
-        # Bonus for crafting any tool or weapon
+        # Bonus for crafting any tool or weapon (ALIGNED WITH BASELINE DQN)
         tools = ['wood_pickaxe', 'stone_pickaxe', 'iron_pickaxe',
                  'wood_sword', 'stone_sword', 'iron_sword']
         
@@ -295,7 +253,7 @@ class CrafterRewardShaper:
             prev_val = prev_inv.get(tool, 0)
             curr_val = curr_inv.get(tool, 0)
             if curr_val > prev_val:
-                bonus += 0.3  # Increased from 0.02 to match baseline DQN
+                bonus += 0.3  # CRITICAL: Must match baseline DQN exactly
         
         return min(bonus, 0.3)  # Cap at 0.3 per step
     
@@ -417,11 +375,12 @@ def train_dqn_crafter(episodes=100, batch_size=32, episode_length=1000, threshol
         executor.current_sequence = []  # Reset sequence for new episode
         executor.current_sequence_index = 0
         
-        # CRITICAL: Clear LLM conversation history to prevent context overflow (4096 token limit)
+        # CRITICAL: Clear LLM conversation history ONLY at episode start
         helper.reset_conversation()
+        print(f"[Episode {e}] Conversation history cleared for new episode")
         
         # Monitor conversation length during episode
-        conversation_reset_threshold = 10  # Reset after N Helper calls to prevent overflow
+        conversation_reset_threshold = 15  # Increased threshold - let context accumulate longer
         
         # ===== STEP LOOP =====
         while not done and moves < episode_length:
@@ -437,7 +396,7 @@ def train_dqn_crafter(episodes=100, batch_size=32, episode_length=1000, threshol
                 # Periodic conversation reset to prevent overflow (every N calls)
                 if episode_helper_calls > 0 and episode_helper_calls % conversation_reset_threshold == 0:
                     helper.reset_conversation()
-                    print(f"[Helper] Periodic conversation reset (call #{episode_helper_calls}) to prevent overflow")
+                    print(f"[Episode {e}, Step {moves}] Periodic conversation reset (call #{episode_helper_calls}) to prevent 4096 token overflow")
                 
                 try:
                     # Get current game state and info
@@ -498,10 +457,8 @@ def train_dqn_crafter(episodes=100, batch_size=32, episode_length=1000, threshol
                                         action = executor.current_sequence[executor.current_sequence_index]
                                         executor.current_sequence_index += 1
                                         
-                                        # CRITICAL: Clear conversation after Reviewer cycle to prevent overflow
-                                        # This resets context while keeping the refined sequence
-                                        helper.reset_conversation()
-                                        print(f"[Helper] Conversation reset after Reviewer refinement (context overflow prevention)")
+                                        # NOTE: Conversation reset removed - let periodic reset handle it
+                                        # This preserves context for better learning from Reviewer feedback
                                         
                                 except Exception as e:
                                     print(f"[Helper] Error during refinement: {e}")
