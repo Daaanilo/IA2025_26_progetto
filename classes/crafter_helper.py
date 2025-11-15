@@ -35,14 +35,14 @@ class CrafterHelper:
     REPLAN_THRESHOLD_ACHIEVEMENT = True  # Re-plan on achievement unlock
     REPLAN_THRESHOLD_INVENTORY_CHANGE = True  # Re-plan on significant inventory change
     
-    def __init__(self, server_host="http://127.0.0.1:1234", model_name="llama-3.2-3b-instruct",
+    def __init__(self, server_host="http://127.0.0.1:1234", model_name="qwen3-4b-2507",
                  min_sequence_length=3, max_sequence_length=5, default_sequence_length=4):
         """
         Initialize Crafter Helper with LM Studio connection.
         
         Args:
             server_host: LM Studio API host
-            model_name: LLM model name (default: llama-3.2-3b-instruct)
+            model_name: LLM model name (default: qwen3-4b-2507)
             min_sequence_length: Minimum actions per sequence (default: 3)
             max_sequence_length: Maximum actions per sequence (default: 5)
             default_sequence_length: Target sequence length for prompts (default: 4)
@@ -65,7 +65,8 @@ class CrafterHelper:
         self.sequence_count = 0
         self.hallucination_count = 0
         # LLM safety limits (CRITICAL: prevent context overflow)
-        self.max_messages_history = 3  # Keep only last 3 exchanges (was 16 - caused 8900+ token overflow)
+        # Updated for Qwen3-4B-2507 with 8192 context window (was 4096)
+        self.max_messages_history = 12  # Increased from 8 - supports longer conversations
         self.llm_timeout_seconds = 40   # fail fast instead of hanging
         # Conversation history - MUST be cleared between episodes
         self._message_history = []
@@ -270,7 +271,8 @@ class CrafterHelper:
             
             "MISTAKES TO AVOID:\n"
             "❌ collect_wood/gather/mine → use [do]\n"
-            "❌ place_rock → use [place_stone]\n\n"
+            "❌ place_rock → use [place_stone]\n"
+            "❌ NEVER use placeholders: 'action1', 'action2', etc. → use REAL actions\n\n"
             
             f"CURRENT STATE:\n{game_description}\n\n"
             
@@ -283,18 +285,30 @@ class CrafterHelper:
             
             f"TASK: Generate EXACTLY ONE sequence of {self.default_sequence_length} actions.\n\n"
             
-            "FORMAT (MANDATORY):\n"
-            f"[action1], [action2], [action3], [action4]\n"
+            "FORMAT (MANDATORY - NO PLACEHOLDERS!):\n"
+            "You MUST replace 'action1/action2/etc' with REAL action names from the list above!\n"
+            f"[REAL_ACTION_1], [REAL_ACTION_2], [REAL_ACTION_3], [REAL_ACTION_4]\n"
             "One-line reason (max 15 words).\n\n"
             
+            "STOP! Do NOT write 'action1', 'action2', etc. Use ONLY these 17 real actions:\n"
+            f"{actions_list}\n\n"
+            
             "EXAMPLES:\n"
+            "✅ GOOD:\n"
             "[move_right], [do], [move_left], [noop]\n"
             "Collect wood safely.\n\n"
             
+            "✅ GOOD:\n"
             "[place_table], [make_wood_pickaxe], [sleep], [noop]\n"
             "Craft pickaxe then rest.\n\n"
             
-            "YOUR TURN (ONE sequence only):\n"
+            "❌ BAD (NEVER DO THIS):\n"
+            "[action1], [action2], [action3]  ← WRONG! These are placeholders!\n"
+            "[do_something], [gather_wood]  ← WRONG! Not in the 17 valid actions!\n"
+            "(move_left), (do)  ← WRONG! Use square brackets [ ], not parentheses!\n"
+            "Use ONLY the 17 valid actions listed above!\n\n"
+            
+            "YOUR TURN - Write your sequence using REAL action names from the list:\n"
         )
         return prompt
     
@@ -452,7 +466,7 @@ class CrafterHelper:
     def reset_conversation(self):
         """Clear conversation history - call at episode start to prevent context overflow."""
         self._message_history = []
-        print("[Helper] Conversation history cleared for new episode")
+        # Note: Logging handled by caller for better episode context
 
 
 # Strategy B Fallback: Use DQN for remaining sequence actions after LLM interruption

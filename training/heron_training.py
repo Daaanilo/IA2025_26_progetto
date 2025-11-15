@@ -312,8 +312,13 @@ def train_dqn_crafter(episodes=100, batch_size=32, episode_length=1000, threshol
     
     # Initialize CrafterHelper (LLM)
     print("[Init] Initializing CrafterHelper...")
-    # Note: lmstudio v1.5.0 uses context manager - server_host parameter ignored
-    helper = CrafterHelper(model_name="qwen2.5-1.5b-instruct")
+    # Using Qwen3-4B-2507 (4B params, 256K context window)
+    # Q6_K quantization for optimal quality/speed balance
+    # Alternative models for comparison:
+    # - 'llama-3.1-8b-instruct' (better instruction following)
+    # - 'qwen2.5-7b-instruct' (larger Qwen variant)
+    # - 'mistral-7b-instruct-v0.3' (strong reasoning)
+    helper = CrafterHelper(model_name="qwen3-4b-2507")
     
     # Initialize Reviewer (fine-tuned model)
     print("[Init] Initializing InstructorAgent (Reviewer)...")
@@ -380,14 +385,16 @@ def train_dqn_crafter(episodes=100, batch_size=32, episode_length=1000, threshol
         print(f"[Episode {e}] Conversation history cleared for new episode")
         
         # Monitor conversation length during episode
-        conversation_reset_threshold = 15  # Increased threshold - let context accumulate longer
+        conversation_reset_threshold = 30  # Increased for Qwen3-4B with 8192 context (was 20)
         
         # ===== STEP LOOP =====
         while not done and moves < episode_length:
             p = np.random.rand()
             
             # Decide: LLM or DQN
-            use_llm = (p > threshold) and (e < threshold_episodes)
+            # Threshold logic: p < threshold means use LLM
+            # threshold=1.0 → always LLM, threshold=0.0 → never LLM
+            use_llm = (p < threshold) and (e < threshold_episodes)
             
             if use_llm:
                 # ===== LLM WORKFLOW: Helper → Reviewer → Helper =====
@@ -435,9 +442,19 @@ def train_dqn_crafter(episodes=100, batch_size=32, episode_length=1000, threshol
                                 
                                 # 3. Helper reprompts WITHIN ITS CONVERSATION CONTEXT (FIX #3)
                                 refined_prompt = (
-                                    f"Reviewer feedback on your suggestion: {reviewer_feedback}\n"
-                                    f"Please refine your action sequence based on this feedback.\n"
-                                    f"Generate 3-5 actions in square brackets."
+                                    f"REVIEWER FEEDBACK: {reviewer_feedback}\n\n"
+                                    f"CRITICAL: Refine your action sequence to address the feedback above.\n"
+                                    f"You MUST:\n"
+                                    f"1. Use ONLY these 17 valid actions: move_up, move_down, move_left, move_right, do, sleep, "
+                                    f"place_stone, place_table, place_furnace, place_plant, "
+                                    f"make_wood_pickaxe, make_stone_pickaxe, make_iron_pickaxe, "
+                                    f"make_wood_sword, make_stone_sword, make_iron_sword, noop\n"
+                                    f"2. Generate EXACTLY 3-5 actions in square brackets: [action1], [action2], [action3]\n"
+                                    f"3. Follow the Reviewer's strategic advice (e.g., prioritize resource gathering if suggested)\n"
+                                    f"4. NO placeholders, NO invented actions, NO parentheses!\n\n"
+                                    f"Format: [move_right], [do], [move_left], [noop]\n"
+                                    f"One-line reason.\n\n"
+                                    f"Generate your REFINED sequence now:"
                                 )
                                 
                                 try:
