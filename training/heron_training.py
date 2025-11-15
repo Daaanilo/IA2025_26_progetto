@@ -96,7 +96,16 @@ except Exception as e:
 # ============================================================================
 
 class CrafterRewardShaper:
-    """Augments sparse Crafter rewards with intrinsic bonuses for learning signal."""
+    """
+    Augments sparse Crafter rewards with intrinsic bonuses for learning signal.
+    
+    Bonuses:
+    - Resource collection: +0.1
+    - Health management: +0.05
+    - Tier progression: +0.05
+    - Tool crafting: +0.3 (aligned with baseline DQN)
+    - Death penalty: -1.0 (to encourage survival)
+    """
     
     # Crafter action ID mapping
     # OFFICIAL CRAFTER ACTION MAPPING (corrected)
@@ -136,8 +145,19 @@ class CrafterRewardShaper:
             'resource_collection': 0.0,
             'health_management': 0.0,
             'tier_progression': 0.0,
-            'tool_usage': 0.0
+            'tool_usage': 0.0,
+            'death_penalty': 0.0
         }
+        
+        if previous_info is None:
+            return shaped_reward, bonuses
+        
+        # ===== DEATH PENALTY (-1.0) =====
+        # Penalize agent for dying to encourage survival
+        curr_health = info.get('inventory', {}).get('health', 10)
+        prev_health = previous_info.get('inventory', {}).get('health', 10)
+        if curr_health == 0 and prev_health > 0:
+            bonuses['death_penalty'] = -1.0
         
         if previous_info is None:
             return shaped_reward, bonuses
@@ -259,23 +279,25 @@ class CrafterRewardShaper:
     
     def _calculate_tool_bonus(self, info, previous_info, action):
         """
-        +0.02 for using correct tool on resource type.
-        E.g., using pickaxe on stone/iron/coal/diamond (not wood with pickaxe)
+        +0.3 for crafting tools/weapons (aligned with baseline DQN).
+        E.g., crafting pickaxes or swords to improve survival and resource gathering.
         """
         bonus = 0.0
         
-        # Map action IDs to tool usage scenarios (UPDATED for correct mapping)
-        tool_actions = {
-            11: ['wood_pickaxe'],  # make_wood_pickaxe (was 10)
-            12: ['stone_pickaxe'],  # make_stone_pickaxe (was 11)
-            13: ['iron_pickaxe'],   # make_iron_pickaxe (was 12)
-        }
+        curr_inv = info.get('inventory', {})
+        prev_inv = previous_info.get('inventory', {})
         
-        if action in tool_actions:
-            # Tier progression in tools
-            bonus += 0.02
+        # Bonus for crafting any tool or weapon
+        tools = ['wood_pickaxe', 'stone_pickaxe', 'iron_pickaxe',
+                 'wood_sword', 'stone_sword', 'iron_sword']
         
-        return bonus
+        for tool in tools:
+            prev_val = prev_inv.get(tool, 0)
+            curr_val = curr_inv.get(tool, 0)
+            if curr_val > prev_val:
+                bonus += 0.3  # Increased from 0.02 to match baseline DQN
+        
+        return min(bonus, 0.3)  # Cap at 0.3 per step
     
     def get_statistics(self):
         """Return average bonuses across tracked steps."""
@@ -395,6 +417,12 @@ def train_dqn_crafter(episodes=100, batch_size=32, episode_length=1000, threshol
         executor.current_sequence = []  # Reset sequence for new episode
         executor.current_sequence_index = 0
         
+        # CRITICAL: Clear LLM conversation history to prevent context overflow (4096 token limit)
+        helper.reset_conversation()
+        
+        # Monitor conversation length during episode
+        conversation_reset_threshold = 10  # Reset after N Helper calls to prevent overflow
+        
         # ===== STEP LOOP =====
         while not done and moves < episode_length:
             p = np.random.rand()
@@ -405,6 +433,11 @@ def train_dqn_crafter(episodes=100, batch_size=32, episode_length=1000, threshol
             if use_llm:
                 # ===== LLM WORKFLOW: Helper → Reviewer → Helper =====
                 episode_helper_calls += 1
+                
+                # Periodic conversation reset to prevent overflow (every N calls)
+                if episode_helper_calls > 0 and episode_helper_calls % conversation_reset_threshold == 0:
+                    helper.reset_conversation()
+                    print(f"[Helper] Periodic conversation reset (call #{episode_helper_calls}) to prevent overflow")
                 
                 try:
                     # Get current game state and info
@@ -441,36 +474,38 @@ def train_dqn_crafter(episodes=100, batch_size=32, episode_length=1000, threshol
                                 reviewer_feedback = instructor.generate_suggestion(game_description, helper_response)
                                 print(f"[Reviewer] Feedback: {reviewer_feedback}\n")
                                 
-                                # 3. Helper reprompts based on Reviewer feedback
+                                # 3. Helper reprompts WITHIN ITS CONVERSATION CONTEXT (FIX #3)
                                 refined_prompt = (
-                                    f"Game state: {game_description}\n"
-                                    f"Your initial response: {helper_response}\n"
-                                    f"Reviewer feedback: {reviewer_feedback}\n"
-                                    f"Please refine your action sequence considering this feedback.\n"
+                                    f"Reviewer feedback on your suggestion: {reviewer_feedback}\n"
+                                    f"Please refine your action sequence based on this feedback.\n"
                                     f"Generate 3-5 actions in square brackets."
                                 )
                                 
                                 try:
-                                    with lms.Client() as client:
-                                        model = client.llm.model("qwen2.5-1.5b-instruct")
-                                        refined_response = model.respond(refined_prompt)
-                                        refined_response = str(refined_response)
-                                        refined_response = re.sub(r"<think>.*?</think>", "", refined_response, flags=re.DOTALL).strip()
-                                        print(f"[Helper] Refined response: {refined_response}\n")
+                                    # Use Helper's generate_action_sequence to preserve conversation context
+                                    action_sequence, refined_response = helper.generate_action_sequence(
+                                        state, current_info, previous_info, override_prompt=refined_prompt
+                                    )
+                                    print(f"[Helper] Refined response: {refined_response}\n")
+                                    
+                                    if action_sequence is None:
+                                        episode_hallucinations += 1
+                                        action = agent.act(state, env)
+                                    else:
+                                        # Store sequence in executor
+                                        executor.current_sequence = action_sequence
+                                        executor.current_sequence_index = 0
+                                        action = executor.current_sequence[executor.current_sequence_index]
+                                        executor.current_sequence_index += 1
                                         
-                                        # Re-parse with refined response
-                                        action_sequence = helper.parse_action_sequence(refined_response)
-                                        if action_sequence is None:
-                                            episode_hallucinations += 1
-                                            action = agent.act(state, env)
-                                        else:
-                                            # Store sequence in executor
-                                            executor.current_sequence = action_sequence
-                                            executor.current_sequence_index = 0
-                                            action = executor.current_sequence[executor.current_sequence_index]
-                                            executor.current_sequence_index += 1
+                                        # CRITICAL: Clear conversation after Reviewer cycle to prevent overflow
+                                        # This resets context while keeping the refined sequence
+                                        helper.reset_conversation()
+                                        print(f"[Helper] Conversation reset after Reviewer refinement (context overflow prevention)")
+                                        
                                 except Exception as e:
                                     print(f"[Helper] Error during refinement: {e}")
+                                    episode_hallucinations += 1
                                     action = agent.act(state, env)
                             else:
                                 # Store sequence and get first action
@@ -581,10 +616,13 @@ def train_dqn_crafter(episodes=100, batch_size=32, episode_length=1000, threshol
         print(f"  Epsilon: {agent.epsilon:.4f}, Threshold: {threshold:.4f}")
         print(f"  Helper Stats: {helper.get_statistics()}")
         
-        # F09: Decay threshold PER EPISODE (not per step)
+        # F09: Decay threshold PER EPISODE (not per step) - FIX #1
         if e < threshold_episodes:
+            print(f"  Current Threshold Used: {threshold:.4f}")
             threshold = max(0, threshold - threshold_decay_per_episode)
             print(f"  Next Episode Threshold: {threshold:.4f}")
+        else:
+            print(f"  Threshold Decay Disabled (episode >= {threshold_episodes})")
     
     # ===== TRAINING COMPLETE =====
     print(f"\n[Training] Complete!")

@@ -11,6 +11,7 @@ This module handles:
 import re
 import numpy as np
 import lmstudio as lms
+import time
 
 
 class CrafterHelper:
@@ -63,6 +64,11 @@ class CrafterHelper:
         # Statistics
         self.sequence_count = 0
         self.hallucination_count = 0
+        # LLM safety limits (CRITICAL: prevent context overflow)
+        self.max_messages_history = 3  # Keep only last 3 exchanges (was 16 - caused 8900+ token overflow)
+        self.llm_timeout_seconds = 40   # fail fast instead of hanging
+        # Conversation history - MUST be cleared between episodes
+        self._message_history = []
     
     def describe_crafter_state(self, state, info, previous_info=None):
         """
@@ -178,7 +184,7 @@ class CrafterHelper:
         else:
             return "Explore and unlock remaining achievements (combat, crafting)"
     
-    def generate_action_sequence(self, state, info, previous_info=None):
+    def generate_action_sequence(self, state, info, previous_info=None, override_prompt=None):
         """
         Generate 3-5 action sequence using LLM.
         
@@ -186,31 +192,48 @@ class CrafterHelper:
             state: 41-dim numpy array from CrafterEnv
             info: info dict from env.step()
             previous_info: optional previous info for change context
+            override_prompt: optional custom prompt (for Reviewer refinement workflow)
         
         Returns:
             tuple: (action_sequence: List[int], llm_response: str)
             If LLM fails, returns (None, error_message)
         """
         game_description = self.describe_crafter_state(state, info, previous_info)
-        
-        # Craft prompt for action sequence
-        prompt = self._build_sequence_prompt(game_description)
-        
+
+        # Craft prompt for action sequence (or use override for Reviewer refinement)
+        if override_prompt:
+            prompt = override_prompt
+        else:
+            prompt = self._build_sequence_prompt(game_description)
+
+        # CRITICAL: Aggressive context management to prevent 4096 token overflow
+        # Keep only last N prompts (sliding window)
+        self._message_history.append(prompt)
+        if len(self._message_history) > self.max_messages_history:
+            self._message_history = self._message_history[-self.max_messages_history:]
+            print(f"[Helper] Context trimmed to {len(self._message_history)} messages")
+
         try:
+            start_time = time.time()
             with lms.Client() as client:
                 model = client.llm.model(self.model_name)
-                # Note: current lmstudio client doesn't support max_tokens on respond()
-                llm_response = model.respond(prompt)
+                # lmstudio-python non espone max_tokens direttamente su respond();
+                # ci affidiamo quindi a timeout lato client per evitare blocchi.
+                llm_response = model.respond("\n\n".join(self._message_history))
+                elapsed = time.time() - start_time
+                if elapsed > self.llm_timeout_seconds:
+                    raise TimeoutError(f"LLM response exceeded {self.llm_timeout_seconds}s ({elapsed:.1f}s)")
+
                 llm_response = str(llm_response)
-                
+
                 # Clean thinking tags
                 llm_response = re.sub(r"<think>.*?</think>", "", llm_response, flags=re.DOTALL).strip()
-                
+
                 print(f"[Helper] LLM Response:\n{llm_response}\n")
-                
+
                 # Parse action sequence
                 action_sequence = self.parse_action_sequence(llm_response)
-                
+
                 if action_sequence:
                     self.sequence_count += 1
                     return action_sequence, llm_response
@@ -218,7 +241,10 @@ class CrafterHelper:
                     self.hallucination_count += 1
                     print("[Helper] Failed to parse valid action sequence - hallucination detected")
                     return None, llm_response
-                    
+
+        except TimeoutError as e:
+            print(f"[Helper] LLM Timeout: {e}")
+            return None, str(e)
         except Exception as e:
             print(f"[Helper] LLM Error: {e}")
             return None, str(e)
@@ -420,6 +446,11 @@ class CrafterHelper:
             'hallucinations': self.hallucination_count,
             'hallucination_rate': self.hallucination_count / max(1, self.sequence_count)
         }
+    
+    def reset_conversation(self):
+        """Clear conversation history - call at episode start to prevent context overflow."""
+        self._message_history = []
+        print("[Helper] Conversation history cleared for new episode")
 
 
 # Strategy B Fallback: Use DQN for remaining sequence actions after LLM interruption
