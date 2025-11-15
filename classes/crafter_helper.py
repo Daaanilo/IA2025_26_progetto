@@ -199,6 +199,7 @@ class CrafterHelper:
         try:
             with lms.Client() as client:
                 model = client.llm.model(self.model_name)
+                # Note: current lmstudio client doesn't support max_tokens on respond()
                 llm_response = model.respond(prompt)
                 llm_response = str(llm_response)
                 

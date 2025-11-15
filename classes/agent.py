@@ -33,8 +33,9 @@ class DQNAgent:
         self.action_size = action_size
         
         # OTTIMIZZAZIONE: Memory più grande per esperienze diversificate
-        self.memory = deque(maxlen=10000)  # Era 2000
-        self.priorities = deque(maxlen=10000)  # Per Prioritized Replay
+        # OTTIMIZZATO per GPU 6GB: Ridotto da 10000 a 5000
+        self.memory = deque(maxlen=5000)  # Era 10000
+        self.priorities = deque(maxlen=5000)  # Per Prioritized Replay
         
         # OTTIMIZZAZIONE: Iperparametri ottimizzati per Crafter
         self.gamma = 0.99  # Era 0.95 - discount maggiore per rewards sparse

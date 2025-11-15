@@ -16,8 +16,8 @@ try:
         
         # Connect to specific model (must be already loaded in LM Studio)
         # Use the exact model identifier as shown in LM Studio
-        model = client.llm.model("llama-3.2-3b-instruct")
-        print(f"✓ Model connected: llama-3.2-3b-instruct")
+        model = client.llm.model("qwen2.5-1.5b-instruct")
+        print(f"✓ Model connected: qwen2.5-1.5b-instruct")
         
         # Test prediction
         print("\nTesting prediction...")

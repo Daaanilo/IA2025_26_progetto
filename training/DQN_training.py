@@ -236,7 +236,7 @@ def calculate_shaped_reward(native_reward, info, previous_info, achievements_thi
     return shaped_reward, shaped_bonus
 
 
-def train_dqn_baseline(episodes=200, batch_size=32, episode_length=500, load_model_path=None):
+def train_dqn_baseline(episodes=300, batch_size=32, episode_length=1000, load_model_path=None):
     """
     Train pure DQN agent on Crafter environment.
     
@@ -421,7 +421,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train DQN baseline on Crafter environment")
     parser.add_argument("--episodes", type=int, default=300, help="Number of training episodes")
     parser.add_argument("--batch-size", type=int, default=32, help="DQN batch size")
-    parser.add_argument("--episode-length", type=int, default=500, help="Steps per episode")
+    parser.add_argument("--episode-length", type=int, default=1000, help="Steps per episode")
     parser.add_argument("--load-model", type=str, default=None, help="Path to pre-trained model")
     
     args = parser.parse_args()

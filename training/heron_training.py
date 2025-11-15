@@ -65,20 +65,20 @@ ACHIEVEMENT_NAME_TO_ID = {
 ACHIEVEMENT_ID_TO_NAME = {v: k for k, v in ACHIEVEMENT_NAME_TO_ID.items()}
 
 # LM Studio configuration
-SERVER_API_HOST = "http://127.0.0.1:1234"
-lms.get_default_client(SERVER_API_HOST)
+# Note: lmstudio v1.5.0 uses context manager syntax - connection handled in CrafterHelper
+# No need to initialize global client here
 
 # Device selection: CUDA (NVIDIA) or CPU only (NO MPS - Crafter incompatible)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"[Config] Using device: {device}")
 print(f"[Config] NOTE: MPS (Apple Silicon) not supported by Crafter environment")
 
-# Reviewer model configuration (PLACEHOLDER - update after F06 completion)
-REVIEWER_MODEL_PATH = "reviewer_retrained"  # TODO: Update after F06
-REVIEWER_TOKENIZER_PATH = "reviewer_retrained"  # TODO: Update after F06
+# Reviewer model configuration (PPO fine-tuned model)
+REVIEWER_MODEL_PATH = "reviewer_retrained_ppo"
+REVIEWER_TOKENIZER_PATH = "reviewer_retrained_ppo"
 
-print(f"[Config] Reviewer model path (PLACEHOLDER): {REVIEWER_MODEL_PATH}")
-print(f"[Config] Note: Update paths after F06 fine-tuning completion")
+print(f"[Config] Reviewer model path: {REVIEWER_MODEL_PATH}")
+print(f"[Config] Using PPO fine-tuned reviewer model")
 
 try:
     tokenizer_reviewer = AutoTokenizer.from_pretrained(REVIEWER_TOKENIZER_PATH)
@@ -332,7 +332,8 @@ def train_dqn_crafter(episodes=100, batch_size=32, episode_length=1000, threshol
     
     # Initialize CrafterHelper (LLM)
     print("[Init] Initializing CrafterHelper...")
-    helper = CrafterHelper(server_host=SERVER_API_HOST, model_name="llama-3.2-3b-instruct")
+    # Note: lmstudio v1.5.0 uses context manager - server_host parameter ignored
+    helper = CrafterHelper(model_name="qwen2.5-1.5b-instruct")
     
     # Initialize Reviewer (fine-tuned model)
     print("[Init] Initializing InstructorAgent (Reviewer)...")
@@ -378,7 +379,7 @@ def train_dqn_crafter(episodes=100, batch_size=32, episode_length=1000, threshol
     
     # ===== EPISODE LOOP =====
     for e in range(episodes):
-        state = env.reset()
+        state, initial_info = env.reset()  # Unpack tuple (state, info)
         state = np.reshape(state, [1, env.state_size])
         done = False
         total_reward = 0
@@ -389,7 +390,7 @@ def train_dqn_crafter(episodes=100, batch_size=32, episode_length=1000, threshol
         episode_helper_calls = 0
         episode_hallucinations = 0
         
-        previous_info = None
+        previous_info = initial_info  # Use info from reset
         reward_shaper.reset_episode()
         executor.current_sequence = []  # Reset sequence for new episode
         executor.current_sequence_index = 0
@@ -451,7 +452,7 @@ def train_dqn_crafter(episodes=100, batch_size=32, episode_length=1000, threshol
                                 
                                 try:
                                     with lms.Client() as client:
-                                        model = client.llm.model("llama-3.2-3b-instruct")
+                                        model = client.llm.model("qwen2.5-1.5b-instruct")
                                         refined_response = model.respond(refined_prompt)
                                         refined_response = str(refined_response)
                                         refined_response = re.sub(r"<think>.*?</think>", "", refined_response, flags=re.DOTALL).strip()
@@ -645,66 +646,145 @@ def train_dqn_crafter(episodes=100, batch_size=32, episode_length=1000, threshol
 
 def plot_training(rewards, native_rewards, shaped_bonus, achievements, moves, 
                   helper_calls, hallucinations):
-    """Create comprehensive training visualization plots."""
+    """Create comprehensive training visualization plots (same as DQN baseline)."""
     
-    # Plot 1: Shaped Rewards
-    plt.figure(figsize=(10, 6))
-    plt.plot(rewards, label='Shaped Reward', color='blue', alpha=0.7)
-    plt.plot(native_rewards, label='Native Reward', color='green', alpha=0.7)
-    plt.plot(shaped_bonus, label='Shaped Bonus', color='orange', alpha=0.7)
-    plt.title('Rewards per Episode (Crafter + HeRoN Integration)')
-    plt.xlabel('Episode')
-    plt.ylabel('Reward')
-    plt.legend()
-    plt.grid(True, alpha=0.3)
-    plt.savefig("heron_crafter_rewards.png", dpi=150, bbox_inches='tight')
-    print("[Plot] Saved: heron_crafter_rewards.png")
+    episodes = range(1, len(rewards) + 1)
+    output_prefix = "heron_crafter"
     
-    # Plot 2: Achievements
-    plt.figure(figsize=(10, 6))
+    # 1. Rewards over time
+    plt.figure(figsize=(14, 6))
+    plt.plot(episodes, rewards, label='Shaped Reward (native + bonus)', linewidth=2, marker='o', markersize=4)
+    plt.plot(episodes, native_rewards, label='Native Reward (sparse)', linewidth=2, marker='s', markersize=4)
+    plt.plot(episodes, shaped_bonus, label='Shaped Bonus Total', linewidth=2, marker='^', markersize=4)
+    plt.xlabel('Episode', fontsize=12, fontweight='bold')
+    plt.ylabel('Reward', fontsize=12, fontweight='bold')
+    plt.title('HeRoN Training - Reward Trends', fontsize=13, fontweight='bold')
+    plt.legend(fontsize=10)
+    plt.grid(alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(f'{output_prefix}_rewards.png', dpi=300, bbox_inches='tight')
+    plt.close()
+    print(f"[Plot] Saved: {output_prefix}_rewards.png")
+    
+    # 2. Cumulative achievements
     cumulative_achievements = np.cumsum(achievements)
-    plt.plot(cumulative_achievements, color='purple', linewidth=2)
-    plt.title('Cumulative Achievements Unlocked per Episode')
-    plt.xlabel('Episode')
-    plt.ylabel('Total Achievements')
-    plt.grid(True, alpha=0.3)
-    plt.savefig("heron_crafter_achievements.png", dpi=150, bbox_inches='tight')
-    print("[Plot] Saved: heron_crafter_achievements.png")
+    plt.figure(figsize=(14, 6))
+    plt.plot(episodes, cumulative_achievements, linewidth=2.5, marker='o', markersize=5, color='green')
+    plt.fill_between(episodes, cumulative_achievements, alpha=0.3, color='green')
+    plt.xlabel('Episode', fontsize=12, fontweight='bold')
+    plt.ylabel('Cumulative Achievements', fontsize=12, fontweight='bold')
+    plt.title('HeRoN Training - Cumulative Achievement Unlocks', fontsize=13, fontweight='bold')
+    plt.grid(alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(f'{output_prefix}_achievements.png', dpi=300, bbox_inches='tight')
+    plt.close()
+    print(f"[Plot] Saved: {output_prefix}_achievements.png")
     
-    # Plot 3: Moves per Episode
-    plt.figure(figsize=(10, 6))
-    plt.plot(moves, color='teal', alpha=0.7)
-    plt.title('Moves per Episode')
-    plt.xlabel('Episode')
-    plt.ylabel('Number of Moves')
-    plt.grid(True, alpha=0.3)
-    plt.savefig("heron_crafter_moves.png", dpi=150, bbox_inches='tight')
-    print("[Plot] Saved: heron_crafter_moves.png")
+    # 3. Moves per episode
+    plt.figure(figsize=(14, 6))
+    plt.bar(episodes, moves, color='steelblue', alpha=0.7, edgecolor='black')
+    plt.plot(episodes, moves, color='darkblue', linewidth=2, marker='o', markersize=4)
+    plt.xlabel('Episode', fontsize=12, fontweight='bold')
+    plt.ylabel('Moves per Episode', fontsize=12, fontweight='bold')
+    plt.title('HeRoN Training - Episode Length (Moves)', fontsize=13, fontweight='bold')
+    plt.grid(alpha=0.3, axis='y')
+    plt.tight_layout()
+    plt.savefig(f'{output_prefix}_moves.png', dpi=300, bbox_inches='tight')
+    plt.close()
+    print(f"[Plot] Saved: {output_prefix}_moves.png")
     
-    # Plot 4: Helper Usage and Hallucinations
+    # 4. Efficiency metrics
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
+    
+    # Reward per move
+    reward_per_move = [r / m if m > 0 else 0 for r, m in zip(rewards, moves)]
+    ax1.plot(episodes, reward_per_move, linewidth=2.5, marker='o', markersize=4, color='steelblue')
+    ax1.fill_between(episodes, reward_per_move, alpha=0.3, color='steelblue')
+    ax1.set_xlabel('Episode', fontsize=11, fontweight='bold')
+    ax1.set_ylabel('Reward per Move', fontsize=11, fontweight='bold')
+    ax1.set_title('Efficiency: Reward per Move', fontsize=12, fontweight='bold')
+    ax1.grid(alpha=0.3)
+    
+    # Achievements per move
+    ach_per_move = [a / m if m > 0 else 0 for a, m in zip(achievements, moves)]
+    ax2.plot(episodes, ach_per_move, linewidth=2.5, marker='s', markersize=4, color='green')
+    ax2.fill_between(episodes, ach_per_move, alpha=0.3, color='green')
+    ax2.set_xlabel('Episode', fontsize=11, fontweight='bold')
+    ax2.set_ylabel('Achievements per Move', fontsize=11, fontweight='bold')
+    ax2.set_title('Efficiency: Achievements per Move', fontsize=12, fontweight='bold')
+    ax2.grid(alpha=0.3)
+    
+    plt.tight_layout()
+    plt.savefig(f'{output_prefix}_efficiency.png', dpi=300, bbox_inches='tight')
+    plt.close()
+    print(f"[Plot] Saved: {output_prefix}_efficiency.png")
+    
+    # 5. Multi-metric dashboard
+    fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+    
+    # Rewards
+    axes[0, 0].plot(episodes, rewards, linewidth=2, marker='o', markersize=3, color='steelblue', label='Shaped')
+    axes[0, 0].plot(episodes, native_rewards, linewidth=2, marker='s', markersize=3, color='coral', label='Native')
+    axes[0, 0].set_xlabel('Episode', fontsize=10, fontweight='bold')
+    axes[0, 0].set_ylabel('Reward', fontsize=10, fontweight='bold')
+    axes[0, 0].set_title('A. Reward Trends', fontsize=11, fontweight='bold')
+    axes[0, 0].legend()
+    axes[0, 0].grid(alpha=0.3)
+    
+    # Achievements
+    axes[0, 1].plot(episodes, cumulative_achievements, linewidth=2.5, marker='o', markersize=3, color='green')
+    axes[0, 1].fill_between(episodes, cumulative_achievements, alpha=0.3, color='green')
+    axes[0, 1].set_xlabel('Episode', fontsize=10, fontweight='bold')
+    axes[0, 1].set_ylabel('Cumulative Achievements', fontsize=10, fontweight='bold')
+    axes[0, 1].set_title('B. Achievement Unlocks', fontsize=11, fontweight='bold')
+    axes[0, 1].grid(alpha=0.3)
+    
+    # Moves
+    axes[1, 0].bar(episodes, moves, color='steelblue', alpha=0.5, edgecolor='black')
+    axes[1, 0].plot(episodes, moves, color='darkblue', linewidth=2, marker='o', markersize=3)
+    axes[1, 0].set_xlabel('Episode', fontsize=10, fontweight='bold')
+    axes[1, 0].set_ylabel('Moves per Episode', fontsize=10, fontweight='bold')
+    axes[1, 0].set_title('C. Episode Length', fontsize=11, fontweight='bold')
+    axes[1, 0].grid(alpha=0.3, axis='y')
+    
+    # Efficiency scatter
+    axes[1, 1].scatter(moves, achievements, c=rewards, s=80, cmap='viridis', alpha=0.6, edgecolor='black')
+    axes[1, 1].set_xlabel('Moves per Episode', fontsize=10, fontweight='bold')
+    axes[1, 1].set_ylabel('Achievements Unlocked', fontsize=10, fontweight='bold')
+    axes[1, 1].set_title('D. Efficiency Trade-off', fontsize=11, fontweight='bold')
+    axes[1, 1].grid(alpha=0.3)
+    
+    plt.suptitle('HeRoN Training - Multi-Metric Dashboard', fontsize=14, fontweight='bold')
+    plt.tight_layout()
+    plt.savefig(f'{output_prefix}_dashboard.png', dpi=300, bbox_inches='tight')
+    plt.close()
+    print(f"[Plot] Saved: {output_prefix}_dashboard.png")
+    
+    # 6. Helper Usage and Hallucinations (HeRoN-specific)
     plt.figure(figsize=(12, 6))
     
     ax1 = plt.subplot(1, 2, 1)
-    ax1.plot(helper_calls, color='blue', alpha=0.7, label='Helper Calls')
-    ax1.set_title('Helper Calls per Episode')
-    ax1.set_xlabel('Episode')
-    ax1.set_ylabel('Number of Calls')
+    ax1.plot(episodes, helper_calls, color='blue', alpha=0.7, label='Helper Calls', linewidth=2, marker='o', markersize=3)
+    ax1.set_title('Helper Calls per Episode', fontsize=12, fontweight='bold')
+    ax1.set_xlabel('Episode', fontsize=11, fontweight='bold')
+    ax1.set_ylabel('Number of Calls', fontsize=11, fontweight='bold')
     ax1.grid(True, alpha=0.3)
     ax1.legend()
     
     ax2 = plt.subplot(1, 2, 2)
     hallucination_rate = [h / max(1, c) for h, c in zip(hallucinations, helper_calls)]
-    ax2.plot(hallucination_rate, color='red', alpha=0.7, label='Hallucination Rate')
-    ax2.set_title('LLM Hallucination Rate per Episode')
-    ax2.set_xlabel('Episode')
-    ax2.set_ylabel('Hallucination Rate')
+    ax2.plot(episodes, hallucination_rate, color='red', alpha=0.7, label='Hallucination Rate', linewidth=2, marker='s', markersize=3)
+    ax2.set_title('LLM Hallucination Rate per Episode', fontsize=12, fontweight='bold')
+    ax2.set_xlabel('Episode', fontsize=11, fontweight='bold')
+    ax2.set_ylabel('Hallucination Rate', fontsize=11, fontweight='bold')
     ax2.set_ylim([0, 1])
     ax2.grid(True, alpha=0.3)
     ax2.legend()
     
     plt.tight_layout()
-    plt.savefig("heron_crafter_helper_stats.png", dpi=150, bbox_inches='tight')
-    print("[Plot] Saved: heron_crafter_helper_stats.png")
+    plt.savefig(f'{output_prefix}_helper_stats.png', dpi=300, bbox_inches='tight')
+    plt.close()
+    print(f"[Plot] Saved: {output_prefix}_helper_stats.png")
 
 
 def export_metrics_csv(rewards, native_rewards, shaped_bonus, achievements, moves,
@@ -958,9 +1038,9 @@ if __name__ == "__main__":
     # Train
     (rewards, native_rewards, shaped_bonus, achievements, moves, 
      helper_calls, hallucinations, helper_stats, reward_shaper_stats, eval_system) = train_dqn_crafter(
-        episodes=50,  # Start with 50 for testing, increase for full training
+        episodes=300,  # Start with 50 for testing, increase for full training
         batch_size=32,
-        episode_length=500,  # Reduced from 1000 for testing
+        episode_length=1000,  # Reduced from 1000 for testing
         threshold_episodes=600
     )
     
