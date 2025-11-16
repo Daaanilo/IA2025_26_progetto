@@ -8,8 +8,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from classes.crafter_environment import CrafterEnv
 from classes.agent import DQNAgent
 from training.reward_shaper import CrafterRewardShaper
-from evaluation.evaluation_system import EvaluationSystem
-from evaluation.evaluation_plots import generate_all_plots, ACHIEVEMENT_NAME_TO_ID
+from evaluation.evaluation_system import EvaluationSystem, ACHIEVEMENT_NAME_TO_ID
+from evaluation.evaluation_plots import generate_all_plots
 
 
 def train_dqn_baseline(episodes=300, batch_size=32, episode_length=1000, load_model_path=None):

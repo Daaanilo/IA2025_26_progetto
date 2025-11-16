@@ -169,12 +169,12 @@ def train_dqn_crafter(episodes=100, batch_size=32, episode_length=1000, threshol
         executor.current_sequence = []  # Reset sequence for new episode
         executor.current_sequence_index = 0
         
+        # Track achievements unlocked this episode (for Helper's episode summary)
+        episode_achievements_list = []
+        
         # CRITICAL: Clear LLM conversation history ONLY at episode start
         helper.reset_conversation()
         print(f"[Episode {e}] Conversation history cleared for new episode")
-        
-        # Monitor conversation length during episode
-        conversation_reset_threshold = 30  # Increased for Qwen3-4B with 8192 context (was 20)
         
         # ===== STEP LOOP =====
         while not done and moves < episode_length:
@@ -189,10 +189,12 @@ def train_dqn_crafter(episodes=100, batch_size=32, episode_length=1000, threshol
                 # ===== LLM WORKFLOW: Helper → Reviewer → Helper =====
                 episode_helper_calls += 1
                 
-                # Periodic conversation reset to prevent overflow (every N calls)
-                if episode_helper_calls > 0 and episode_helper_calls % conversation_reset_threshold == 0:
-                    helper.reset_conversation()
-                    print(f"[Episode {e}, Step {moves}] Periodic conversation reset (call #{episode_helper_calls}) to prevent 4096 token overflow")
+                # Update Helper's episode progress for smart context summarization
+                helper.update_episode_progress(
+                    achievements=episode_achievements_list,
+                    step_count=moves,
+                    reward=total_shaped_reward
+                )
                 
                 try:
                     # Get current game state and info
@@ -228,6 +230,9 @@ def train_dqn_crafter(episodes=100, batch_size=32, episode_length=1000, threshol
                                 game_description = helper.describe_crafter_state(state, current_info, previous_info)
                                 reviewer_feedback = instructor.generate_suggestion(game_description, helper_response)
                                 print(f"[Reviewer] Feedback: {reviewer_feedback}\n")
+                                
+                                # Store feedback for potential episode summary (if context reset occurs)
+                                helper.update_episode_progress(reviewer_feedback=reviewer_feedback)
                                 
                                 # 3. Helper reprompts WITHIN ITS CONVERSATION CONTEXT (FIX #3)
                                 refined_prompt = (
@@ -314,6 +319,10 @@ def train_dqn_crafter(episodes=100, batch_size=32, episode_length=1000, threshol
                 newly_unlocked_names = curr_achievements - prev_achievements
                 episode_achievements += len(newly_unlocked_names)
                 
+                # Track achievement names for Helper's episode summary
+                if newly_unlocked_names:
+                    episode_achievements_list.extend(newly_unlocked_names)
+                
                 # Map achievement names to IDs and track in evaluation system
                 if newly_unlocked_names:
                     newly_unlocked_ids = {ACHIEVEMENT_NAME_TO_ID[name] for name in newly_unlocked_names 
@@ -359,15 +368,19 @@ def train_dqn_crafter(episodes=100, batch_size=32, episode_length=1000, threshol
         if episode_achievements > best_achievement_count:
             best_achievement_count = episode_achievements
             best_episode = e
-            checkpoint_path = os.path.join("checkpoints", f"best_model_ep{e}_ach{episode_achievements}")
-            agent.save(checkpoint_path)
-            print(f"\n[Checkpoint] New best model saved: {checkpoint_path}")
+            checkpoint_dir = Path(__file__).parent / 'heron_output' / 'checkpoints'
+            checkpoint_dir.mkdir(parents=True, exist_ok=True)
+            checkpoint_path = checkpoint_dir / f"heron_best_ep{e}_ach{episode_achievements}"
+            agent.save(str(checkpoint_path))
+            print(f"\n[Checkpoint] New best model saved: {checkpoint_path}.*")
         
         # F09: Periodic checkpoints every 10 episodes
         if (e + 1) % 10 == 0:
-            checkpoint_path = os.path.join("checkpoints", f"model_ep{e}")
-            agent.save(checkpoint_path)
-            print(f"[Checkpoint] Periodic checkpoint saved: {checkpoint_path}")
+            checkpoint_dir = Path(__file__).parent / 'heron_output' / 'checkpoints'
+            checkpoint_dir.mkdir(parents=True, exist_ok=True)
+            checkpoint_path = checkpoint_dir / f"heron_ep{e}"
+            agent.save(str(checkpoint_path))
+            print(f"[Checkpoint] Periodic checkpoint saved: {checkpoint_path}.*")
         
         print(f"\n[Episode {e}] Done!")
         print(f"  Total Reward (Shaped): {total_shaped_reward:.2f}")
@@ -399,32 +412,47 @@ def train_dqn_crafter(episodes=100, batch_size=32, episode_length=1000, threshol
     print(f"[Training] Reward Shaping Stats: {reward_shaper.get_statistics()}")
     print(f"[Training] Best Model: Episode {best_episode}, Achievements: {best_achievement_count}")
     
-    # Save final model
-    print(f"\n[Save] Saving final trained agent...")
-    final_path = os.path.join("models", "crafter_heron_final")
-    agent.save(final_path)
-    print(f"[Save] Final model saved to: {final_path}")
-    
-    # ===== F10: EVALUATION SYSTEM FINALIZATION =====
-    print(f"\n[F10 Evaluation] Finalizing evaluation system...")
+    # Finalize evaluation
     evaluation_system.finalize()
     
-    # Export metrics and summaries
-    print(f"[F10 Evaluation] Exporting metrics...")
-    evaluation_system.export_to_jsonl("heron_crafter_extended_metrics.jsonl")
-    evaluation_system.export_summary_json("heron_crafter_evaluation.json")
+    # Save final model
+    print("\n[HeRoN] Saving final model...")
+    models_dir = Path(__file__).parent / 'heron_output' / 'models'
+    models_dir.mkdir(parents=True, exist_ok=True)
+    final_model_path = models_dir / "heron_crafter_final"
+    agent.save(str(final_model_path))
+    print(f"[HeRoN] ✓ Final model saved: {final_model_path}.*")
+    
+    checkpoint_dir = Path(__file__).parent / 'heron_output' / 'checkpoints'
+    best_checkpoint = checkpoint_dir / f"heron_best_ep{best_episode}_ach{best_achievement_count}"
+    print(f"[HeRoN] ✓ Best model saved: {best_checkpoint}.*")
+    
+    # Export metrics
+    print("[HeRoN] Exporting metrics...")
+    output_dir = Path(__file__).parent / 'heron_output'
+    output_dir.mkdir(parents=True, exist_ok=True)
+    jsonl_path = output_dir / "heron_crafter_metrics.jsonl"
+    evaluation_system.export_to_jsonl(str(jsonl_path))
     
     # Export per-achievement statistics to JSON
-    print(f"[F10 Evaluation] Exporting per-achievement statistics...")
-    export_achievement_statistics_json(evaluation_system, "heron_crafter_achievement_statistics.json")
+    print("[HeRoN] Exporting per-achievement statistics...")
+    achievement_stats_path = output_dir / "heron_achievement_statistics.json"
+    export_achievement_statistics_json(evaluation_system, str(achievement_stats_path))
     
-    # Generate advanced plots
-    print(f"[F10 Evaluation] Generating advanced evaluation plots...")
-    generate_all_plots(evaluation_system, output_dir="./evaluation_plots")
+    # Generate plots
+    print("[HeRoN] Generating plots...")
+    plot_dir = output_dir / "plots"
+    plot_dir.mkdir(exist_ok=True)
+    generate_all_plots(evaluation_system, output_dir=str(plot_dir), title_prefix="HeRoN")
     
-    # Print comprehensive report
-    print(f"[F10 Evaluation] Printing summary report...")
+    # Print evaluation report
+    print("\n[HeRoN] Final Evaluation Report:")
     evaluation_system.print_summary_report()
+    
+    # Export evaluation summary
+    evaluation_json = output_dir / "heron_evaluation.json"
+    evaluation_system.export_summary_json(str(evaluation_json))
+    print(f"[HeRoN] ✓ Evaluation summary saved: {evaluation_json}")
     
     return (rewards_per_episode, native_rewards_per_episode, shaped_bonus_per_episode,
             achievements_per_episode, moves_per_episode, helper_calls, hallucinations,

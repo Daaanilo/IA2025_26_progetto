@@ -12,6 +12,7 @@ import re
 import numpy as np
 import lmstudio as lms
 import time
+from transformers import AutoTokenizer
 
 
 class CrafterHelper:
@@ -67,9 +68,33 @@ class CrafterHelper:
         # LLM safety limits (CRITICAL: prevent context overflow)
         # Updated for Qwen3-4B-2507 with 8192 context window (was 4096)
         self.max_messages_history = 12  # Increased from 8 - supports longer conversations
-        self.llm_timeout_seconds = 40   # fail fast instead of hanging
+        self.llm_timeout_seconds = 60   # Increased from 40 for post-reset responses
         # Conversation history - MUST be cleared between episodes
         self._message_history = []
+        
+        # Token-aware context management (NEW: smart overflow prevention)
+        try:
+            # Use Qwen2.5 tokenizer (compatible with Qwen3 family)
+            self.tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen2.5-7B-Instruct")
+            self.max_context_tokens = 8192  # Qwen3-4B-2507 theoretical limit
+            self.safe_context_threshold = 6500  # Safety margin (~80% of max)
+            self.token_counting_enabled = True
+            print(f"[Helper] Token counting enabled - max: {self.max_context_tokens}, threshold: {self.safe_context_threshold}")
+        except Exception as e:
+            print(f"[Helper WARNING] Failed to load tokenizer: {e}")
+            print("[Helper] Falling back to message-count based context management")
+            self.tokenizer = None
+            self.token_counting_enabled = False
+        
+        # Episode progress tracking for smart context reset
+        self._episode_achievements = []
+        self._recent_reviewer_feedback = None
+        self._episode_step_count = 0
+        self._episode_reward = 0.0
+        
+        # Sequence history tracking (prevent repetitive loops)
+        self._recent_sequences = []  # Store last 5 sequences
+        self._max_sequence_history = 5
     
     def describe_crafter_state(self, state, info, previous_info=None):
         """
@@ -207,12 +232,37 @@ class CrafterHelper:
         else:
             prompt = self._build_sequence_prompt(game_description)
 
-        # CRITICAL: Aggressive context management to prevent 4096 token overflow
-        # Keep only last N prompts (sliding window)
-        self._message_history.append(prompt)
-        if len(self._message_history) > self.max_messages_history:
-            self._message_history = self._message_history[-self.max_messages_history:]
-            print(f"[Helper] Context trimmed to {len(self._message_history)} messages")
+        # CRITICAL: Token-aware context management to prevent 8192 token overflow
+        if self.token_counting_enabled:
+            # Count current context tokens
+            current_context = "\n\n".join(self._message_history)
+            current_tokens = self._count_tokens(current_context)
+            new_prompt_tokens = self._count_tokens(prompt)
+            total_tokens = current_tokens + new_prompt_tokens
+            
+            # Check if we would exceed safe threshold
+            if total_tokens > self.safe_context_threshold:
+                print(f"[Helper] Token overflow detected: {total_tokens}/{self.max_context_tokens} tokens")
+                print(f"[Helper] Current context: {current_tokens}, New prompt: {new_prompt_tokens}")
+                print(f"[Helper] Performing SMART RESET with episode summary...")
+                
+                # Generate condensed summary and reset conversation
+                episode_summary = self._generate_episode_summary(game_description)
+                self._message_history = [episode_summary]
+                
+                # Re-count after reset
+                summary_tokens = self._count_tokens(episode_summary)
+                print(f"[Helper] Context reset complete: {summary_tokens} tokens (saved {current_tokens - summary_tokens} tokens)")
+                print(f"[Helper] Summary includes: {len(self._episode_achievements)} achievements, step {self._episode_step_count}")
+            else:
+                # Normal append
+                self._message_history.append(prompt)
+        else:
+            # Fallback: Message-count based sliding window (legacy behavior)
+            self._message_history.append(prompt)
+            if len(self._message_history) > self.max_messages_history:
+                self._message_history = self._message_history[-self.max_messages_history:]
+                print(f"[Helper] Context trimmed to {len(self._message_history)} messages (token counting disabled)")
 
         try:
             start_time = time.time()
@@ -227,8 +277,14 @@ class CrafterHelper:
 
                 llm_response = str(llm_response)
 
-                # Clean thinking tags
+                # Clean thinking tags and excessive formatting
                 llm_response = re.sub(r"<think>.*?</think>", "", llm_response, flags=re.DOTALL).strip()
+                
+                # Truncate verbose responses (common after context reset)
+                # Keep only first 500 chars to avoid parsing markdown/explanations
+                if len(llm_response) > 500:
+                    print(f"[Helper] WARNING: Verbose response ({len(llm_response)} chars) - truncating to first 500")
+                    llm_response = llm_response[:500]
 
                 print(f"[Helper] LLM Response:\n{llm_response}\n")
 
@@ -237,6 +293,18 @@ class CrafterHelper:
 
                 if action_sequence:
                     self.sequence_count += 1
+                    
+                    # Track sequence to detect repetition
+                    seq_str = str(action_sequence)
+                    self._recent_sequences.append(seq_str)
+                    if len(self._recent_sequences) > self._max_sequence_history:
+                        self._recent_sequences.pop(0)
+                    
+                    # Detect if we're stuck in a loop
+                    if len(self._recent_sequences) >= 3:
+                        if self._recent_sequences[-1] == self._recent_sequences[-2] == self._recent_sequences[-3]:
+                            print(f"[Helper] WARNING: Repetitive sequence detected - same actions 3 times in a row!")
+                    
                     return action_sequence, llm_response
                 else:
                     self.hallucination_count += 1
@@ -264,8 +332,19 @@ class CrafterHelper:
         
         actions_list = ", ".join(official_actions)
         
+        # Add variety reminder if we have conversation history (prevent loops)
+        variety_reminder = ""
+        if len(self._message_history) > 3:
+            # Check for repetitive sequences
+            if len(self._recent_sequences) >= 3 and self._recent_sequences[-1] == self._recent_sequences[-2]:
+                variety_reminder = "\n⚠️ CRITICAL: Last sequences were IDENTICAL! Try COMPLETELY DIFFERENT actions!\n" \
+                                 "Example alternatives: [do], [place_table], [make_wood_pickaxe], [sleep]\n"
+            else:
+                variety_reminder = "\n⚠️ IMPORTANT: Try DIFFERENT actions if previous sequences didn't unlock achievements!\n"
+        
         prompt = (
             "You are a Crafter AI. GOALS: 1) Survive 2) Unlock achievements 3) Be efficient.\n\n"
+            f"{variety_reminder}"
             
             f"VALID ACTIONS: {actions_list}\n\n"
             
@@ -466,7 +545,94 @@ class CrafterHelper:
     def reset_conversation(self):
         """Clear conversation history - call at episode start to prevent context overflow."""
         self._message_history = []
+        # Reset episode tracking
+        self._episode_achievements = []
+        self._recent_reviewer_feedback = None
+        self._episode_step_count = 0
+        self._episode_reward = 0.0
+        # Reset sequence history
+        self._recent_sequences = []
         # Note: Logging handled by caller for better episode context
+    
+    def update_episode_progress(self, achievements=None, step_count=0, reward=0.0, reviewer_feedback=None):
+        """Update episode progress tracking for smart context summarization.
+        
+        Args:
+            achievements: List of achievement names unlocked this episode
+            step_count: Current step number in episode
+            reward: Total shaped reward accumulated this episode
+            reviewer_feedback: Most recent reviewer feedback string (if any)
+        """
+        if achievements:
+            self._episode_achievements = achievements
+        self._episode_step_count = step_count
+        self._episode_reward = reward
+        if reviewer_feedback:
+            self._recent_reviewer_feedback = reviewer_feedback
+    
+    def _count_tokens(self, text):
+        """Count tokens in text using Qwen tokenizer.
+        
+        Args:
+            text: String to count tokens in
+        
+        Returns:
+            int: Token count, or 0 if tokenizer unavailable
+        """
+        if not self.token_counting_enabled or self.tokenizer is None:
+            return 0
+        
+        try:
+            tokens = self.tokenizer.encode(text)
+            return len(tokens)
+        except Exception as e:
+            print(f"[Helper] Token counting error: {e}")
+            return 0
+    
+    def _generate_episode_summary(self, current_state_description):
+        """Generate condensed episode summary when context overflow is imminent.
+        
+        This replaces full conversation history with a compact state summary,
+        preserving critical information for strategic decision-making.
+        
+        CRITICAL: Summary must maintain prompt structure to avoid verbose LLM responses.
+        
+        Args:
+            current_state_description: Current game state description string
+        
+        Returns:
+            str: Condensed summary prompt (maintains task format)
+        """
+        # Build compact summary with critical information
+        achievement_summary = ", ".join(self._episode_achievements[-10:]) if self._episode_achievements else "none"
+        
+        # Build concise summary that maintains prompt structure
+        summary_parts = [
+            "[CONTEXT RESET - Episode Summary]",
+            f"Step {self._episode_step_count} | Reward: {self._episode_reward:.1f} | Achievements: {len(self._episode_achievements)}",
+            f"Unlocked: {achievement_summary}",
+        ]
+        
+        # Include recent Reviewer feedback if available (max 100 chars)
+        if self._recent_reviewer_feedback:
+            feedback_short = self._recent_reviewer_feedback[:100] + "..." if len(self._recent_reviewer_feedback) > 100 else self._recent_reviewer_feedback
+            summary_parts.append(f"Reviewer: {feedback_short}")
+        
+        summary_parts.extend([
+            "",
+            current_state_description,
+            "",
+            "CRITICAL REMINDER:",
+            "- Generate EXACTLY ONE sequence of 3-5 actions",
+            "- Use ONLY bracketed actions: [move_right], [do], [move_left], [noop]",
+            "- NO explanations, NO strategy text, NO markdown",
+            "- Format: [action1], [action2], [action3], [action4]",
+            "- One-line reason (max 10 words)",
+            "",
+            "Generate your action sequence NOW:"
+        ])
+        
+        return "\n".join(summary_parts)
 
 
 # Strategy B Fallback: Use DQN for remaining sequence actions after LLM interruption

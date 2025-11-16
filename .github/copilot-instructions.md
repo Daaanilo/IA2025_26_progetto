@@ -363,3 +363,5 @@ python reviewer_fine_tuning.py  # Outputs reviewer_retrained/ (model + tokenizer
 # Use in training
 # heron_training.py automatically loads from reviewer_retrained/ if available
 ```
+
+### DON'T GENERATE DOCUMENT CHAGNES 
