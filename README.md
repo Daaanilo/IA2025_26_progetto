@@ -1,155 +1,150 @@
 # 🧠 Adaptive Decision Making NPC in Crafter  
-### Estensione dell’architettura HeRoN nell’ambiente Crafter  
-### Extending the HeRoN Architecture in the Crafter Environment
+### Extending the HeRoN Architecture to an Open-World RL Environment
 
----
-
-## ✍️ Autori / Authors
-
-**ITA 🇮🇹**  
-Il progetto è stato realizzato da:  
-- **Danilo Gisolfi**  
-- **Vincenzo Maiellaro**
-
-**ENG 🇬🇧**  
-This project was developed by:  
+## 👨‍💻 Autori / Authors
 - **Danilo Gisolfi**  
 - **Vincenzo Maiellaro**
 
 ---
 
-## 🎮 Descrizione del Progetto  
-## 🎮 Project Description
+## 🇮🇹 Descrizione del Progetto
 
-**ITA 🇮🇹**  
-Questo progetto mira a estendere e testare l’architettura **HeRoN (Helper–Reviewer–NPC)** all’interno dell’environment **Crafter**, un open-world survival game utilizzato nella ricerca sul Reinforcement Learning e ispirato a Minecraft.  
-In Crafter il giocatore deve procurarsi cibo e acqua, costruire strumenti, trovare un riparo, difendersi dai mostri e completare fino a **22 obiettivi** per episodio.
+Questo progetto ha l’obiettivo di estendere e testare l’architettura **HeRoN (Helper–Reviewer–NPC)** nell’environment **Crafter**, un open-world survival game utilizzato nella ricerca sul Reinforcement Learning e ispirato a Minecraft.
 
-**ENG 🇬🇧**  
-This project aims to extend and evaluate the **HeRoN (Helper–Reviewer–NPC)** architecture within the **Crafter** environment, an open-world survival game used in Reinforcement Learning research and inspired by Minecraft.  
-In Crafter, the player must gather food and water, craft tools, build shelter, survive monsters, and complete up to **22 objectives** per episode.
+In Crafter il giocatore deve:  
+- procurarsi cibo e acqua  
+- costruire strumenti  
+- trovare un riparo  
+- sopravvivere a mostri  
+- raccogliere risorse  
+- completare fino a **22 obiettivi**
 
----
-
-## 🧩 Architettura HeRoN  
-## 🧩 The HeRoN Architecture
-
-**ITA 🇮🇹**  
-HeRoN è composta da tre moduli principali:  
-- **NPC** → un agente RL che agisce nell’ambiente  
-- **Helper** → un LLM zero-shot che suggerisce la prossima azione (o sequenza di azioni)  
-- **Reviewer** → un LLM fine-tunato che valuta il suggerimento del Helper e fornisce feedback correttivi  
-
-**ENG 🇬🇧**  
-HeRoN is composed of three main modules:  
-- **NPC** → an RL agent acting in the environment  
-- **Helper** → a zero-shot LLM that suggests the next action (or action sequence)  
-- **Reviewer** → a fine-tuned LLM providing corrective feedback  
+L’architettura **HeRoN** comprende:  
+- **NPC** → agente RL  
+- **Helper** → LLM zero-shot che suggerisce sequenze di azioni  
+- **Reviewer** → LLM fine-tuned che valuta e corregge i suggerimenti dell’Helper  
 
 ---
 
-## 🎯 Obiettivi del Progetto  
+## 🎯 Obiettivi del Progetto
+
+- Fine-tuning del **Reviewer** per i task di Crafter  
+- Adattamento dell’**Helper** per generare **sequenze di azioni**  
+- Implementazione dell’**NPC** tramite **Deep Q-Network (DQN)**  
+- Valutazione delle prestazioni dell’intera architettura HeRoN  
+
+---
+
+## ⚙️ Metodologia di Implementazione
+
+### 1. Sviluppo dell’environment Crafter  
+- Analisi preliminare  
+- Comprensione degli obiettivi  
+- Adattamento dell’environment a HeRoN  
+
+### 2. Implementazione dell’NPC (DQN)  
+- Definizione dello stato  
+- Definizione delle azioni  
+- Training e simulazioni iterative  
+
+### 3. Modifica dell’Helper  
+- Prompt engineering per generare **set di azioni coerenti**  
+
+### 4. Fine-tuning del Reviewer  
+- Creazione dataset (stati + suggerimenti + feedback)  
+- Addestramento tramite RL Fine-Tuning  
+
+### 5. Analisi del numero di azioni  
+- Studio del numero ottimale di mosse per ogni chiamata all’Helper  
+
+### 6. Addestramento iterativo  
+- Miglioramento del comportamento dell’NPC nelle simulazioni  
+
+### 7. Valutazione  
+- Score sugli obiettivi  
+- Confronto con agenti baseline  
+
+---
+
+## 📈 Risultati Attesi
+
+- Capacità dell’NPC di eseguire task di Crafter  
+- Reviewer efficace nel migliorare Helper  
+- Miglioramenti progressivi tramite training iterativo  
+- Analisi delle difficoltà e delle soluzioni adottate  
+
+---
+
+## 📚 Risorse Utilizzate
+
+- Paper **HeRoN – A Multi-Agent RL–LLM Framework**  
+- Paper **Crafter – Benchmarking the Spectrum of Agent Capabilities**  
+- Codice HeRoN  
+- GitHub Crafter  
+
+---
+
+# 🇬🇧 English Version
+
+## 👤 Authors
+- **Danilo Gisolfi**  
+- **Vincenzo Maiellaro**
+
+---
+
+## 📝 Project Overview
+
+This project extends and evaluates the **HeRoN (Helper–Reviewer–NPC)** architecture in the **Crafter** environment, an open-world RL survival game inspired by Minecraft.
+
+Crafter requires the agent to:  
+- gather food and water  
+- craft tools  
+- find shelter  
+- avoid monsters  
+- collect resources  
+- complete **22 achievements**
+
+The **HeRoN** architecture includes:  
+- **NPC** → an RL agent (DQN)  
+- **Helper** → a zero-shot LLM generating action sequences  
+- **Reviewer** → a fine-tuned LLM evaluating and correcting Helper suggestions  
+
+---
+
 ## 🎯 Project Goals
 
-**ITA 🇮🇹**
-- Fine-tuning del Reviewer per adattarlo ai task di Crafter  
-- Modifica dell’Helper affinché generi sequenze di azioni coerenti  
-- Implementazione dell’NPC tramite RL (DQN)  
-- Valutazione delle prestazioni dell’architettura HeRoN  
-
-**ENG 🇬🇧**
-- Fine-tune the Reviewer for Crafter tasks  
-- Modify Helper to generate coherent action sequences  
-- Implement the NPC using RL (DQN)  
-- Evaluate the HeRoN architecture's performance  
+- Fine-tune the **Reviewer** for Crafter tasks  
+- Adapt the **Helper** to generate **sequences** rather than single actions  
+- Implement the **NPC** using **Deep Q-Network**  
+- Evaluate HeRoN performance across the 22 Crafter objectives  
 
 ---
 
-## ⚙️ Metodologia di Implementazione  
 ## ⚙️ Implementation Methodology
 
-### 🔍 1. Studio e implementazione dell’environment  
-### 🔍 1. Environment Analysis and Implementation
-
-**ITA 🇮🇹**  
-Studio del comportamento di Crafter e integrazione con HeRoN.  
-**ENG 🇬🇧**  
-Study of Crafter mechanics and adaptation for HeRoN integration.
-
----
-
-### 🤖 2. Sviluppo dell’NPC (DQN)  
-### 🤖 2. NPC Development (DQN)
-
-**ITA 🇮🇹**  
-Implementazione di un agente RL basato su **Deep Q-Network**.  
-**ENG 🇬🇧**  
-Implementation of an RL agent using **Deep Q-Network**.
+### 1. Crafter Environment Study & Integration  
+### 2. NPC Development (DQN)  
+### 3. Helper Modification via Prompt Engineering  
+### 4. Reviewer Fine-Tuning with a Custom Dataset  
+### 5. Action-Sequence Optimization  
+### 6. Iterative Training Pipeline  
+### 7. Performance Evaluation  
 
 ---
 
-### 💬 3. Modifica dell’Helper  
-### 💬 3. Helper Adaptation
+## 📈 Expected Outcomes
 
-**ITA 🇮🇹**  
-Prompt engineering per generare set di azioni anziché singole decisioni.  
-**ENG 🇬🇧**  
-Prompt engineering to generate action sequences instead of single actions.
-
----
-
-### 🧠 4. Fine-Tuning del Reviewer  
-### 🧠 4. Reviewer Fine-Tuning
-
-**ITA 🇮🇹**  
-Creazione di un dataset personalizzato e fine-tuning tramite Reinforcement Learning.  
-**ENG 🇬🇧**  
-Creation of a custom dataset and RL-based fine-tuning.
+- NPC capable of addressing Crafter tasks  
+- Reviewer improving Helper’s suggestions  
+- Performance gains via iterative RL training  
+- Insight into challenges and limitations  
 
 ---
 
-### 🔢 5. Analisi del numero ottimale di mosse  
-### 🔢 5. Optimal Action-Sequence Length Analysis
-
-**ITA 🇮🇹**  
-Definizione del numero ideale di mosse generate da Helper.  
-**ENG 🇬🇧**  
-Determination of the ideal number of actions generated by Helper.
-
----
-
-### 🔁 6. Addestramento iterativo  
-### 🔁 6. Iterative Training
-
-**ITA 🇮🇹**  
-Ottimizzazione progressiva del comportamento dell’NPC.  
-**ENG 🇬🇧**  
-Progressive optimization of NPC behavior.
-
----
-
-### 📊 7. Valutazione delle prestazioni  
-### 📊 7. Performance Evaluation
-
-**ITA 🇮🇹**  
-Analisi degli obiettivi completati e confronto con baseline.  
-**ENG 🇬🇧**  
-Analysis of completed objectives and comparison with baseline agents.
-
----
-
-## 📚 Risorse Utilizzate  
 ## 📚 Resources
 
-**ITA 🇮🇹**
-- Articolo HeRoN  
-- Articolo Crafter  
-- Codice base HeRoN  
-- Repository Crafter  
-
-**ENG 🇬🇧**
-- HeRoN Paper  
-- Crafter Paper  
-- HeRoN Codebase  
-- Crafter GitHub Repository  
+- **HeRoN Framework Paper**  
+- **Crafter Benchmark Paper**  
+- HeRoN official codebase  
+- Crafter GitHub repository  
 
