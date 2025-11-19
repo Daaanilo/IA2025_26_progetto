@@ -34,8 +34,20 @@ class AchievementLearningCurvePlotter:
         with open(self.json_path, 'r', encoding='utf-8') as f:
             self.data = json.load(f)
         
-        self.achievement_stats = self.data.get('achievement_statistics', {})
-        self.summary_stats = self.data.get('summary_statistics', {})
+        # Support both nested and flat JSON structures
+        if 'achievement_statistics' in self.data:
+            # Nested structure (old format)
+            self.achievement_stats = self.data.get('achievement_statistics', {})
+            self.summary_stats = self.data.get('summary_statistics', {})
+        else:
+            # Flat structure (new format from export_achievement_statistics_json)
+            self.achievement_stats = self.data
+            # Calculate total moves from cumulative matrix length (approximate)
+            num_episodes = len(self.data.get('cumulative_achievement_matrix', []))
+            self.summary_stats = {
+                'total_episodes': num_episodes,
+                'moves': {'total': num_episodes * 1000}  # Approximate
+            }
         
         # Estrai dati per plotting
         self.cumulative_matrix = self.achievement_stats.get('cumulative_achievement_matrix', [])

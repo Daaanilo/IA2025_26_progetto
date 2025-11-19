@@ -28,8 +28,15 @@ class AchievementCurvesGenerator:
         with open(json_file, 'r', encoding='utf-8') as f:
             data = json.load(f)
         
-        self.achievement_stats = data.get('achievement_statistics', {})
-        self.summary_stats = data.get('summary_statistics', {})
+        # Support both nested and flat JSON structures
+        if 'achievement_statistics' in data:
+            # Nested structure (old format)
+            self.achievement_stats = data.get('achievement_statistics', {})
+            self.summary_stats = data.get('summary_statistics', {})
+        else:
+            # Flat structure (new format from export_achievement_statistics_json)
+            self.achievement_stats = data
+            self.summary_stats = {'total_episodes': len(data.get('cumulative_achievement_matrix', []))}
         
         print(f"[Loader] Loaded data from {json_file}")
         return data
@@ -68,17 +75,28 @@ class AchievementCurvesGenerator:
         # Crea il grafico
         fig, ax = plt.subplots(figsize=(12, 7))
         
-        # Plot area di confidenza
+        # Plot area di confidenza e media mobile
         if len(episodes) >= window:
+            # Sufficient episodes for moving average with full window
             episodes_adjusted = episodes[window-1:]
+            moving_avg_adjusted = moving_avg[window-1:]
+            moving_std_adjusted = moving_std[window-1:]
             ax.fill_between(episodes_adjusted, 
-                           np.array(moving_avg) - np.array(moving_std),
-                           np.array(moving_avg) + np.array(moving_std),
+                           np.array(moving_avg_adjusted) - np.array(moving_std_adjusted),
+                           np.array(moving_avg_adjusted) + np.array(moving_std_adjusted),
                            alpha=0.3, color='green', label='Variability (±1 std)')
             
             # Plot linea media mobile
-            ax.plot(episodes_adjusted, moving_avg, 
+            ax.plot(episodes_adjusted, moving_avg_adjusted, 
                    color='darkgreen', linewidth=2.5, label='Moving Average')
+        else:
+            # Not enough episodes - plot simple moving average over all data
+            ax.fill_between(episodes, 
+                           np.array(moving_avg) - np.array(moving_std),
+                           np.array(moving_avg) + np.array(moving_std),
+                           alpha=0.3, color='green', label='Variability (±1 std)')
+            ax.plot(episodes, moving_avg, 
+                   color='darkgreen', linewidth=2.5, label=f'Moving Average (window={len(episodes)})')
         
         # Plot dati raw
         ax.plot(episodes, cumulative_unlocks, 
@@ -147,16 +165,12 @@ class AchievementCurvesGenerator:
     @staticmethod
     def _moving_average(values, window: int):
         """Calcola media mobile."""
-        if len(values) < window:
-            return values
-        return [np.mean(values[max(0, i-window):i+1]) for i in range(len(values))]
+        return [np.mean(values[max(0, i-window+1):i+1]) for i in range(len(values))]
     
     @staticmethod
     def _moving_std(values, window: int):
         """Calcola deviazione standard mobile."""
-        if len(values) < window:
-            return [np.std(values[:i+1]) for i in range(len(values))]
-        return [np.std(values[max(0, i-window):i+1]) for i in range(len(values))]
+        return [np.std(values[max(0, i-window+1):i+1]) for i in range(len(values))]
 
 
 def main():

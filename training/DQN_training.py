@@ -1,5 +1,6 @@
 import numpy as np
 import sys
+import json
 from pathlib import Path
 
 # Add parent directory to path for imports
@@ -10,6 +11,47 @@ from classes.agent import DQNAgent
 from training.reward_shaper import CrafterRewardShaper
 from evaluation.evaluation_system import EvaluationSystem, ACHIEVEMENT_NAME_TO_ID
 from evaluation.evaluation_plots import generate_all_plots
+from evaluation.achievement_learning_curves import AchievementLearningCurvePlotter
+
+# Achievement name-to-ID mapping (needed for export function)
+ACHIEVEMENT_ID_TO_NAME = {v: k for k, v in ACHIEVEMENT_NAME_TO_ID.items()}
+
+
+def export_achievement_statistics_json(evaluation_system, output_file="crafter_achievement_statistics.json"):
+    """
+    Export comprehensive per-achievement statistics to JSON file.
+    Includes episode-achievement matrix, cumulative trajectories, and per-achievement stats.
+    
+    Args:
+        evaluation_system: EvaluationSystem instance with achievement tracking
+        output_file: Path to save JSON file
+    """
+    achievement_stats = evaluation_system.get_achievement_statistics()
+    
+    # Convert numpy arrays to lists for JSON serialization
+    def convert_to_serializable(obj):
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        elif isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, list):
+            return [convert_to_serializable(item) for item in obj]
+        elif isinstance(obj, dict):
+            return {key: convert_to_serializable(value) for key, value in obj.items()}
+        else:
+            return obj
+    
+    serializable_stats = convert_to_serializable(achievement_stats)
+    
+    # Add achievement name mapping
+    serializable_stats['achievement_id_to_name'] = ACHIEVEMENT_ID_TO_NAME
+    
+    with open(output_file, 'w') as f:
+        json.dump(serializable_stats, f, indent=2)
+    
+    print(f"[Export] Saved achievement statistics to: {output_file}")
 
 
 def train_dqn_baseline(episodes=300, batch_size=32, episode_length=1000, load_model_path=None):
@@ -136,9 +178,9 @@ def train_dqn_baseline(episodes=300, batch_size=32, episode_length=1000, load_mo
         if episode_achievements > best_achievement_count:
             best_achievement_count = episode_achievements
             best_episode = episode
-            checkpoint_dir = Path(__file__).parent / 'baseline_dqn_output' / 'checkpoints'
+            checkpoint_dir = Path(__file__).parent / 'DQN_nuovo_training' / 'checkpoints'
             checkpoint_dir.mkdir(parents=True, exist_ok=True)
-            checkpoint_path = checkpoint_dir / f"baseline_dqn_best_ep{episode}_ach{episode_achievements}"
+            checkpoint_path = checkpoint_dir / f"nuovo_dqn_best_ep{episode}_ach{episode_achievements}"
             agent.save(str(checkpoint_path))
             print(f"[Baseline DQN] ✓ New best model saved: {episode_achievements} achievements (episode {episode})")
         
@@ -158,35 +200,63 @@ def train_dqn_baseline(episodes=300, batch_size=32, episode_length=1000, load_mo
     
     # Save final model
     print("[Baseline DQN] Saving final model...")
-    models_dir = Path(__file__).parent / 'baseline_dqn_output' / 'models'
+    models_dir = Path(__file__).parent / 'DQN_nuovo_training' / 'models'
     models_dir.mkdir(parents=True, exist_ok=True)
-    final_model_path = models_dir / "baseline_crafter_dqn_final"
+    final_model_path = models_dir / "nuovo_crafter_dqn_final"
     agent.save(str(final_model_path))
     print(f"[Baseline DQN] ✓ Final model saved: {final_model_path}.*")
     
-    checkpoint_dir = Path(__file__).parent / 'baseline_dqn_output' / 'checkpoints'
-    best_checkpoint = checkpoint_dir / f"baseline_dqn_best_ep{best_episode}_ach{best_achievement_count}"
+    checkpoint_dir = Path(__file__).parent / 'DQN_nuovo_training' / 'checkpoints'
+    best_checkpoint = checkpoint_dir / f"nuovo_dqn_best_ep{best_episode}_ach{best_achievement_count}"
     print(f"[Baseline DQN] ✓ Best model saved: {best_checkpoint}.*")
     
     # Export metrics
     print("[Baseline DQN] Exporting metrics...")
-    output_dir = Path(__file__).parent / 'baseline_dqn_output'
+    output_dir = Path(__file__).parent / 'DQN_nuovo_training'
     output_dir.mkdir(parents=True, exist_ok=True)
-    jsonl_path = output_dir / "baseline_crafter_dqn_metrics.jsonl"
+    jsonl_path = output_dir / "nuovo_crafter_dqn_metrics.jsonl"
     evaluation_system.export_to_jsonl(str(jsonl_path))
+    
+    # Export achievement statistics JSON (required for curve generation)
+    print("[Baseline DQN] Exporting per-achievement statistics...")
+    achievement_stats_path = output_dir / "nuovo_crafter_dqn_achievement_statistics.json"
+    export_achievement_statistics_json(evaluation_system, str(achievement_stats_path))
     
     # Generate plots
     print("[Baseline DQN] Generating plots...")
     plot_dir = output_dir / "plots"
     plot_dir.mkdir(exist_ok=True)
-    generate_all_plots(evaluation_system, output_dir=str(plot_dir), title_prefix="DQN Baseline")
+    generate_all_plots(evaluation_system, output_dir=str(plot_dir))
+    
+    # Generate achievement learning curves (using HeRoN's plotter)
+    print("[Baseline DQN] Generating achievement learning curves...")
+    curves_dir = plot_dir / "achievement_curves"
+    curves_dir.mkdir(exist_ok=True)
+    
+    try:
+        # Use AchievementLearningCurvePlotter (same as HeRoN)
+        plotter = AchievementLearningCurvePlotter(str(achievement_stats_path))
+        plotter.plot_all_achievements(
+            output_dir=str(curves_dir),
+            window=10,
+            use_steps=False,
+            only_unlocked=True
+        )
+        print(f"[Baseline DQN] ✓ Achievement learning curves generated in {curves_dir}")
+    except Exception as e:
+        print(f"[Baseline DQN] ⚠ Warning: Could not generate achievement curves: {e}")
+        print("[Baseline DQN]   This is normal if no achievements were unlocked during training.")
     
     # Print evaluation report
     print("\n[Baseline DQN] Final Evaluation Report:")
-    evaluation_system.print_summary_report()
+    try:
+        evaluation_system.print_summary_report()
+    except (KeyError, IndexError) as e:
+        print(f"[Baseline DQN] ⚠ Note: Could not generate full summary report ({e})")
+        print("[Baseline DQN]   All metrics have been saved to JSON and JSONL files.")
     
     # Export evaluation summary
-    evaluation_json = output_dir / "baseline_crafter_dqn_evaluation.json"
+    evaluation_json = output_dir / "nuovo_crafter_dqn_evaluation.json"
     evaluation_system.export_summary_json(str(evaluation_json))
     
     return evaluation_system
