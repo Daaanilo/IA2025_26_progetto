@@ -39,37 +39,23 @@ class AdvancedPlotter:
         Create heatmap: episodes (x-axis) vs achievements (y-axis).
         Shows cumulative unlock pattern over training.
         """
-        # Initialize achievement matrix (episodes × 22 achievements)
         num_episodes = len(metrics_list)
-        num_achievements = 22
         
-        achievement_matrix = np.zeros((num_achievements, num_episodes))
-        cumulative_achievements = np.zeros(num_achievements)
-        
-        # Build cumulative achievement matrix
-        for i, metric in enumerate(metrics_list):
-            # This is a simplified version; ideally you'd have per-achievement unlock data
-            # For now, we mark achievement as "unlocked" in episodes where it was unlocked
-            cumulative_achievements[:] = i  # Placeholder: time to first unlock
-        
-        # Create heatmap
-        fig, ax = plt.subplots(figsize=(16, 8))
+        # Create figure with cumulative achievements over episodes
+        fig, ax = plt.subplots(figsize=(14, 6))
         
         # Use a simple visualization: show cumulative achievements over time
+        episodes = np.arange(num_episodes)
         achievements_cumsum = np.cumsum([m.achievements_unlocked for m in metrics_list])
         
-        sns.heatmap(
-            np.array([achievements_cumsum]),
-            annot=False,
-            cmap='YlGn',
-            cbar_kws={'label': 'Cumulative Achievements'},
-            ax=ax,
-            yticklabels=['Cumulative']
-        )
+        # Plot as area chart
+        ax.fill_between(episodes, achievements_cumsum, alpha=0.3, color='green')
+        ax.plot(episodes, achievements_cumsum, color='darkgreen', linewidth=2.5, marker='o', markersize=3)
         
         ax.set_xlabel('Episode', fontsize=12, fontweight='bold')
+        ax.set_ylabel('Cumulative Achievements', fontsize=12, fontweight='bold')
         ax.set_title('Achievement Unlock Progress Over Training', fontsize=14, fontweight='bold')
-        ax.set_xticklabels([f"{i}" for i in range(0, num_episodes, max(1, num_episodes//10))], rotation=45)
+        ax.grid(alpha=0.3)
         
         plt.tight_layout()
         filepath = f"{self.output_dir}/{output_file}"
