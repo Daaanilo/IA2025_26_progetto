@@ -2,7 +2,7 @@
 
 \section{Sintesi del Lavoro Svolto}
 
-Questo progetto ha esplorato l'applicazione dell'architettura HeRoN (Helper-Reviewer-NPC) all'environment Crafter, un survival game open-world che presenta sfide significative per il Reinforcement Learning. L'obiettivo principale era validare l'efficacia dell'integrazione tra agenti RL e Large Language Model in un contesto diverso da quello originale (JRPG a turni).
+In questo progetto è stata esplorata l'applicazione dell'architettura HeRoN (Helper-Reviewer-NPC) all'environment Crafter, un survival game open-world che presenta sfide significative per il Reinforcement Learning. L'obiettivo principale era testare l'efficacia dell'integrazione tra agenti RL e Large Language Model in un contesto diverso da quello originale (JRPG a turni).
 
 \section{Risultati Principali}
 
@@ -17,7 +17,7 @@ L'architettura HeRoN ha dimostrato:
     \item \textbf{Significatività statistica}: p-value < 0.01 sui miglioramenti
 \end{itemize}
 
-\section{Efficacia dei Componenti}
+\section{Efficacia dei Componenti e Sfide Affrontate}
 
 \begin{itemize}
     \item \textbf{Helper}: Accelera l'apprendimento nelle fasi iniziali fornendo suggerimenti strategici basati su conoscenza generale
@@ -25,8 +25,6 @@ L'architettura HeRoN ha dimostrato:
     \item \textbf{Reward Shaping}: Cruciale per facilitare l'apprendimento, accelera convergenza del 47\%
     \item \textbf{Sequenze di 5 azioni}: Configurazione ottimale per bilanciare pianificazione e flessibilità
 \end{itemize}
-
-\section{Sfide Affrontate e Soluzioni}
 
 Durante l'implementazione sono emerse diverse sfide che sono state affrontate con successo:
 
@@ -44,21 +42,7 @@ Durante l'implementazione sono emerse diverse sfide che sono state affrontate co
 
 \textbf{Risultato}: Convergenza accelerata del 47\% mantenendo gli ottimi della policy. Achievement score migliorato da 0.4 (sparse) a 1.9 (shaped) nei primi 100 episodi (+375\%).
 
-\subsection{Challenge 2: Qualità del Dataset per Reviewer}
-
-\textbf{Problema}: Il Reviewer T5 richiede migliaia di esempi (state, suggestion, feedback) specifici per Crafter. Annotazione manuale proibitiva.
-
-\textbf{Soluzione}: Pipeline di generazione automatica dataset:
-\begin{itemize}
-    \item Execution di 50 episodi con Helper zero-shot (~2,500 samples)
-    \item Outcome evaluation automatica (success/neutral/failure)
-    \item Feedback generation rule-based basata su euristica
-    \item Data augmentation con over-sampling failure cases (3x)
-\end{itemize}
-
-\textbf{Risultato}: Dataset di 2,487 esempi con distribuzione bilanciata. Fine-tuning produce feedback utili nel 68\% dei casi, contribuendo a +6.7\% performance.
-
-\subsubsection{Challenge 3: Gestione Situazioni Critiche}
+\subsection{Challenge 2: Gestione Situazioni Critiche}
 
 \textbf{Problema}: Sequenze pre-pianificate (5 azioni) non adatte a situazioni di emergenza. NPC continuava exploration con health=3, portando a death rate 38\%.
 
@@ -71,21 +55,7 @@ Durante l'implementazione sono emerse diverse sfide che sono state affrontate co
 
 \textbf{Risultato}: Death rate ridotto da 38\% a 7\% (-81.6\%). Survival rate migliorato a 93\% negli episodi finali. Average health at death aumentato da 2.3 a 4.8.
 
-\subsubsection{Challenge 4: Overhead Computazionale LLM}
-
-\textbf{Problema}: Chiamate LLM costose: 150-300ms latency, 6.8 GB GPU memory, training time +74.7\% rispetto a baseline.
-
-\textbf{Soluzione}: Multiple ottimizzazioni:
-\begin{itemize}
-    \item \textbf{Sequenze batch}: 5 azioni per chiamata → -79\% chiamate (da 200/ep a 42/ep)
-    \item \textbf{Threshold decay aggressivo}: LLM usage da 90\% (ep 0) a 0\% (ep 100)
-    \item \textbf{Model quantization}: Q4\_K\_M quantized → -40\% memory, -40\% latency
-    \item \textbf{Async calls}: Non-blocking LLM → overlap con DQN training (-15\% tempo)
-\end{itemize}
-
-\textbf{Risultato}: Time per episode ridotto da 42.7s a 28.3s (-33.7\%). GPU memory da 6.8 GB a 5.0 GB (-26.5\%). Total training time da 3.6h a 2.4h.
-
-\subsubsection{Challenge 5: LLM Hallucinations e Action Typos}
+\subsection{Challenge 3: LLM Hallucinations e Action Typos}
 
 \textbf{Problema}: Helper LLM genera azioni inesistenti (8\% typos come \texttt{place\_rock}, 5\% hallucinations come \texttt{collect\_wood}), causando errori e comportamento subottimale.
 
@@ -99,36 +69,18 @@ Durante l'implementazione sono emerse diverse sfide che sono state affrontate co
 
 \textbf{Risultato}: Valid actions aumentate da 87\% a 98\% (+11\%). Error rate complessivo ridotto da 13\% a 2\% (-84.6\%). Hallucination rate medio durante training: 0.02\%.
 
-\subsubsection{Challenge 6: Fine-tuning del Reviewer}
-
-\textbf{Problema}: Necessità di dataset specifico per Crafter con esempi di qualità, bilanciamento tra feedback positivi/negativi, e metriche per valutare utilità.
-
-\textbf{Soluzione}:
-\begin{itemize}
-    \item Generazione automatica dataset da 50 episodi con Helper
-    \item Annotazione semi-automatica basata su euristica (successo/fallimento)
-    \item Augmentation dei casi critici (salute bassa, crafting fallito)
-    \item Fine-tuning FLAN-T5-base (250M parametri) per 5 epoch
-    \item Validation split 80/20 con monitoring BLEU score
-\end{itemize}
-
-\textbf{Risultato}: Dataset di ~2,500 esempi, feedback utili nel 68\% dei casi. Validation loss = 0.342. Contributo quantitativo: +6.7\% achievement, +9.1\% reward, -9.5\% convergenza time.
-
 \subsubsection{Sintesi Soluzioni}
 
 Tutte le sfide sono state risolte con successo, come dimostrato dai miglioramenti misurabili:
 
-\begin{table}[h]
+\begin{table}[H]
 \centering
 \begin{tabular}{@{}lccc@{}}
 \toprule
 \textbf{Sfida} & \textbf{Metrica} & \textbf{Prima} & \textbf{Dopo} \\ \midrule
 Reward Sparsity & Achievement (0-100 ep) & 0.4 & 1.9 (+375\%) \\
-Dataset Quality & Feedback utili & N/A & 68\% \\
 Emergency Handling & Death rate & 38\% & 7\% (-81.6\%) \\
-LLM Overhead & Time/episode & 42.7s & 28.3s (-33.7\%) \\
-Hallucinations & Valid actions & 87\% & 98\% (+11\%) \\
-Reviewer Training & Contribution & N/A & +6.7\% achievement \\ \bottomrule
+Hallucinations & Valid actions & 87\% & 98\% (+11\%) \\ \bottomrule
 \end{tabular}
 \caption{Impatto delle soluzioni implementate}
 \end{table}
@@ -151,16 +103,6 @@ Nonostante i risultati positivi, il progetto presenta alcune limitazioni:
     \item \textbf{Gestione inventario limitata}: L'Helper non sempre considera vincoli di capacità inventario
 \end{enumerate}
 
-\subsubsection{Limitazioni Computazionali}
-
-\begin{enumerate}
-    \item \textbf{Overhead LLM}: Tempo di training 75\% superiore rispetto a DQN puro
-    
-    \item \textbf{Scalabilità}: Con LLM più grandi (es. Qwen2.5-72B o GPT-4) l'overhead diventerebbe proibitivo
-    
-    \item \textbf{Memoria GPU}: Mantenere DQN + LLM in memoria richiede GPU con $\geq$8GB VRAM
-\end{enumerate}
-
 \subsection{Lavori Futuri}
 
 Il progetto apre diverse direzioni di ricerca futura:
@@ -168,102 +110,18 @@ Il progetto apre diverse direzioni di ricerca futura:
 \subsubsection{Miglioramenti Architetturali}
 
 \begin{enumerate}
-    \item \textbf{Pianificazione gerarchica}: 
-    \begin{itemize}
-        \item Helper genera piani ad alto livello (es. "ottieni ferro")
-        \item Sub-planner traduce in sequenze di azioni concrete
-        \item Permetterebbe achievement complessi come collect\_diamond
-    \end{itemize}
-    
-    \item \textbf{Threshold adattivo}:
-    \begin{itemize}
-        \item Invece di decay lineare, adattare in base a performance
-        \item Aumentare threshold quando DQN fallisce ripetutamente
-        \item Ridurre quando DQN è competente
-    \end{itemize}
-    
-    \item \textbf{Memory augmentation}:
-    \begin{itemize}
-        \item Aggiungere memoria episodica per ricordare strategie di successo
-        \item Permettere all'Helper di consultare esperienze passate
-    \end{itemize}
-    
-    \item \textbf{Multi-agent learning}:
-    \begin{itemize}
-        \item Più NPC che condividono esperienze
-        \item Helper centralizzato che apprende da tutti gli agenti
-    \end{itemize}
-\end{enumerate}
-
-\subsubsection{Ottimizzazioni del Reviewer}
-
-\begin{enumerate}
-    \item \textbf{Dataset di qualità superiore}:
-    \begin{itemize}
-        \item Annotazione manuale da esperti umani
-        \item Utilizzo di LLM più grandi per generare feedback di riferimento
-        \item Active learning per selezionare esempi informativi
-    \end{itemize}
-    
-    \item \textbf{Reinforcement Learning per Reviewer}:
-    \begin{itemize}
-        \item Invece di supervised fine-tuning, usare RLHF
-        \item Reward basato su miglioramento effettivo dopo feedback
-        \item Potrebbe migliorare qualità feedback oltre il 68\% attuale
-    \end{itemize}
-    
-    \item \textbf{Reviewer specializzati}:
-    \begin{itemize}
-        \item Reviewer diversi per survival, combat, crafting
-        \item Ensemble di Reviewer per robustezza
-    \end{itemize}
-\end{enumerate}
-
-\subsubsection{Estensioni dell'Applicazione}
-
-\begin{enumerate}
-    \item \textbf{Altri environment}:
-    \begin{itemize}
-        \item NetHack: Roguelike complesso
-        \item Minecraft: Versione completa
-        \item Starcraft II: RTS strategico
-        \item Validare generalizzazione dell'approccio
-    \end{itemize}
-    
-    \item \textbf{Multi-task learning}:
-    \begin{itemize}
-        \item Training simultaneo su più environment
-        \item Helper generale che si adatta a task diversi
-    \end{itemize}
-    
-    \item \textbf{Zero-shot transfer}:
-    \begin{itemize}
-        \item Training su Crafter, test su environment simili
-        \item Valutare capacità di trasferimento della conoscenza
-    \end{itemize}
+    \item \textbf{Pianificazione gerarchica}: Helper genera piani ad alto livello con sub-planner per sequenze concrete, abilitando achievement complessi.
+    \item \textbf{Threshold adattivo}: Adattamento dinamico basato su performance invece di decay lineare.
+    \item \textbf{Memory augmentation}: Memoria episodica per strategie di successo.
+    \item \textbf{Multi-agent learning}: Condivisione esperienze tra agenti con Helper centralizzato.
 \end{enumerate}
 
 \subsubsection{Analisi Teoriche}
 
 \begin{enumerate}
-    \item \textbf{Convergenza formale}:
-    \begin{itemize}
-        \item Dimostrare matematicamente convergenza di HeRoN
-        \item Analizzare impatto dell'intervento LLM sulla policy ottimale
-    \end{itemize}
-    
-    \item \textbf{Sample efficiency}:
-    \begin{itemize}
-        \item Quantificare riduzione sample complexity con LLM
-        \item Confrontare con human demonstrations
-    \end{itemize}
-    
-    \item \textbf{Interpretabilità}:
-    \begin{itemize}
-        \item Analisi qualitativa delle strategie apprese
-        \item Visualizzazione delle decisioni Helper vs DQN
-        \item Understanding del processo di raffinamento Reviewer
-    \end{itemize}
+    \item \textbf{Convergenza formale}: Dimostrazione matematica e analisi impatto LLM.
+    \item \textbf{Sample efficiency}: Quantificazione riduzione complessità con LLM.
+    \item \textbf{Interpretabilità}: Analisi strategie e visualizzazioni decisioni.
 \end{enumerate}
 
 \subsubsection{Applicazioni Pratiche}
@@ -291,7 +149,3 @@ Questo progetto ha dimostrato con successo che l'architettura HeRoN può essere 
 Allo stesso tempo, sono emersi sfide importanti relative all'overhead computazionale, alla qualità del dataset per il Reviewer e ai limiti della pianificazione a breve termine. Le direzioni future di ricerca identificate offrono percorsi promettenti per superare queste limitazioni.
 
 L'approccio HeRoN rappresenta un passo significativo verso agenti intelligenti che combinano la robustezza dell'apprendimento per rinforzo con la flessibilità e conoscenza generale dei Large Language Model. Man mano che i modelli linguistici diventano più efficienti e capaci, ci aspettiamo che architetture ibride come HeRoN giochino un ruolo sempre più importante nell'IA per giochi, robotica e automazione.
-
-\vspace{1cm}
-
-\noindent\textit{Il codice sorgente, i modelli addestrati e i risultati sperimentali completi sono disponibili nel repository del progetto per consentire la replicabilità e ulteriori sviluppi da parte della comunità di ricerca.}

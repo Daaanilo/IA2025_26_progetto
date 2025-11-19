@@ -2,70 +2,12 @@
 
 \section{Panoramica dell'Architettura}
 
-HeRoN (Helper-Reviewer-NPC) è un'architettura multi-agente che integra Reinforcement Learning e Large Language Model per migliorare il processo decisionale di agenti intelligenti in ambienti interattivi. L'idea centrale di HeRoN consiste nel combinare la capacità di apprendimento per rinforzo di ottimizzare strategie attraverso trial-and-error, il ragionamento semantico e la conoscenza generale dei Large Language Model, e un meccanismo di feedback iterativo per raffinare i suggerimenti forniti.
+HeRoN (Helper-Reviewer-NPC) è un'architettura multi-agente che combina Reinforcement Learning e Large Language Model per migliorare il processo decisionale di agenti intelligenti in ambienti interattivi. L'idea di base è unire la capacità del Reinforcement Learning di ottimizzare strategie attraverso prove ed errori, il ragionamento semantico e la conoscenza generale dei Large Language Model, e un meccanismo di feedback iterativo per migliorare i suggerimenti.
 
 \subsection{Diagramma Architettura DQN Baseline}
 
-Prima di presentare l'architettura completa HeRoN, illustriamo l'architettura baseline DQN che funge da componente base e da confronto per valutare i benefici dell'integrazione LLM.
+Prima di descrivere l'architettura completa HeRoN, parliamo dell'architettura baseline DQN che usiamo come base e per confrontare i benefici dell'integrazione con LLM.
 
-\begin{table}[h]
-\centering
-\caption{Architettura DQN Baseline - Ciclo Percezione-Azione-Apprendimento}
-\label{tab:dqn_architecture}
-\small
-\begin{tabular}{|p{3cm}|p{5.5cm}|p{5.5cm}|}
-\hline
-\textbf{Componente} & \textbf{Funzione} & \textbf{Output/Azione} \\ \hline
-
-\textbf{Crafter Environment} & 
-Genera osservazioni RGB (64×64×3) e info dict contenente stato completo del gioco & 
-Osservazione visuale + dati strutturati (inventory, position, health, achievements) \\ \hline
-
-\textbf{State Extraction (43-dim)} & 
-Wrapper che estrae vettore numerico dall'info dict: \newline
-• Inventory (16 item) \newline
-• Position (x, y) \newline
-• Status (health, food, drink) \newline
-• Achievements (22 flags) & 
-Vettore $s \in \mathbb{R}^{43}$ rappresentante lo stato corrente \\ \hline
-
-\textbf{DQN Network} & 
-Rete neurale (256→256→128 neurons) che stima Q-values per ogni azione. Utilizza Double DQN per stabilità. & 
-Q-values: $Q(s, a_i)$ per $i = 0, ..., 16$ (17 azioni) \\ \hline
-
-\textbf{Target Network} & 
-Copia della policy network aggiornata periodicamente (ogni 100 steps) per calcolare target stabili durante training & 
-Target Q-values per calcolo loss: $y = r + \gamma \max_{a'} Q_{target}(s', a')$ \\ \hline
-
-\textbf{Action Selection} & 
-$\epsilon$-greedy: con probabilità $\epsilon$ esplora casualmente, altrimenti sfrutta: $a = \arg\max_a Q(s, a)$ \newline
-$\epsilon$: 1.0 → 0.05 in 800 episodi & 
-Azione $a_t \in \{0, ..., 16\}$ da eseguire nell'environment \\ \hline
-
-\textbf{Execution} & 
-Esegue azione selezionata, osserva reward e nuovo stato & 
-Transizione: $(s_t, a_t, r_t, s_{t+1}, done)$ \\ \hline
-
-\textbf{Reward Shaping} & 
-Combina reward nativo (sparse +1/achievement) con bonus densi: \newline
-• Raccolta risorse: +0.1 \newline
-• Gestione salute: +0.05 \newline
-• Progressione tier: +0.05 \newline
-• Crafting tool: +0.02 & 
-Reward totale: $r_{shaped} = r_{native} + \sum bonuses$ \\ \hline
-
-\textbf{Prioritized Replay Buffer} & 
-Memorizza 5000 transizioni con priorità basata su TD-error. Parametri: $\alpha=0.6$ (prioritization), $\beta=0.4 \rightarrow 1.0$ (importance sampling) & 
-Batch di 32 transizioni campionate per training \\ \hline
-
-\textbf{Learning Update} & 
-Minimizzo loss TD con batch sampled: \newline
-$L = (r + \gamma Q_{target}(s', \arg\max_{a'} Q(s', a')) - Q(s, a))^2$ \newline
-Learning rate: 0.0003, discount $\gamma=0.99$ & 
-Pesi DQN aggiornati, priorità replay aggiornate \\ \hline
-
-\end{tabular}
-\end{table}
 
 \textbf{Flusso Operativo DQN}:
 \begin{enumerate}
@@ -77,123 +19,12 @@ Pesi DQN aggiornati, priorità replay aggiornate \\ \hline
     \item \textbf{Stabilizzazione}: Ogni 100 steps, copia DQN weights → Target Network
 \end{enumerate}
 
-L'architettura DQN baseline apprende esclusivamente attraverso trial-and-error, senza guidance esterna.
+L'architettura DQN baseline impara solo attraverso prove ed errori, senza aiuto esterno.
 
 \subsection{Diagramma Architettura HeRoN Completa}
 
-L'architettura HeRoN estende il DQN baseline integrando due componenti LLM per guidance strategica tramite un meccanismo di threshold decay che bilancia LLM e RL.
+L'architettura HeRoN estende il DQN baseline aggiungendo due componenti LLM per una guida strategica, usando un meccanismo di threshold decay che bilancia LLM e RL.
 
-\begin{table*}[t]
-\centering
-\caption{Architettura HeRoN - Integrazione LLM + RL con Threshold Decay e Re-planning}
-\label{tab:heron_architecture}
-\small
-\begin{tabular}{|p{2.8cm}|p{5cm}|p{6.5cm}|}
-\hline
-\textbf{Fase/Componente} & \textbf{Condizione/Input} & \textbf{Processo/Output} \\ \hline
-
-\multicolumn{3}{|c|}{\cellcolor{gray!20}\textbf{FASE 1: PERCEZIONE E DECISIONE}} \\ \hline
-
-\textbf{State Extraction} & 
-Environment observation (RGB + info dict) & 
-Estrae vettore 43-dim: $s = [inv_{16}, pos_2, status_3, ach_{22}]$ \\ \hline
-
-\textbf{Threshold Decision} & 
-Genera random() $\in [0, 1]$ e confronta con threshold corrente: \newline
-$threshold = \max(0, 1.0 - 0.01 \times episode)$ & 
-\textbf{SE} random() $>$ threshold \textbf{AND} episode $< 600$: \newline
-→ Percorso LLM (Helper + Reviewer) \newline
-\textbf{ALTRIMENTI}: \newline
-→ Percorso DQN \\ \hline
-
-\multicolumn{3}{|c|}{\cellcolor{blue!10}\textbf{PERCORSO A: LLM-GUIDED (Threshold Attivo)}} \\ \hline
-
-\textbf{Helper LLM (Initial)} & 
-State description costruita da: \newline
-• Inventory items \newline
-• Health/Food/Drink stats \newline
-• Position \newline
-• Achievements unlocked \newline
-• Previous action outcome & 
-Query a Qwen3-4B-2507 (4B params, Q4\_K\_M) via LM Studio. \newline
-\textbf{Output}: Sequenza 3-5 azioni in formato bracketed: \newline
-\texttt{[move\_right], [do], [place\_table], [make\_wood\_pickaxe], [noop]} \\ \hline
-
-\textbf{Reviewer (Validation)} & 
-Riceve: \newline
-• Game state description \newline
-• Helper initial sequence & 
-FLAN-T5-base (250M params) fine-tuned su 2,487 esempi analizza la sequenza e genera feedback strategico: \newline
-\textit{"Health critically low! Prioritize eating before exploration."} \newline
-\textit{"You have enough wood. Focus on crafting pickaxe."} \\ \hline
-
-\textbf{Helper LLM (Refined)} & 
-Riceve feedback del Reviewer come contesto aggiuntivo nel prompt & 
-Re-query a Qwen3-4B con feedback integrato. \newline
-\textbf{Output}: Sequenza raffinata (se Reviewer ha fornito suggerimenti utili) \newline
-Es: \texttt{[eat\_plant], [sleep], [move\_right], [do], [noop]} \\ \hline
-
-\multicolumn{3}{|c|}{\cellcolor{green!10}\textbf{PERCORSO B: DQN AUTONOMOUS (Threshold Disattivato)}} \\ \hline
-
-\textbf{DQN Network} & 
-State vector $s \in \mathbb{R}^{43}$ & 
-Forward pass: $Q(s, a_i)$ per $i = 0, ..., 16$ \newline
-Architettura: 43 → 256 → 256 → 128 → 17 \\ \hline
-
-\textbf{$\epsilon$-greedy Selection} & 
-Q-values + epsilon corrente ($\epsilon$: 1.0 → 0.05) & 
-\textbf{Con prob $\epsilon$}: azione random \newline
-\textbf{Con prob $1-\epsilon$}: $a = \arg\max_a Q(s, a)$ \\ \hline
-
-\multicolumn{3}{|c|}{\cellcolor{gray!20}\textbf{FASE 2: ESECUZIONE E RE-PLANNING}} \\ \hline
-
-\textbf{Action Executor} & 
-Riceve: \newline
-• Sequenza LLM (3-5 azioni) \textbf{OPPURE} \newline
-• Singola azione DQN & 
-Esegue azioni sequenzialmente. \newline
-Se sequenza LLM: gestisce indice corrente, esegue un'azione per step. \newline
-Se DQN: esegue immediatamente. \\ \hline
-
-\textbf{Re-planning Triggers} & 
-\textbf{Monitor continuo}: \newline
-1. Achievement unlocked? \newline
-2. Health $\leq$ 5? \newline
-3. Health drop $> 30\%$? \newline
-4. Resource depleted? & 
-\textbf{Achievement unlock}: \newline
-→ Interrompi sequenza, nuova query LLM con contesto aggiornato \newline
-\textbf{Health critical ($\leq 5$)}: \newline
-→ Fallback immediato a DQN per sopravvivenza \newline
-\textbf{Health low ($< 30\%$)}: \newline
-→ Re-query LLM con priorità health management \\ \hline
-
-\textbf{Environment Step} & 
-Azione $a_t$ eseguita & 
-Ritorna: $(s_{t+1}, r_t, done, info)$ \newline
-Reward shaped applicato: $r_{shaped} = r_{native} + bonuses$ \\ \hline
-
-\multicolumn{3}{|c|}{\cellcolor{gray!20}\textbf{FASE 3: APPRENDIMENTO}} \\ \hline
-
-\textbf{Prioritized Replay Buffer} & 
-Transizione: $(s_t, a_t, r_{shaped}, s_{t+1}, done)$ & 
-Memorizza con priorità iniziale massima. \newline
-Buffer size: 5000 transizioni \newline
-\textbf{Importante}: DQN apprende sia da azioni proprie che da azioni LLM \\ \hline
-
-\textbf{DQN Training} & 
-Batch di 32 transizioni sampled dal replay buffer & 
-Computa TD-loss usando Target Network: \newline
-$L = (r + \gamma Q_{target}(s', a') - Q(s, a))^2$ \newline
-Backpropagation con Adam optimizer (LR=0.0003) \newline
-Aggiorna priorità nel buffer basate su TD-error \\ \hline
-
-\textbf{Target Network Update} & 
-Ogni 100 steps & 
-Copia completa dei pesi: $Q_{target} \leftarrow Q_{policy}$ \\ \hline
-
-\end{tabular}
-\end{table*}
 
 \textbf{Meccanismo Chiave - Threshold Decay}:
 
@@ -213,16 +44,18 @@ dove $e$ è il numero dell'episodio corrente. Questo garantisce:
 \begin{enumerate}
     \item Environment genera stato → State Extraction (43-dim)
     \item Threshold check: random(0.73) $>$ threshold(0.65) → \textbf{LLM Path}
-    \item Helper riceve state description → genera \texttt{[move\_right], [do], [move\_left], [do], [noop]}
+    \item Helper riceve state description → genera \texttt{[move\_right], [do],} \\
+    \texttt{[move\_left], [do], [noop]}
     \item Reviewer analizza → feedback: \textit{"Health low, prioritize eating"}
-    \item Helper re-query con feedback → sequenza raffinata: \texttt{[eat\_plant], [sleep], [move\_right], [do], [noop]}
+    \item Helper re-query con feedback → sequenza raffinata: \texttt{[eat\_plant], [sleep],} \\
+    \texttt{[move\_right], [do], [noop]}
     \item Action Executor esegue \texttt{[eat\_plant]} → $(s_1, r_1, info_1)$
     \item Salva $(s_0, eat\_plant, r_1, s_1, done)$ in Prioritized Replay
     \item Monitor: achievement unlocked? → \textbf{SÌ} → interrompi sequenza, nuova query Helper
     \item DQN training: sample batch → compute loss → update weights
 \end{enumerate}
 
-L'architettura HeRoN combina il meglio di RL (apprendimento da esperienza) e LLM (conoscenza a priori + ragionamento strategico), con transizione graduale verso autonomia completa.
+L'architettura HeRoN combina il meglio di RL (apprendimento da esperienza) e LLM (conoscenza a priori + ragionamento strategico), con una transizione graduale verso autonomia completa.
 
 L'architettura HeRoN è composta da tre componenti principali che interagiscono in modo coordinato:
 
@@ -235,23 +68,23 @@ Il componente NPC è un agente di Reinforcement Learning che rappresenta il "gio
     \item \textbf{Replay Buffer}: Memorizza le esperienze passate dando priorità alle esperienze importanti, con spazio per 10.000 eventi.
     \item \textbf{Parametri}:
     \begin{itemize}
-        \item $\alpha = 0.6$: indica quanto si dà priorità alle esperienze importanti
+        \item $\alpha = 0.6$: quanto diamo priorità alle esperienze importanti
         \item $\beta = 0.4 \rightarrow 1.0$: peso per correggere il campionamento delle esperienze
-        \item $\gamma = 0.99$: fattore che valuta l'importanza delle ricompense future
-        \item $\epsilon = 1.0 \rightarrow 0.05$: probabilità di esplorare nuove azioni, che diminuisce nel tempo
+        \item $\gamma = 0.99$: quanto valutiamo l'importanza delle ricompense future
+        \item $\epsilon = 1.0 \rightarrow 0.05$: probabilità di esplorare nuove azioni, che diminuisce col tempo
     \end{itemize}
     \item \textbf{Input}: Stato dell'ambiente a 43 dimensioni
     \item \textbf{Output}: Q-values per 17 azioni possibili
 \end{itemize}
 
-L'NPC apprende attraverso l'esperienza diretta, accumulando transizioni $(s, a, r, s')$ nel replay buffer e aggiornando i pesi della rete neurale per massimizzare il reward atteso.
+L'NPC impara attraverso l'esperienza diretta, accumulando transizioni $(s, a, r, s')$ nel replay buffer e aggiornando i pesi della rete neurale per massimizzare il reward atteso.
 
 \subsection{Helper}
 
 Il componente Helper è un Large Language Model utilizzato in modalità zero-shot che fornisce suggerimenti strategici all'NPC. Nel progetto HeRoN per Crafter, l'Helper è implementato utilizzando un LLM locale (Qwen3-4B-2507) attraverso LM Studio con le seguenti caratteristiche:
 
 \begin{itemize}
-    \item \textbf{Generazione di sequenze di azioni}: A differenza dell'implementazione originale che suggeriva singole azioni, l'Helper in questo progetto genera sequenze di 3-5 azioni coerenti da eseguire sequenzialmente.
+    \item \textbf{Generazione di sequenze di azioni}: Diversamente dall'implementazione originale che suggeriva singole azioni, l'Helper in questo progetto genera sequenze di 3-5 azioni coerenti da eseguire una dopo l'altra.
     
     \item \textbf{Contestualizzazione}: L'Helper riceve informazioni dettagliate sullo stato corrente del gioco:
     \begin{itemize}
@@ -288,7 +121,7 @@ Il componente Reviewer è un LLM fine-tuned (basato su T5) che valuta i suggerim
     \item Fine-tuning del modello T5 su coppie (suggerimento, feedback)
 \end{enumerate}
 
-Il dataset tipicamente contiene circa 2,500 esempi raccolti da 50 episodi di gioco.
+Il dataset contiene circa 2,500 esempi raccolti da 50 episodi di gioco.
 
 Il Reviewer analizza:
 \begin{itemize}
@@ -296,16 +129,16 @@ Il Reviewer analizza:
     \item Appropriatezza rispetto allo stato corrente
     \item Potenziali rischi o inefficienze
     \item Priorità strategiche (es. sopravvivenza vs. progressione)
-    \item Fornisce feedback strutturato che viene utilizzato per ri-interrogare l'Helper con maggiori informazioni.
+    \item Fornisce feedback strutturato che usiamo per ri-interrogare l'Helper con più informazioni.
 \end{itemize}
 
 \section{Workflow dell'Architettura}
 
-Il workflow di HeRoN durante il training si articola nelle seguenti fasi:
+Il workflow di HeRoN durante il training si articola in queste fasi:
 
 \subsection{Fase 1: Decisione di Consultazione}
 
-Ad ogni step dell'episodio, l'architettura decide se consultare i componenti LLM in base a una soglia dinamica $\theta$.
+Ad ogni step dell'episodio, l'architettura decide se consultare i componenti LLM basandosi su una soglia dinamica $\theta$.
 
 %\begin{algorithm}
 %\caption{Decisione di consultazione LLM}
@@ -318,22 +151,22 @@ Ad ogni step dell'episodio, l'architettura decide se consultare i componenti LLM
 %\end{algorithmic}
 %\end{algorithm}
 
-Quando viene deciso di consultare l'LLM, l'Helper genera una sequenza di azioni basandosi sullo stato corrente.
+Quando decidiamo di consultare l'LLM, l'Helper genera una sequenza di azioni basandosi sullo stato corrente.
 
 La soglia $\theta$ decresce linearmente da 1.0 a 0.0 nel corso di 100 episodi:
 $$\theta_t = \max(0, \theta_0 - 0.01 \cdot episode)$$
 
-In questo modo, l’NPC si affida maggiormente ai suggerimenti LLM all’inizio dell’allenamento, per poi diminuire questa dipendenza man mano che l’agente RL migliora.
+In questo modo, l'NPC si affida di più ai suggerimenti LLM all'inizio dell'allenamento, per poi ridurre questa dipendenza man mano che l'agente RL migliora.
 
 \subsection{Fase 2: Review e Raffinamento (Reviewer)}
 
-Se il Reviewer è disponibile, valuta la sequenza proposta fornisce un feedback.
-L’Helper usa il feedback per migliorare la sequenza e ne crea una seconda versione.
-Infine, si usa la sequenza migliorata se il Reviewer ha dato feedback, altrimenti si usa la prima.
+Se il Reviewer è disponibile, valuta la sequenza proposta e fornisce un feedback.
+L'Helper usa il feedback per migliorare la sequenza e ne crea una seconda versione.
+Infine, usiamo la sequenza migliorata se il Reviewer ha dato feedback, altrimenti la prima.
 
 \subsection{Fase 3: Esecuzione e Re-planning}
 
-La sequenza di azioni viene eseguita sequenzialmente, ma può essere interrotta in caso di eventi significativi:
+La sequenza di azioni viene eseguita una dopo l'altra, ma può essere interrotta in caso di eventi importanti:
 
 \begin{itemize}
     \item \textbf{Achievement sbloccato}: Nuova consultazione LLM con contesto aggiornato

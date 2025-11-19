@@ -2,47 +2,10 @@
 
 \section{Overview del Processo}
 
-L'implementazione del progetto HeRoN per Crafter è stata suddivisa in fasi sequenziali, ciascuna volta a sviluppare e validare un componente specifico dell'architettura. La metodologia adottata segue un approccio iterativo che permette di validare progressivamente le componenti del sistema.
+L'implementazione del progetto HeRoN per Crafter è stata suddivisa in fasi sequenziali, ciascuna volta a sviluppare e validare un componente specifico dell'architettura. La metodologia adottata è iterativa, per permettere di validare progressivamente le componenti del sistema.
 
 \section{Fase 1: Setup dell'Environment}
 
-\subsection{Installazione e Configurazione}
-
-Il primo passo ha riguardato la configurazione dell'environment di sviluppo:
-
-\begin{enumerate}
-    \item \textbf{Creazione ambiente Conda}:
-    \begin{verbatim}
-    conda create -n HeRoN python=3.9
-    conda activate HeRoN
-    \end{verbatim}
-    
-    \item \textbf{Installazione dipendenze}:
-    \begin{itemize}
-        \item PyTorch (con supporto CUDA per GPU)
-        \item Crafter environment
-        \item Transformers (per il Reviewer T5)
-        \item LM Studio (per l'Helper LLM locale)
-    \end{itemize}
-    
-    \item \textbf{Verifica installazione}:
-    \begin{verbatim}
-    python test_crafter_env.py
-    python test_lmstudio_connection.py
-    \end{verbatim}
-\end{enumerate}
-
-\subsection{Wrapper dell'Environment}
-
-È stato sviluppato un wrapper custom per Crafter (\texttt{crafter\_environment.py}) che:
-
-\begin{itemize}
-    \item Estrae lo stato strutturato a 43 dimensioni dalle osservazioni RGB
-    \item Gestisce l'estrazione di informazioni dall'oggetto \texttt{info}
-    \item Normalizza i valori di stato per facilitare l'apprendimento
-    \item Traccia gli achievement sbloccati
-    \item Calcola il reward shaped combinando reward nativo e bonus
-\end{itemize}
 
 \subsection{Testing Iniziale}
 
@@ -102,7 +65,7 @@ Il replay buffer implementa prioritized sampling:
 
 \subsubsection{Training Baseline DQN}
 
-Prima di integrare i componenti LLM, è stato addestrato un agente DQN baseline:
+Prima di integrare i componenti LLM, abbiamo addestrato un agente DQN baseline:
 
 \begin{itemize}
     \item \textbf{Episodi}: 1000
@@ -112,7 +75,7 @@ Prima di integrare i componenti LLM, è stato addestrato un agente DQN baseline:
     \item \textbf{Batch size}: 64
 \end{itemize}
 
-Il baseline serve come riferimento per valutare l'efficacia dell'integrazione con gli LLM.
+Il baseline ci serve come riferimento per valutare quanto funziona l'integrazione con gli LLM.
 
 \subsection{Fase 3: Sviluppo del Helper}
 
@@ -153,25 +116,25 @@ Il threshold di ~4B parametri sembra essere critico per l'instruction-following 
 
 Il prompt per l'Helper è stato progettato iterativamente attraverso esperimenti. La tabella seguente mostra l'evoluzione delle versioni del prompt per migliorare lo zero-shot dell'Helper:
 
-\begin{table}[h]
+\begin{table}[H]
 \centering
 \small
-\begin{tabular}{@{}p{1.5cm}p{5cm}p{3cm}p{2cm}@{}}
+\begin{tabular}{@{}p{2cm}p{5cm}p{3cm}p{2cm}@{}}
 \toprule
 \textbf{Versione} & \textbf{Modifiche Principali} & \textbf{Problema Risolto} & \textbf{Risultato} \\ \midrule
-V1.0 & Prompt base con lista azioni e stato corrente & Baseline zero-shot & 35\% valid \\
+V1.0 & Prompt base con lista azioni e stato corrente & Baseline: zero-shot senza apprendimento & 35\% valid \\
 \midrule
-V2.0 & + Esempi good/bad, formato output esplicito & Azioni invalide & 62\% valid \\
+V2.0 & + Esempi good/bad, formato output esplicito & Riduce azioni invalide & 62\% valid \\
 \midrule
-V3.0 & + Warning typo comuni (place\_rock→place\_stone) & Errori ricorrenti & 78\% valid \\
+V3.0 & + Warning typo comuni (place\_rock→place\_stone) & Corregge errori ricorrenti & 78\% valid \\
 \midrule
-V4.0 & + Survival priorities, achievement chain & Ignora salute critica & 84\% valid \\
+V4.0 & + Survival priorities, achievement chain & Ignora situazioni di salute critica & 84\% valid \\
 \midrule
-V5.0 & + Variety reminder, anti-loop detection & Sequenze ripetitive & 91\% valid \\
+V5.0 & + Variety reminder, anti-loop detection & Previene sequenze ripetitive & 91\% valid \\
 \midrule
-V6.0 & + Context-aware goals, episodic memory & Mancanza contesto & 95\% valid \\
+V6.0 & + Context-aware goals, episodic memory & Manca contesto situazionale & 95\% valid \\
 \midrule
-\textbf{V7.0} & \textbf{+ Placeholder prevention, token overflow management} & \textbf{Placeholder usage, verbose output} & \textbf{98\% valid} \\ \bottomrule
+\textbf{V7.0} & \textbf{+ Placeholder prevention, token overflow management} & \textbf{Uso di placeholder e output verboso} & \textbf{98\% valid} \\ \bottomrule
 \end{tabular}
 \caption{Evoluzione iterativa del prompt Helper per miglioramento zero-shot (con Qwen3-4B)}
 \end{table}

@@ -49,53 +49,74 @@ Slide 6 — Stato, Azioni, Reward
 Note slide 6 (discorso):
 Lo stato è un vettore compatto a 43 dimensioni: 16 valori per l'inventario che rappresentano risorse e strumenti, 2 per la posizione normalizzata, 3 per status come salute e giorno/notte, e 22 flag binarie per gli achievements. Questo formato è preferito al raw RGB perché fornisce informazioni semantiche rilevanti e stabilizza l'addestramento. Le azioni disponibili (17) spaziano dal movimento alle azioni contestuali come `do`, `sleep` o crafting (`make_*`). Per la ricompensa distinguiamo il `native_reward`, cioè il +1 per ogni achievement sbloccato, dallo `shaped_reward` che aggiunge bonus per raccolta risorse, gestione della salute, progressione di tier e uso di strumenti: lo shaping accelera l'apprendimento guidando l'agente verso comportamenti utili.
 
-Slide 7 — Modifiche su Helper
+Slide 7 — Reward Shaping: Native vs Shaped
+- `native_reward`: Sparse +1 per achievement sbloccato
+  - Formula: \( r_{\text{native}} = 1 \) (se achievement sbloccato, altrimenti 0)
+- `shaped_reward`: `native_reward` + bonus (risorse +0.1/unità, salute +0.02/stat >5, strumenti +0.3/tool, morte -1.0)
+  - Formula: \( r_{\text{shaped}} = r_{\text{native}} + 0.1 \cdot \sum_{\text{res} \in R} (\text{curr}_{\text{res}} - \text{prev}_{\text{res}}) + 0.02 \cdot I(\text{health} > 5) + 0.02 \cdot I(\text{food} > 5) + 0.02 \cdot I(\text{drink} > 5) + 0.3 \cdot \min\left( \sum_{\text{tool} \in T} I(\text{curr}_{\text{tool}} > \text{prev}_{\text{tool}}), 1 \right) - 1.0 \cdot I(\text{death}) \)
+- Impatto: Convergenza accelerata del 47%, score finale +26%, varianza ridotta
+Note slide 7 (discorso - Reward Shaping):
+Spieghiamo le ricompense in HeRoN. Il `native_reward` è sparso: solo +1 quando si sblocca un achievement, rendendo difficile l'apprendimento. Per accelerarlo, usiamo `shaped_reward` che aggiunge bonus incrementali: +0.1 per risorse raccolte, +0.05 per miglioramento salute, +0.05 per progressione tier, +0.02 per crafting strumenti. La formula combina tutto, guidando il DQN verso comportamenti utili senza alterare gli obiettivi finali. Questo riduce la varianza e accelera la convergenza del 47%.
+
+Slide 8 — Ottimizzazione dell'Helper
+- Analisi sperimentale per determinare numero ottimale di azioni per sequenza
+- Tabella risultati:
+  | Azioni per sequenza | Achievement medi | Chiamate Helper/episodio |
+  |----------------------|------------------|--------------------------|
+  | 1                    | 3.2              | 150-200                  |
+  | 3                    | 4.5              | 50-80                    |
+  | 5                    | 4.8              | 30-50                    |
+  | 7                    | 4.3              | 20-35                    |
+  | 10                   | 3.9              | 15-25                    |
+- Valore ottimale: 5 azioni (bilancia pianificazione strategica, flessibilità re-planning, overhead LLM)
+Note slide 8 (discorso - Ottimizzazione Helper):
+Attraverso un'analisi sperimentale abbiamo testato diverse lunghezze di sequenza per trovare l'ottimale. La tabella mostra che con 1 azione si ottengono pochi achievement ma molte chiamate LLM, mentre con 5 azioni si massimizza l'efficienza bilanciando pianificazione e adattabilità. Il valore ottimale è risultato essere 5 azioni, che permette una buona pianificazione strategica senza ridurre troppo la flessibilità di re-planning e mantenendo l'overhead computazionale LLM accettabile.
+
+Slide 9 — Ottimizzazione dell'Helper (cont.)
 - Output atteso: sequenze di 3–5 azioni in formato bracketed (`[move_right], [do], ...`)
 - Prompt engineering per generare action-sets coerenti e ri-prompting con feedback del Reviewer
 - Gestione typo e fuzzy-matching tramite `TYPO_MAP` in `classes/crafter_helper.py`
-Note slide 7 (discorso):
-Abbiamo modificato l'Helper in modo che generi set di azioni coerenti di lunghezza limitata (3–5 mosse), formattati tra parentesi quadre, ad esempio `[move_right], [do], [place_table]`. Il prompt engineering è centrale: costruiamo prompt che forzino il contenuto in questo formato e che includano lo stato corrente per contestualizzare le risposte. Dopo la prima proposta il Reviewer può fornire feedback correttivo; in caso di suggerimenti poco coerenti si re‑prompt l'Helper inserendo il feedback del Reviewer per ottenere una versione migliorata. Per robustezza gestiamo gli errori di battitura e le varianti lessicali con una mappa `TYPO_MAP` implementata in `classes/crafter_helper.py`.
+- Esempi prompt engineering: Prompt base con lista azioni valide, esempi buoni/cattivi, raffinato con feedback
+Note slide 9 (discorso - Ottimizzazione Helper cont.):
+  - Prompt base: "Generate EXACTLY ONE sequence of 4 actions... FORMAT: [REAL_ACTION_1], [REAL_ACTION_2], ..."
+  - Raffinato con feedback: Integrazione suggerimenti Reviewer per correggere sequenze errate
+Note slide 8 (discorso - Ottimizzazione Helper cont.):
+Il prompt engineering è cruciale per ottenere sequenze coerenti dall'LLM. Iniziamo con un prompt base che elenca le 17 azioni valide, richiede il formato bracketed e include esempi buoni (con azioni reali) e cattivi (con placeholder o azioni invalide). Per gestire gli errori, utilizziamo una TYPO_MAP per correggere variazioni comuni come 'place_rock' in 'place_stone'. Quando il Reviewer fornisce feedback, raffiniamo il prompt integrando le correzioni per migliorare le successive generazioni, assicurando che l'Helper produca azioni valide e strategiche.
 
-Slide 8 — Implementazione & training (sintesi)
-- `DQNAgent`: Double DQN + Prioritized Replay Buffer (implementato in `classes/agent.py`)
-- Salvataggio persistente: pesi, target, memoria, priorità e file `epsilon` (controllare `agent.save`/`agent.load`)
-- Reward shaping: distinzione `native_reward` (sparse, +1 per achievement) vs `shaped_reward` (bonus risorse, salute, tier, strumenti) — il DQN viene addestrato sullo shaped reward
-- Threshold decay: viene applicato per episodio (non per step) per regolare il coinvolgimento LLM
-- Re-planning: Helper sequenze interrotte o riformulate su trigger (es. health <= 5 fallback DQN)
-- Checkpointing: salvataggi basati su miglioramento achievements (vedi `training/heron_training.py`)
-- Script principali: `training/heron_training.py` (HeRoN full), `training/DQN_training.py` (baseline)
-Note slide 8 (discorso):
-In questa slide spieghiamo brevemente la parte implementativa: il DQN usa la variante Double DQN per ridurre sovrastima dei Q‑values e una Prioritized Replay per campionare transizioni più informative; il codice è in `classes/agent.py`. Il sistema salva più file per garantire riproducibilità: pesi del modello, pesi del target network, memoria e priorità del replay e il valore di epsilon. Addestriamo il DQN sullo `shaped_reward` per accelerare l'apprendimento, ma tracciamo anche il `native_reward` per analisi ablation. Il `threshold` che regola l'uso dell'LLM decade per episodio e non per step, rispettando la politica di esplorazione prevista; nei casi critici il sistema effettua re‑planning o passa al fallback DQN (es. salute molto bassa). Infine, checkpointiamo modelli quando gli achievements migliorano per conservare i migliori risultati.
-
-Slide 9 — Reviewer: dataset, fine-tuning e pipeline PPO
+Slide 10 — Reviewer: dataset, fine-tuning e pipeline PPO
 - Generazione dataset: stati, suggerimenti Helper, outcome, feedback correttivi
 - Step 1 — Fine-tuning Reviewer: eseguire `reviewer_fine_tuning/reviewer_fine_tuning.py` per addestrare il Reviewer; l'output tipico è la cartella `reviewer_retrained/` (modello + tokenizer).
 - Step 2 — (Facoltativo) PPO training: il contenuto di `reviewer_retrained/` può essere usato come input per `reviewer_fine_tuning/ppo_training.py` per ulteriori ottimizzazioni; questo script può produrre `reviewer_retrained_ppo/` come output.
 - Nota: alcuni workflow (e `training/heron_training.py`) possono essere configurati per caricare `reviewer_retrained_ppo/` come percorso del Reviewer in runtime (controllare la variabile `REVIEWER_MODEL_PATH` nello script di training).
-Note slide 9 (discorso - Reviewer):
+Note slide 11 (discorso - Reviewer):
 Il Reviewer è ottenuto tramite fine‑tuning su un dataset costruito ad hoc: registriamo stati di gioco, le azioni suggerite dall'Helper, l'esito di quelle azioni e i feedback correttivi generati manualmente o semi‑automaticamente. Il primo passo è il fine‑tuning con `reviewer_fine_tuning/reviewer_fine_tuning.py`, che produce la cartella `reviewer_retrained/` contenente modello e tokenizer. Successivamente possiamo usare quel modello come input per una fase di ottimizzazione tramite PPO (`reviewer_fine_tuning/ppo_training.py`) per adattare policy o metriche interne; tale passaggio può produrre `reviewer_retrained_ppo/`. Controllate le variabili `REVIEWER_MODEL_PATH` negli script di training per assicurarvi che il percorso caricato sia quello desiderato.
 
-Slide 10 — Valutazione e metriche
+Slide 11 — Valutazione e Risultati
 - Metriche principali: achievements per episodio, reward cumulativo (native/shaped), curve di apprendimento
 - Strumenti: `evaluation/evaluation_system.py`, `evaluation/evaluation_plots.py`, `evaluation_report_generator.py`
 - Output: CSV/JSON e plot in `evaluation_plots/*.png`
-Note slide 10 (discorso - Valutazione):
-Per valutare il sistema utilizziamo principalmente il numero di achievements medi per episodio, le curve di reward cumulativo e l'andamento delle metriche native vs shaped nel tempo. Gli script in `evaluation/` raccolgono e aggregano questi dati e generano plot comparativi in `evaluation_plots/`. È importante mostrare sia il comportamento grezzo (native_reward) sia lo shaped per capire se i miglioramenti derivano dallo shaping o dall'effettivo progresso di policy; questo permette anche analisi di tipo ablation.
+- Risultati chiave: HeRoN ottiene 4.8 achievement medi vs 2.74 DQN baseline (+75%), coverage 72.7% vs 36.4%, convergenza 41.5% più veloce
+Note slide 12 (discorso - Valutazione e Risultati):
+Per valutare il sistema utilizziamo principalmente il numero di achievements medi per episodio, le curve di reward cumulativo e l'andamento delle metriche native vs shaped nel tempo. Gli script in `evaluation/` raccolgono e aggregano questi dati e generano plot comparativi in `evaluation_plots/`. È importante mostrare sia il comportamento grezzo (native_reward) sia lo shaped per capire se i miglioramenti derivano dallo shaping o dall'effettivo progresso di policy; questo permette anche analisi di tipo ablation. I risultati chiave mostrano che HeRoN ottiene 4.8 achievement medi per episodio rispetto ai 2.74 del DQN baseline, con un miglioramento del 75%, una coverage degli achievement del 72.7% contro il 36.4%, e una convergenza accelerata del 41.5%.
 
-Slide 11 — Risultati, sfide e soluzioni
-- Sintetizzare risultati empirici (achievements, curve, esempi)
-- Sfide: integrazione LLM, latency, failure modes, dataset Reviewer
-- Soluzioni adottate: re-planning, typo correction, checkpointing robusto
-Note slide 11 (discorso - Risultati e sfide):
-Qui riassumiamo i risultati principali: mostreremo come il sistema ha migliorato il numero medio di achievements rispetto alla baseline in diverse condizioni sperimentali, con esempi qualitativi di sequenze generate dall'Helper e corrette dal Reviewer. Discuteremo poi le sfide incontrate, come latenza delle chiamate LLM, formati di output incoerenti e la necessità di dataset per il Reviewer; per ciascuna sfida descriveremo la soluzione adottata (re‑planning, correzione typo, checkpointing e policy di fallback). Infine evidenzieremo i limiti ancora aperti e ipotesi per lavori futuri.
+Slide 12 — Challenge Affrontate
+- Sparsità del reward: risolto con reward shaping multi-componente (+375% achievement nei primi 100 ep)
+- Gestione situazioni critiche: sistema di re-planning multi-livello (death rate ridotto da 38% a 7%)
+- LLM hallucinations e typos: correzione automatica e validazione (valid actions aumentate da 87% a 98%)
+- Pianificazione a breve termine: sequenze 3-5 azioni bilanciano pianificazione e flessibilità
+Note slide 13 (discorso - Challenge Affrontate):
+Durante l'implementazione abbiamo affrontato diverse challenge critiche. La sparsità del reward è stata risolta con un sistema di shaping multi-componente che aggiunge bonus per raccolta risorse, salute e crafting, migliorando gli achievement del 375% nei primi 100 episodi. Per le situazioni critiche abbiamo implementato re-planning basato su trigger come salute bassa o depletion risorse, riducendo il death rate da 38% a 7%. Le hallucinations e typos dell'LLM sono state gestite con una TYPO_MAP e validazione, aumentando le azioni valide da 87% a 98%. Infine, abbiamo ottimizzato la lunghezza delle sequenze a 3-5 azioni per bilanciare pianificazione strategica e capacità di adattamento.
 
-Slide 12 — Conclusioni
-- Sintesi: Integrazione HeRoN = DQN + Helper (LLM) + Reviewer (T5 fine‑tuned).
-- Risultati chiave: miglioramento rispetto alla baseline DQN in termini di achievements medi per episodio (es.: +X%); aumento qualità sequenze Helper.
-- Impatto: il Reviewer riduce azioni incoerenti e migliora sicurezza/efficacia delle sequenze LLM.
-- Limiti: latenza delle chiamate LLM, necessità di dataset di qualità per il Reviewer, edge‑case non ancora coperti.
-- Prossimi passi raccomandati: automatizzare la pipeline dataset → fine‑tune, ridurre latenza (model distillation / caching), estendere a scenari più complessi.
-- Call to action / ringraziamenti: disponibilità per demo, conversione in PPTX, o commit del materiale.
-Note slide 12 (discorso pronto da leggere):
-Grazie — per concludere, in poche frasi riassumiamo i punti principali. Abbiamo implementato HeRoN, una pipeline che combina un agente DQN con un Helper LLM che propone sequenze e un Reviewer T5 fine‑tuned che valuta e corregge quei suggerimenti. Nei nostri test l'approccio ha mostrato miglioramenti quantitativi rispetto alla baseline DQN, con un aumento medio degli achievements e una maggiore coerenza delle azioni eseguite dall'agente. Il Reviewer si è dimostrato particolarmente utile a filtrare e correggere proposte errate o rischiose, riducendo comportamenti non desiderati. D'altro canto permangono limiti pratici: la latenza delle chiamate LLM può impattare l'uso in tempo reale, e il Reviewer richiede un dataset di qualità per generalizzare bene; inoltre alcuni edge‑case non sono ancora coperti. Come passi successivi suggeriamo di automatizzare la generazione del dataset per il Reviewer, esplorare tecniche per ridurre latenza (caching, modelli più leggeri o distillazione) e valutare il metodo su scenari più variegati. Se siete d'accordo, possiamo preparare una demo video delle run migliori, convertire queste slide in PPTX e committare il materiale nel repository. Grazie per l'attenzione — siamo pronti a rispondere a domande.
-File creato automaticamente dal tool assistant: `slides_codebase.txt` in repository
+Slide 13 — Conclusioni e Sviluppi Futuri
+- Sintesi: HeRoN combina DQN, Helper LLM e Reviewer T5 per NPC adattivi in Crafter
+- Risultati: +75% achievement vs baseline, convergenza 41.5% più veloce, coverage 72.7%
+- Impatto: Integrazione RL-LLM efficace per decision making sequenziale in ambienti complessi
+- Sviluppi futuri: Pianificazione gerarchica, threshold adattivo, memoria episodica, multi-agent learning, estensioni a scenari multiagenti, multi modale llm, algoritmi ibridi
+Note slide 14 (discorso - Conclusioni e Sviluppi Futuri):
+In conclusione, HeRoN rappresenta un'architettura innovativa che integra Reinforcement Learning con Large Language Models per creare NPC adattivi in ambienti complessi come Crafter. I risultati dimostrano miglioramenti significativi rispetto alla baseline DQN, con un aumento del 75% negli achievement medi e una convergenza accelerata. L'impatto principale è nella capacità di combinare apprendimento autonomo con ragionamento strategico guidato dall'LLM. Per gli sviluppi futuri, proponiamo pianificazione gerarchica per obiettivi distanti, threshold adattivi basati su performance, memoria episodica per strategie riuscite, estensioni a scenari multi-agent, multi modale llm, algoritmi ibridi. Questo lavoro apre la strada a agenti intelligenti più flessibili e capaci in giochi e applicazioni reali.
+
+Slide 14 — Grazie per l'Attenzione
+- Domande?
+- Disponibili per demo o approfondimenti
+Note slide 15 (discorso - Ringraziamenti):
+Grazie per l'attenzione. Siamo Danilo e Vincenzo, e siamo felici di rispondere a qualsiasi domanda sui dettagli implementativi, risultati o sviluppi futuri. Se interessati, possiamo mostrare demo delle run, fornire codice aggiuntivo o discutere estensioni del lavoro. Grazie ancora!

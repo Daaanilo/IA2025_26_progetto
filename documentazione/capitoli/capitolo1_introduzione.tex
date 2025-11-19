@@ -2,32 +2,32 @@
 
 \section{Contesto}
 
-Il presente lavoro si inserisce nel contesto del Reinforcement Learning (RL) applicato ai videogiochi, un campo di ricerca in rapida espansione che mira a sviluppare agenti intelligenti capaci di apprendere strategie ottimali attraverso l'interazione con l'ambiente di gioco.
+Questo progetto fa parte del campo del Reinforcement Learning applicato ai videogiochi, un'area di ricerca in rapida crescita che mira a creare agenti intelligenti capaci di imparare strategie ottimali interagendo con ambienti di gioco.
 
-I moderni videogiochi, in particolare quelli di tipo open-world e survival, presentano sfide complesse che richiedono agli agenti di prendere decisioni strategiche a lungo termine, gestire risorse limitate e adattarsi a situazioni dinamiche. Questi ambienti rappresentano un contesto ideale per testare e validare nuove architetture di intelligenza artificiale.
+I videogiochi moderni, soprattutto quelli open-world e di sopravvivenza, presentano sfide complesse che richiedono agli agenti di prendere decisioni strategiche a lungo termine, gestire risorse limitate e adattarsi a situazioni dinamiche. Questi ambienti sono perfetti per testare e validare nuove idee di intelligenza artificiale.
 
 \section{Motivazione}
 
-L'architettura HeRoN (Helper-Reviewer-NPC) rappresenta un approccio innovativo che combina il Reinforcement Learning tradizionale con le capacità di ragionamento dei Large Language Model (LLM). Questa architettura è stata inizialmente validata in environment di tipo JRPG (Japanese Role-Playing Game) a turni, dimostrando la sua efficacia nel migliorare le prestazioni degli agenti RL attraverso suggerimenti strategici forniti da modelli linguistici.
+L'architettura HeRoN (Helper-Reviewer-NPC) è un approccio innovativo che combina il Reinforcement Learning tradizionale con il ragionamento dei Large Language Model (LLM). Questa architettura è stata inizialmente validata in environment di tipo JRPG (Japanese Role-Playing Game) a turni, dimostrando la sua efficacia nel migliorare le prestazioni degli agenti RL attraverso suggerimenti strategici forniti da modelli linguistici.
 
-La sfida principale di questo progetto consiste nell'estendere e validare l'architettura HeRoN in un contesto significativamente diverso: l'environment Crafter, un open-world survival game che richiede capacità di pianificazione a lungo termine, gestione delle risorse e adattamento dinamico.
+La sfida principale di questo progetto è stata estendere e testare HeRoN in un contesto molto diverso: il gioco Crafter, un open-world di sopravvivenza che richiede pianificazione a lungo termine, gestione delle risorse e adattamento dinamico.
 
 \section{Obiettivi del Progetto}
 
-Il progetto si propone di raggiungere i seguenti obiettivi principali:
+Il progetto mira a raggiungere questi obiettivi principali:
 
 \subsection{Obiettivi Primari}
 
 \begin{itemize}
-    \item \textbf{Adattamento dell'architettura HeRoN}: Estendere l'architettura HeRoN dall'environment JRPG a turni all'environment Crafter, un survival game open-world in tempo continuo.
+    \item \textbf{Adattamento dell'architettura HeRoN}: L'architettura HeRoN è stata estesa dall'environment JRPG a turni all'environment Crafter, un survival game open-world in tempo continuo.
     
-    \item \textbf{Fine-tuning del Reviewer}: Adattare il componente Reviewer ai nuovi task specifici di Crafter, generando un dataset appropriato e addestrando il modello per fornire feedback efficaci nel contesto del survival game.
+    \item \textbf{Fine-tuning del Reviewer}: Il componente Reviewer è stato adattato ai nuovi task specifici di Crafter, generando un dataset appropriato e addestrando il modello per fornire feedback efficaci nel contesto del survival game.
     
-    \item \textbf{Modifica del Helper}: Modificare il comportamento del componente Helper affinché generi sequenze di azioni coerenti (3-5 azioni) anziché singole decisioni, permettendo una pianificazione più strategica.
+    \item \textbf{Modifica del Helper}: Il comportamento del componente Helper è stato modificato affinché generi sequenze di azioni coerenti (3-5 azioni) anziché singole decisioni, permettendo una pianificazione più strategica.
     
-    \item \textbf{Implementazione dell'NPC}: Sviluppare un agente di Reinforcement Learning basato sull'algoritmo Deep Q-Network (DQN) ottimizzato per le 17 azioni disponibili in Crafter e il suo spazio di stati a 43 dimensioni.
+    \item \textbf{Implementazione dell'NPC}: È stato sviluppato un agente di Reinforcement Learning basato sull'algoritmo Deep Q-Network (DQN) ottimizzato per le 17 azioni disponibili in Crafter e il suo spazio di stati a 43 dimensioni.
     
-    \item \textbf{Valutazione delle prestazioni}: Valutare quantitativamente le prestazioni dell'architettura HeRoN completa rispetto a baseline tradizionali, misurando il numero di achievement sbloccati nei 22 obiettivi disponibili in Crafter.
+    \item \textbf{Valutazione delle prestazioni}: Le prestazioni dell'architettura HeRoN completa sono state valutate quantitativamente rispetto a baseline tradizionali, misurando il numero di achievement sbloccati nei 22 obiettivi disponibili in Crafter.
 \end{itemize}
 
 \subsection{Obiettivi Secondari}
