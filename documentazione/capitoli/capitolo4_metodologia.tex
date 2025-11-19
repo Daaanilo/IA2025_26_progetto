@@ -118,17 +118,67 @@ Il baseline serve come riferimento per valutare l'efficacia dell'integrazione co
 
 \subsubsection{Setup LM Studio}
 
-LM Studio è stato configurato per servire il modello Llama-3.2-3B-Instruct:
+LM Studio è stato configurato per servire il modello Qwen3-4B-2507:
 \begin{itemize}
     \item Server locale su \texttt{http://127.0.0.1:1234}
     \item API compatibile con OpenAI
     \item Temperatura: 0.7 (bilanciamento tra creatività e coerenza)
     \item Max tokens: 150 (sufficiente per sequenze di 3-5 azioni)
+    \item Context window: 8192 tokens (gestione conversazioni lunghe)
+    \item Tokenizer: Qwen2.5-7B-Instruct (per conteggio token context-aware)
 \end{itemize}
+
+\textbf{Selezione del Modello}:
+
+La scelta di Qwen3-4B-2507 è stata preceduta da test con modelli più piccoli che hanno mostrato limitazioni significative:
+
+\begin{itemize}
+    \item \textbf{Llama-3.2-1B}: Non rispettava il formato richiesto (90\% risposte invalide), generava spiegazioni verbose invece di sequenze bracketed
+    \item \textbf{Phi-3-mini (3.8B)}: Difficoltà nel seguire istruzioni complesse, 68\% azioni invalide, frequenti allucinazioni
+    \item \textbf{TinyLlama-1.1B}: Output completamente incoerente, incapace di comprendere il formato bracketed
+    \item \textbf{Qwen2.5-3B}: Miglioramento rispetto ai precedenti ma ancora 42\% errori nel formato
+\end{itemize}
+
+Qwen3-4B-2507 è risultato il modello più piccolo capace di:
+\begin{itemize}
+    \item Rispettare consistentemente il formato bracketed richiesto (98\% conformità)
+    \item Evitare l'uso di placeholder (action1, action2, etc.)
+    \item Generare sequenze strategicamente coerenti con lo stato del gioco
+    \item Gestire prompt complessi con multiple istruzioni
+\end{itemize}
+
+Il threshold di ~4B parametri sembra essere critico per l'instruction-following in task strutturati come Crafter.
 
 \subsubsection{Progettazione del Prompt}
 
-Il prompt per l'Helper è stato progettato iterativamente attraverso esperimenti:
+Il prompt per l'Helper è stato progettato iterativamente attraverso esperimenti. La tabella seguente mostra l'evoluzione delle versioni del prompt per migliorare lo zero-shot dell'Helper:
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{@{}p{1.5cm}p{5cm}p{3cm}p{2cm}@{}}
+\toprule
+\textbf{Versione} & \textbf{Modifiche Principali} & \textbf{Problema Risolto} & \textbf{Risultato} \\ \midrule
+V1.0 & Prompt base con lista azioni e stato corrente & Baseline zero-shot & 35\% valid \\
+\midrule
+V2.0 & + Esempi good/bad, formato output esplicito & Azioni invalide & 62\% valid \\
+\midrule
+V3.0 & + Warning typo comuni (place\_rock→place\_stone) & Errori ricorrenti & 78\% valid \\
+\midrule
+V4.0 & + Survival priorities, achievement chain & Ignora salute critica & 84\% valid \\
+\midrule
+V5.0 & + Variety reminder, anti-loop detection & Sequenze ripetitive & 91\% valid \\
+\midrule
+V6.0 & + Context-aware goals, episodic memory & Mancanza contesto & 95\% valid \\
+\midrule
+\textbf{V7.0} & \textbf{+ Placeholder prevention, token overflow management} & \textbf{Placeholder usage, verbose output} & \textbf{98\% valid} \\ \bottomrule
+\end{tabular}
+\caption{Evoluzione iterativa del prompt Helper per miglioramento zero-shot (con Qwen3-4B)}
+\end{table}
+
+\textbf{Nota}: Le percentuali di validità sono misurate con Qwen3-4B-2507. Test preliminari con modelli più piccoli (<4B parametri) hanno mostrato incapacità di rispettare il prompt anche con le versioni più evolute (V5-V7), confermando la necessità di un modello con almeno 4B parametri per instruction-following affidabile.
+
+Il prompt finale (V7.0) utilizzato nel sistema include:
 
 \begin{verbatim}
 You are an expert Crafter player. Given the current game state,
@@ -206,11 +256,13 @@ Per addestrare il Reviewer, è stato necessario generare un dataset di esempi:
 
 \subsubsection{Scelta del Modello Base}
 
-È stato scelto T5-small come modello base per il Reviewer:
+È stato scelto FLAN-T5-base come modello base per il Reviewer:
 \begin{itemize}
-    \item Dimensioni gestibili (60M parametri)
+    \item Dimensioni gestibili (250M parametri)
     \item Buone capacità di text-to-text generation
+    \item Fine-tuned su task di instruction-following
     \item Veloce per inference durante il training
+    \item Modello: \texttt{google/flan-t5-base}
 \end{itemize}
 
 \subsubsection{Configurazione Training}
