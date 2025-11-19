@@ -1,12 +1,12 @@
-\section{Conclusioni}
+\chapter{Conclusioni}
 
-\subsection{Sintesi del Lavoro Svolto}
+\section{Sintesi del Lavoro Svolto}
 
 Questo progetto ha esplorato l'applicazione dell'architettura HeRoN (Helper-Reviewer-NPC) all'environment Crafter, un survival game open-world che presenta sfide significative per il Reinforcement Learning. L'obiettivo principale era validare l'efficacia dell'integrazione tra agenti RL e Large Language Model in un contesto diverso da quello originale (JRPG a turni).
 
-\subsection{Risultati Principali}
+\section{Risultati Principali}
 
-\subsubsection{Performance Quantitative}
+\subsection{Performance Quantitative}
 
 L'architettura HeRoN ha dimostrato:
 
@@ -17,7 +17,7 @@ L'architettura HeRoN ha dimostrato:
     \item \textbf{Significatività statistica}: p-value < 0.01 sui miglioramenti
 \end{itemize}
 
-\subsection{Efficacia dei Componenti}
+\section{Efficacia dei Componenti}
 
 \begin{itemize}
     \item \textbf{Helper}: Accelera l'apprendimento nelle fasi iniziali fornendo suggerimenti strategici basati su conoscenza generale
@@ -26,11 +26,11 @@ L'architettura HeRoN ha dimostrato:
     \item \textbf{Sequenze di 5 azioni}: Configurazione ottimale per bilanciare pianificazione e flessibilità
 \end{itemize}
 
-\subsection{Sfide Affrontate e Soluzioni}
+\section{Sfide Affrontate e Soluzioni}
 
 Durante l'implementazione sono emerse diverse sfide che sono state affrontate con successo:
 
-\subsubsection{Challenge 1: Sparsità del Reward}
+\subsection{Challenge 1: Sparsità del Reward}
 
 \textbf{Problema}: Gli achievement in Crafter sono eventi rari (reward +1 solo al momento dello sblocco), rendendo difficile l'apprendimento RL con feedback scarso.
 
@@ -44,7 +44,7 @@ Durante l'implementazione sono emerse diverse sfide che sono state affrontate co
 
 \textbf{Risultato}: Convergenza accelerata del 47\% mantenendo gli ottimi della policy. Achievement score migliorato da 0.4 (sparse) a 1.9 (shaped) nei primi 100 episodi (+375\%).
 
-\subsubsection{Challenge 2: Qualità del Dataset per Reviewer}
+\subsection{Challenge 2: Qualità del Dataset per Reviewer}
 
 \textbf{Problema}: Il Reviewer T5 richiede migliaia di esempi (state, suggestion, feedback) specifici per Crafter. Annotazione manuale proibitiva.
 
@@ -64,7 +64,7 @@ Durante l'implementazione sono emerse diverse sfide che sono state affrontate co
 
 \textbf{Soluzione}: Sistema di re-planning multi-livello:
 \begin{itemize}
-    \item \textbf{Immediate fallback}: Health ≤ 5 → DQN prende controllo per sopravvivenza
+    \item \textbf{Immediate fallback}: Health $\leq$ 5 → DQN prende controllo per sopravvivenza
     \item \textbf{Priority re-query}: Health < 30\% → re-prompt Helper con urgency
     \item \textbf{Context-change}: Achievement unlock o resource key=0 → re-pianificazione
 \end{itemize}
@@ -158,7 +158,7 @@ Nonostante i risultati positivi, il progetto presenta alcune limitazioni:
     
     \item \textbf{Scalabilità}: Con LLM più grandi (es. Qwen2.5-72B o GPT-4) l'overhead diventerebbe proibitivo
     
-    \item \textbf{Memoria GPU}: Mantenere DQN + LLM in memoria richiede GPU con ≥8GB VRAM
+    \item \textbf{Memoria GPU}: Mantenere DQN + LLM in memoria richiede GPU con $\geq$8GB VRAM
 \end{enumerate}
 
 \subsection{Lavori Futuri}

@@ -1,10 +1,10 @@
-\section{Architettura HeRoN}
+\chapter{Architettura HeRoN}
 
-\subsection{Panoramica dell'Architettura}
+\section{Panoramica dell'Architettura}
 
 HeRoN (Helper-Reviewer-NPC) è un'architettura multi-agente che integra Reinforcement Learning e Large Language Model per migliorare il processo decisionale di agenti intelligenti in ambienti interattivi. L'idea centrale di HeRoN consiste nel combinare la capacità di apprendimento per rinforzo di ottimizzare strategie attraverso trial-and-error, il ragionamento semantico e la conoscenza generale dei Large Language Model, e un meccanismo di feedback iterativo per raffinare i suggerimenti forniti.
 
-\subsubsection{Diagramma Architettura DQN Baseline}
+\subsection{Diagramma Architettura DQN Baseline}
 
 Prima di presentare l'architettura completa HeRoN, illustriamo l'architettura baseline DQN che funge da componente base e da confronto per valutare i benefici dell'integrazione LLM.
 
@@ -79,7 +79,7 @@ Pesi DQN aggiornati, priorità replay aggiornate \\ \hline
 
 L'architettura DQN baseline apprende esclusivamente attraverso trial-and-error, senza guidance esterna.
 
-\subsubsection{Diagramma Architettura HeRoN Completa}
+\subsection{Diagramma Architettura HeRoN Completa}
 
 L'architettura HeRoN estende il DQN baseline integrando due componenti LLM per guidance strategica tramite un meccanismo di threshold decay che bilancia LLM e RL.
 
@@ -226,7 +226,7 @@ L'architettura HeRoN combina il meglio di RL (apprendimento da esperienza) e LLM
 
 L'architettura HeRoN è composta da tre componenti principali che interagiscono in modo coordinato:
 
-\subsubsection{NPC (Non-Player Character)}
+\subsection{NPC (Non-Player Character)}
 
 Il componente NPC è un agente di Reinforcement Learning che rappresenta il "giocatore" nell'environment. Nel contesto di questo progetto, l'NPC è implementato utilizzando l'algoritmo Deep Q-Network (DQN) con le seguenti caratteristiche:
 
@@ -246,7 +246,7 @@ Il componente NPC è un agente di Reinforcement Learning che rappresenta il "gio
 
 L'NPC apprende attraverso l'esperienza diretta, accumulando transizioni $(s, a, r, s')$ nel replay buffer e aggiornando i pesi della rete neurale per massimizzare il reward atteso.
 
-\subsubsection{Helper}
+\subsection{Helper}
 
 Il componente Helper è un Large Language Model utilizzato in modalità zero-shot che fornisce suggerimenti strategici all'NPC. Nel progetto HeRoN per Crafter, l'Helper è implementato utilizzando un LLM locale (Qwen3-4B-2507) attraverso LM Studio con le seguenti caratteristiche:
 
@@ -270,17 +270,15 @@ Il componente Helper è un Large Language Model utilizzato in modalità zero-sho
     \end{itemize}
     L'Helper risponde con una sequenza di azioni nel formato:
     \begin{verbatim}
-    [azione_1], [azione_2], [azione_3],
-    [azione_4], [azione_5]
+    [azione_1], [azione_2], [azione_3], [azione_4], [azione_5]
     \end{verbatim}
     Ad esempio:
     \begin{verbatim}
-    [move_right], [do], [move_left],
-    [do], [noop]
+    [move_right], [do], [move_left], [do], [noop]
     \end{verbatim}
 \end{itemize}
 
-\subsubsection{Reviewer}
+\subsection{Reviewer}
 
 Il componente Reviewer è un LLM fine-tuned (basato su T5) che valuta i suggerimenti forniti dall'Helper e genera feedback per migliorarli. Il Reviewer è stato addestrato specificamente per il contesto di Crafter utilizzando un dataset generato attraverso:
 \begin{enumerate}
@@ -301,11 +299,11 @@ Il Reviewer analizza:
     \item Fornisce feedback strutturato che viene utilizzato per ri-interrogare l'Helper con maggiori informazioni.
 \end{itemize}
 
-\subsection{Workflow dell'Architettura}
+\section{Workflow dell'Architettura}
 
 Il workflow di HeRoN durante il training si articola nelle seguenti fasi:
 
-\subsubsection{Fase 1: Decisione di Consultazione}
+\subsection{Fase 1: Decisione di Consultazione}
 
 Ad ogni step dell'episodio, l'architettura decide se consultare i componenti LLM in base a una soglia dinamica $\theta$.
 
@@ -327,13 +325,13 @@ $$\theta_t = \max(0, \theta_0 - 0.01 \cdot episode)$$
 
 In questo modo, l’NPC si affida maggiormente ai suggerimenti LLM all’inizio dell’allenamento, per poi diminuire questa dipendenza man mano che l’agente RL migliora.
 
-\subsubsection{Fase 2: Review e Raffinamento (Reviewer)}
+\subsection{Fase 2: Review e Raffinamento (Reviewer)}
 
 Se il Reviewer è disponibile, valuta la sequenza proposta fornisce un feedback.
 L’Helper usa il feedback per migliorare la sequenza e ne crea una seconda versione.
 Infine, si usa la sequenza migliorata se il Reviewer ha dato feedback, altrimenti si usa la prima.
 
-\subsubsection{Fase 3: Esecuzione e Re-planning}
+\subsection{Fase 3: Esecuzione e Re-planning}
 
 La sequenza di azioni viene eseguita sequenzialmente, ma può essere interrotta in caso di eventi significativi:
 
@@ -343,7 +341,7 @@ La sequenza di azioni viene eseguita sequenzialmente, ma può essere interrotta 
     \item \textbf{Salute bassa} ($health < 30\%$): Ri-query del sistema per gestione prioritaria della salute
 \end{itemize}
 
-\subsection{Vantaggi dell'Architettura}
+\section{Vantaggi dell'Architettura}
 
 L'architettura HeRoN combina RL e LLM offrendo:
 \begin{itemize}
@@ -354,7 +352,7 @@ L'architettura HeRoN combina RL e LLM offrendo:
     \item \textbf{Raffinamento iterativo}: Helper e Reviewer migliorano la qualità dei suggerimenti
 \end{itemize}
 
-\subsection{Sfide dell'Integrazione}
+\section{Sfide dell'Integrazione}
 
 Le principali difficoltà nell’integrazione RL-LLM sono:
 \begin{itemize}

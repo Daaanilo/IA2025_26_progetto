@@ -1,98 +1,128 @@
-%% 
 %% Copyright 2007-2020 Elsevier Ltd
-%% 
-%% This file is part of the 'Elsarticle Bundle'.
-%% ---------------------------------------------
-%% 
-%% It may be distributed under the conditions of the LaTeX Project Public
-%% License, either version 1.2 of this license or (at your option) any
-%% later version.  The latest version of this license is in
-%%    http://www.latex-project.org/lppl.txt
-%% and version 1.2 or later is part of all distributions of LaTeX
-%% version 1999/12/01 or later.
-%% 
-%% The list of all files belonging to the 'Elsarticle Bundle' is
-%% given in the file `manifest.txt'.
-%% 
-%% Template article for Elsevier's document class `elsarticle'
-%% with harvard style bibliographic references
+%% Template modificato per layout professionale a singola colonna
+\documentclass[12pt]{report}
 
-%\documentclass[preprint,12pt,authoryear]{elsarticle}
-
-%% Use the option review to obtain double line spacing
-%% \documentclass[authoryear,preprint,review,12pt]{elsarticle}
-
-%% Use the options 1p,twocolumn; 3p; 3p,twocolumn; 5p; or 5p,twocolumn
-%% for a journal layout:
-%% \documentclass[final,1p,times,authoryear]{elsarticle}
-%% \documentclass[final,1p,times,twocolumn,authoryear]{elsarticle}
-%% \documentclass[final,3p,times,authoryear]{elsarticle}
-%% \documentclass[final,3p,times,twocolumn,authoryear]{elsarticle}
-%% \documentclass[final,5p,times,authoryear]{elsarticle}
- \documentclass[final,5p,times,twocolumn,authoryear]{elsarticle}
-
-%% For including figures, graphicx.sty has been loaded in
-%% elsarticle.cls. If you prefer to use the old commands
-%% please give \usepackage{epsfig}
-
-%% The amssymb package provides various useful mathematical symbols
+%% Pacchetti essenziali
 \usepackage{amssymb}
 \usepackage{lipsum}
 \usepackage[utf8]{inputenc}
 \usepackage[italian]{babel}
 \usepackage[T1]{fontenc}
 \usepackage{graphicx}
-\usepackage{url} % Per gestire i link con \url{}
+\usepackage{url}
 \usepackage{algorithm}
 \usepackage{algorithmic}
 \usepackage{amsmath}
 \usepackage{tikz}
+\usepackage{multirow}
 \usetikzlibrary{shapes.geometric, arrows, positioning, fit, backgrounds, calc}
+\usepackage{hyperref}
+\usepackage{fancyhdr}
+\usepackage{geometry}
+\usepackage{tcolorbox}
+\usepackage{booktabs}
+\usepackage{caption}
+\usepackage{float}
 
-%% The amsthm package provides extended theorem environments
-%% \usepackage{amsthm}
+% Per tabelle colorate (cellcolor)
+\usepackage{colortbl}
 
-%% The lineno packages adds line numbers. Start line numbering with
-%% \begin{linenumbers}, end it with \end{linenumbers}. Or switch it on
-%% for the whole article with \linenumbers.
-%% \usepackage{lineno}
+%% Impostazioni geometria pagina
+\geometry{a4paper, margin=2.5cm}
 
-%% You might want to define your own abbreviated commands for common used terms, e.g.:
+%% Impostazioni header e footer
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{Progetto HeRoN}
+\lhead{Adaptive Decision Making NPC}
+\cfoot{\thepage}
+\setlength{\headheight}{14.5pt}
+
+%% Comandi personalizzati
 \newcommand{\kms}{km\,s$^{-1}$}
 
-\journal{Physics Open}
+% Ridefinizione ambiente abstract per "Abstract" invece di "Sommario"
+\addto\captionsitalian{%
+  \renewcommand{\abstractname}{Abstract}%
+}
 
+% ...existing code...
 
 \begin{document}
 
-\begin{frontmatter}
+%% ----------------------------------------------------------------------------
+%% FRONTESPIZIO PERSONALIZZATO
+%% ----------------------------------------------------------------------------
+\begin{titlepage}
+    \centering
+    \vspace*{2cm}
+    
+    % Logo università (decommenta se disponibile)
+    % \includegraphics[width=0.25\textwidth]{logo_unisa.png}\\[1.5cm]
+    
+    {\Large\textsc{Dipartimento di Informatica}}\\[0.3cm]
+    {\large\textsc{Università degli Studi di Salerno}}\\[0.5cm]
+    {\large Corso di Intelligenza Artificiale}\\[3cm]
+    
+    % Titolo principale
+    {\Huge\bfseries Adaptive Decision Making\\[0.4cm]
+    NPC in Crafter}\\[1.5cm]
+    
+    \rule{\linewidth}{0.3mm}\\[0.5cm]
+    {\Large\textbf{Architettura HeRoN per Reinforcement Learning}}\\[0.5cm]
+    \rule{\linewidth}{0.3mm}\\[3cm]
+    
+    % Autori
+    \begin{minipage}{0.8\textwidth}
+        \centering
+        \textbf{\large Realizzato da:}\\[1cm]
+        
+        \begin{tabular}{ll}
+            \textsc{Danilo Gisolfi} & Matricola: 0522502001 \\[0.5cm]
+            \textsc{Vincenzo Maiellaro} & Matricola: 0522502055 \\
+        \end{tabular}
+    \end{minipage}
+    
+    \vfill
+    
+    % Data
+    {\large Anno Accademico 2025/2026}
+    
+\end{titlepage}
 
-%% Title, authors and addresses
-
-
-\title{\textbf{\Large Adaptive Decision Making NPC in Crafter} \\
-\large Architettura HeRoN per Reinforcement Learning \\
-\normalsize A.A. 2025-2026}
-
-%% use optional labels to link authors explicitly to addresses:
-\author[first]{Danilo Gisolfi -- Mat. 0522502001}
-\author[first]{Vincenzo Maiellaro -- Mat. 0522502055}
-
-\affiliation[first]{organization={Dipartimento di Informatica, Universit\`a degli Studi di Salerno},
-            addressline={}, 
-            city={},
-            postcode={}, 
-            state={},
-            country={}}
-
+%% ----------------------------------------------------------------------------
+%% ABSTRACT
+%% ----------------------------------------------------------------------------
 \begin{abstract}
-{\normalsize
-Il progetto HeRoN propone un'architettura a tre agenti che combina apprendimento per rinforzo e ragionamento basato su LLM per il controllo di agenti nel gioco Crafter. La pipeline integra un DQNAgent (Double DQN con replay prioritario) per il controllo basato su valore, un Helper che genera sequenze d'azione via LLM per pianificazione a breve termine, e un Reviewer che fornisce feedback e revisioni alle proposte del Helper. Lo studio copre l'estrazione dello stato (vettore a 43 dimensioni), la mappatura delle 17 azioni discrete del dominio, la strategia di checkpointing e la valutazione comparativa contro baseline DQN. I risultati includono metriche di apprendimento, analisi delle policy miste RL+LLM e strumenti per la visualizzazione e la valutazione degli apprendimenti.
-}
+Il progetto HeRoN propone un'architettura innovativa a tre agenti che combina apprendimento per rinforzo e ragionamento basato su Large Language Models (LLM) per il controllo intelligente di agenti nel gioco Crafter. 
+
+La pipeline integra tre componenti fondamentali: un \textbf{DQNAgent} basato su Double DQN con replay prioritario per il controllo basato su valore, un \textbf{Helper} che genera sequenze d'azione tramite LLM per la pianificazione a breve termine, e un \textbf{Reviewer} che fornisce feedback critico e revisioni alle proposte del Helper.
+
+Lo studio copre l'estrazione dello stato attraverso un vettore a 43 dimensioni, la mappatura delle 17 azioni discrete del dominio Crafter, l'implementazione di strategie di checkpointing avanzate e la valutazione comparativa contro baseline DQN tradizionali. 
+
+I risultati sperimentali includono metriche di apprendimento dettagliate, analisi approfondite delle policy miste RL+LLM e strumenti avanzati per la visualizzazione e la valutazione degli apprendimenti conseguiti dall'architettura proposta.
+
+\vspace{0.5cm}
+\noindent\textbf{Parole chiave:} Reinforcement Learning, Large Language Models, Multi-Agent Systems, Game AI, Deep Q-Networks, Crafter Environment
 \end{abstract}
 
-\end{frontmatter}
+%% ----------------------------------------------------------------------------
+%% INDICE
+%% ----------------------------------------------------------------------------
+\newpage
+\tableofcontents
+\newpage
 
+% Lista delle figure
+\listoffigures
+\newpage
+% Lista delle tabelle
+\listoftables
+\newpage
+
+%% ----------------------------------------------------------------------------
+%% CONTENUTO (capitoli da includere)
+%% ----------------------------------------------------------------------------
 \input{capitoli/capitolo1_introduzione}
 \input{capitoli/capitolo2_architettura}
 \input{capitoli/capitolo3_crafter}
@@ -100,11 +130,10 @@ Il progetto HeRoN propone un'architettura a tre agenti che combina apprendimento
 \input{capitoli/capitolo5_risultati}
 \input{capitoli/capitolo6_conclusioni}
 
+%% ----------------------------------------------------------------------------
+%% BIBLIOGRAFIA
+%% ----------------------------------------------------------------------------
 %\bibliographystyle{elsarticle-harv}
 %\bibliography{bibliography}
 
 \end{document}
-
-\endinput
-%%
-%% End of file `elsarticle-template-harv.tex'.

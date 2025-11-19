@@ -1,12 +1,12 @@
-\section{Metodologia di Implementazione}
+\chapter{Metodologia di Implementazione}
 
-\subsection{Overview del Processo}
+\section{Overview del Processo}
 
 L'implementazione del progetto HeRoN per Crafter è stata suddivisa in fasi sequenziali, ciascuna volta a sviluppare e validare un componente specifico dell'architettura. La metodologia adottata segue un approccio iterativo che permette di validare progressivamente le componenti del sistema.
 
-\subsection{Fase 1: Setup dell'Environment}
+\section{Fase 1: Setup dell'Environment}
 
-\subsubsection{Installazione e Configurazione}
+\subsection{Installazione e Configurazione}
 
 Il primo passo ha riguardato la configurazione dell'environment di sviluppo:
 
@@ -32,7 +32,7 @@ Il primo passo ha riguardato la configurazione dell'environment di sviluppo:
     \end{verbatim}
 \end{enumerate}
 
-\subsubsection{Wrapper dell'Environment}
+\subsection{Wrapper dell'Environment}
 
 È stato sviluppato un wrapper custom per Crafter (\texttt{crafter\_environment.py}) che:
 
@@ -44,7 +44,7 @@ Il primo passo ha riguardato la configurazione dell'environment di sviluppo:
     \item Calcola il reward shaped combinando reward nativo e bonus
 \end{itemize}
 
-\subsubsection{Testing Iniziale}
+\subsection{Testing Iniziale}
 
 Prima di procedere con l'implementazione degli agenti, sono stati eseguiti test per verificare:
 \begin{itemize}
@@ -54,9 +54,9 @@ Prima di procedere con l'implementazione degli agenti, sono stati eseguiti test 
     \item Performance computazionali
 \end{itemize}
 
-\subsection{Fase 2: Sviluppo del NPC (DQN Agent)}
+\section{Fase 2: Sviluppo del NPC (DQN Agent)}
 
-\subsubsection{Architettura della Rete Neurale}
+\subsection{Architettura della Rete Neurale}
 
 L'agente DQN è stato implementato con una rete neurale feedforward:
 

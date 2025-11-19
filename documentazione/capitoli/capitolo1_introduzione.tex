@@ -1,22 +1,22 @@
-\section{Introduzione}
+\chapter{Introduzione}
 
-\subsection{Contesto}
+\section{Contesto}
 
 Il presente lavoro si inserisce nel contesto del Reinforcement Learning (RL) applicato ai videogiochi, un campo di ricerca in rapida espansione che mira a sviluppare agenti intelligenti capaci di apprendere strategie ottimali attraverso l'interazione con l'ambiente di gioco.
 
 I moderni videogiochi, in particolare quelli di tipo open-world e survival, presentano sfide complesse che richiedono agli agenti di prendere decisioni strategiche a lungo termine, gestire risorse limitate e adattarsi a situazioni dinamiche. Questi ambienti rappresentano un contesto ideale per testare e validare nuove architetture di intelligenza artificiale.
 
-\subsection{Motivazione}
+\section{Motivazione}
 
 L'architettura HeRoN (Helper-Reviewer-NPC) rappresenta un approccio innovativo che combina il Reinforcement Learning tradizionale con le capacità di ragionamento dei Large Language Model (LLM). Questa architettura è stata inizialmente validata in environment di tipo JRPG (Japanese Role-Playing Game) a turni, dimostrando la sua efficacia nel migliorare le prestazioni degli agenti RL attraverso suggerimenti strategici forniti da modelli linguistici.
 
 La sfida principale di questo progetto consiste nell'estendere e validare l'architettura HeRoN in un contesto significativamente diverso: l'environment Crafter, un open-world survival game che richiede capacità di pianificazione a lungo termine, gestione delle risorse e adattamento dinamico.
 
-\subsection{Obiettivi del Progetto}
+\section{Obiettivi del Progetto}
 
 Il progetto si propone di raggiungere i seguenti obiettivi principali:
 
-\subsubsection{Obiettivi Primari}
+\subsection{Obiettivi Primari}
 
 \begin{itemize}
     \item \textbf{Adattamento dell'architettura HeRoN}: Estendere l'architettura HeRoN dall'environment JRPG a turni all'environment Crafter, un survival game open-world in tempo continuo.
@@ -30,7 +30,7 @@ Il progetto si propone di raggiungere i seguenti obiettivi principali:
     \item \textbf{Valutazione delle prestazioni}: Valutare quantitativamente le prestazioni dell'architettura HeRoN completa rispetto a baseline tradizionali, misurando il numero di achievement sbloccati nei 22 obiettivi disponibili in Crafter.
 \end{itemize}
 
-\subsubsection{Obiettivi Secondari}
+\subsection{Obiettivi Secondari}
 
 \begin{itemize}
     \item Analizzare il numero ottimale di azioni da suggerire per ciascuna chiamata del Helper.

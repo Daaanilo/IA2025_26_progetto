@@ -48,3 +48,15 @@ Thumbs.db
 # Reviewer retrained model JSON configs
 reviewer_retrained/*.json
 reviewer_retrained/spiece.model
+
+# Documentation build files
+documentazione/main.synctex.gz
+documentazione/main.spl
+documentazione/main.fls
+documentazione/main.fdb_latexmk
+documentazione/main.aux
+documentazione/main.synctex(busy)
+documentazione/main.lof
+documentazione/main.lot
+documentazione/main.out
+documentazione/main.toc
