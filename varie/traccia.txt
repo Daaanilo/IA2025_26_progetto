@@ -1,0 +1,53 @@
+Titolo progetto: Adaptive decision making NPC in Crafter 
+Obiettivi: Questo progetto si propone di estendere e testare l’architettura HeRoN (Helper
+Reviewer–NPC) nell’environment “Crafter”. 
+Crafter è un open world survival game per la ricerca sul Reinforcement Learning, ed è una 
+versione semplificata del videogioco Minecraft. 
+In Crafter il giocatore deve cercare cibo e acqua, trovare un riparo dove dormire, difendersi 
+dai mostri, raccogliere materiali e costruire strumenti. 
+L’architettura HeRoN è composta da tre componenti ovvero un NPC, alias un agente di RL, 
+un Helper, ovvero un LLM zero-shot che fornisce consigli sulla prossima azione da 
+intraprendere ed un Reviewer ovvero un fine-tuned LLM che valuta il suggerimento di Helper 
+e fornisce feedback per migliorare la sua risposta. L’architettura è stata precedentemente 
+validata in un environment di tipo JRPG a turni. 
+In Crafter ci sono 22 obiettivi che possono essere sbloccati all'interno di ogni episodio. 
+Gli obiettivi specifici del progetto includono: 
+● Fine-tuning di Reviewer per nuovi task: Adattare il Reviewer ai nuovi task di Crafter. 
+● Modifica delle chiamate di Helper: Adattare il comportamento dell’Helper affinché 
+generi non una singola azione, ma un insieme di azioni coerenti da eseguire 
+sequenzialmente. 
+● Implementazione del NPC: Sviluppare il nuovo NPC, tramite apprendimento per 
+rinforzo, sulla base delle azioni disponibili in Crafter 
+● Valutare le prestazioni di HeRoN: Valutare le prestazioni ottenute da HeRoN negli 
+obiettivi di Crafter. 
+Metodologia di Implementazione:  
+● Sviluppo dell’environment Crafter: studio preliminare dell’environment Crafter, 
+analisi degli obiettivi di gioco ed implementazione dell’environment. 
+● Sviluppo dell’NPC: implementare l’NPC, tramite l’uso dell’algoritmo di Deep Q
+Network, che giocherà in Crafter. 
+● Modifica di Helper: effettuare prompt engineering su Helper per permettere al modello 
+di generare set di azioni anziché singole decisioni. 
+● Fine-Tuning del Reviewer: generazione di un nuovo dataset contenente stati 
+dell’environment, azioni suggerite dall’Helper, relativi feedback correttivi, e successivo 
+addestramento del Reviewer tramite Reinforcement Learning. 
+● Analisi del numero di mosse da suggerire: analisi del numero ottimale di mosse da 
+suggerire per ciascuna chiamata di Helper ad inizio gioco (es. due chiamate da cinque 
+mosse ciascuna). 
+● Addestramento iterativo e Fine-tuning: Condurre sessioni di addestramento 
+iterativo, ottimizzando i parametri del NPC attraverso simulazioni. 
+● Valutazione delle Prestazioni: Valutare le prestazioni del NPC in termini di score 
+ottenuto nei diversi obiettivi di gioco. 
+Risultati: 
+● Dimostrazione dell'abilità del NPC nello svolgere i task di Crafter. 
+● Validazione dell’efficacia del Reviewer nel fornire feedback mirati e migliorativi 
+all’Helper. 
+● Ottimizzazione delle prestazioni del NPC attraverso l'addestramento iterativo, 
+evidenziando miglioramenti (o eventuali limiti) negli scenari di gioco. 
+● Analisi delle prestazioni dell’NPC in Crafter. 
+● Discutere le sfide affrontate durante l'implementazione e come sono state risolte. 
+Risorse: 
+● Articolo base: “HeRoN: A Multi-Agent RL–LLM Framework for Adaptive NPC 
+Behavior in Interactive Environments” 
+● Articolo Crafter: “Benchmarking The Spectrum of Agent Capabilities” 
+● Codice HeRoN 
+● GitHub Crafter 

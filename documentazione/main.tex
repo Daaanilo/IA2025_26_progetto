@@ -85,7 +85,7 @@
 
 \begin{abstract}
 {\normalsize
-Il progetto HeRoN propone un'architettura a tre agenti che combina apprendimento per rinforzo e ragionamento basato su LLM per il controllo di agenti nel gioco Crafter. La pipeline integra un DQNAgent (Double DQN con replay prioritario) per il controllo basato su valore, un CrafterHelper che genera sequenze d'azione via LLM per pianificazione a breve termine, e un InstructorAgent (modello T5) che fornisce feedback e revisioni alle proposte del Helper. Lo studio copre l'estrazione dello stato (vettore a 43 dimensioni), la mappatura delle 17 azioni discrete del dominio, la strategia di checkpointing e la valutazione comparativa contro baseline DQN. I risultati includono metriche di apprendimento, analisi delle policy miste RL+LLM e strumenti per la visualizzazione e la valutazione degli apprendimenti.
+Il progetto HeRoN propone un'architettura a tre agenti che combina apprendimento per rinforzo e ragionamento basato su LLM per il controllo di agenti nel gioco Crafter. La pipeline integra un DQNAgent (Double DQN con replay prioritario) per il controllo basato su valore, un Helper che genera sequenze d'azione via LLM per pianificazione a breve termine, e un Reviewer che fornisce feedback e revisioni alle proposte del Helper. Lo studio copre l'estrazione dello stato (vettore a 43 dimensioni), la mappatura delle 17 azioni discrete del dominio, la strategia di checkpointing e la valutazione comparativa contro baseline DQN. I risultati includono metriche di apprendimento, analisi delle policy miste RL+LLM e strumenti per la visualizzazione e la valutazione degli apprendimenti.
 }
 \end{abstract}
 
@@ -98,8 +98,8 @@ Il progetto HeRoN propone un'architettura a tre agenti che combina apprendimento
 \input{capitoli/capitolo5_risultati}
 \input{capitoli/capitolo6_conclusioni}
 
-\bibliographystyle{elsarticle-harv}
-\bibliography{bibliography}
+%\bibliographystyle{elsarticle-harv}
+%\bibliography{bibliography}
 
 \end{document}
 

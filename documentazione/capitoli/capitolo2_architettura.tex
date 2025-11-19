@@ -2,7 +2,7 @@
 
 \subsection{Panoramica dell'Architettura}
 
-HeRoN (Helper-Reviewer-NPC) è un'architettura multi-agente che integra Reinforcement Learning e Large Language Models per migliorare il processo decisionale di agenti intelligenti in ambienti interattivi. L'idea centrale di HeRoN consiste nel combinare la capacità di apprendimento per rinforzo di ottimizzare strategie attraverso trial-and-error, il ragionamento semantico e la conoscenza generale dei Large Language Models, e un meccanismo di feedback iterativo per raffinare i suggerimenti forniti.
+HeRoN (Helper-Reviewer-NPC) è un'architettura multi-agente che integra Reinforcement Learning e Large Language Model per migliorare il processo decisionale di agenti intelligenti in ambienti interattivi. L'idea centrale di HeRoN consiste nel combinare la capacità di apprendimento per rinforzo di ottimizzare strategie attraverso trial-and-error, il ragionamento semantico e la conoscenza generale dei Large Language Model, e un meccanismo di feedback iterativo per raffinare i suggerimenti forniti.
 
 L'architettura HeRoN è composta da tre componenti principali che interagiscono in modo coordinato:
 
@@ -55,8 +55,8 @@ Il componente Helper è un Large Language Model utilizzato in modalità zero-sho
     \end{verbatim}
     Ad esempio:
     \begin{verbatim}
-    [move_right], [do], [move_left], [do],
-    [noop]
+    [move_right], [do], [move_left],
+    [do], [noop]
     \end{verbatim}
 \end{itemize}
 
