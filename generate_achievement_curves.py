@@ -179,7 +179,7 @@ def main():
     print("=" * 80)
     
     # HeRoN
-    print("\n[1/2] Generating HeRoN achievement curves...")
+    print("\n[1/3] Generating HeRoN achievement curves...")
     generator_heron = AchievementCurvesGenerator()
     heron_count = generator_heron.generate_all_achievement_curves(
         json_file="training/heron_output/heron_achievement_statistics.json",
@@ -187,8 +187,17 @@ def main():
         config_name="HeRoN (DQN + Helper + Threshold Decay)"
     )
     
+    # DQN + Helper (No Reviewer)
+    print("\n[2/3] Generating DQN + Helper achievement curves...")
+    generator_helper = AchievementCurvesGenerator()
+    helper_count = generator_helper.generate_all_achievement_curves(
+        json_file="training/dqn_helper_output/dqn_helper_achievement_statistics.json",
+        output_dir=Path("training/dqn_helper_output/plots/achievement_curves"),
+        config_name="DQN + Helper (No Reviewer)"
+    )
+    
     # Baseline
-    print("\n[2/2] Generating Baseline achievement curves...")
+    print("\n[3/3] Generating Baseline achievement curves...")
     generator_baseline = AchievementCurvesGenerator()
     baseline_count = generator_baseline.generate_all_achievement_curves(
         json_file="training/baseline_dqn_output/baseline_crafter_dqn_evaluation.json",
@@ -200,9 +209,10 @@ def main():
     print("\n" + "=" * 80)
     print("SUMMARY")
     print("=" * 80)
-    print(f"HeRoN Achievement Curves:       {heron_count} generated")
-    print(f"Baseline Achievement Curves:    {baseline_count} generated")
-    print(f"Total Curves:                   {heron_count + baseline_count}")
+    print(f"HeRoN Curves:           {heron_count} generated")
+    print(f"DQN + Helper Curves:    {helper_count} generated")
+    print(f"Baseline Curves:        {baseline_count} generated")
+    print(f"Total Curves:           {heron_count + helper_count + baseline_count}")
     print("=" * 80 + "\n")
 
 

@@ -87,7 +87,7 @@ def main():
         heron_eval = None
     
     # Load Baseline metrics (if available)
-    print("\n[2/2] Loading Baseline metrics...")
+    print("\n[2/3] Loading Baseline metrics...")
     try:
         baseline_metrics = load_metrics_from_jsonl(baseline_metrics_file)
         
@@ -100,6 +100,26 @@ def main():
     except FileNotFoundError as e:
         print(f"⚠️  Baseline files not found: {e}")
         baseline_eval = None
+
+    # Load DQN + Helper metrics
+    print("\n[3/3] Loading DQN + Helper metrics...")
+    dqn_helper_metrics_file = "training/dqn_helper_output/dqn_helper_crafter_metrics.jsonl"
+    dqn_helper_achievements_file = "training/dqn_helper_output/dqn_helper_achievement_statistics.json"
+    
+    try:
+        dqn_helper_metrics = load_metrics_from_jsonl(dqn_helper_metrics_file)
+        dqn_helper_stats = load_achievement_stats(dqn_helper_achievements_file)
+        
+        # Create EvaluationSystem object for DQN + Helper
+        dqn_helper_eval = EvaluationSystem()
+        dqn_helper_eval.metrics_list = dqn_helper_metrics
+        dqn_helper_eval.achievement_stats = dqn_helper_stats
+        
+        print(f"✓ Loaded {len(dqn_helper_metrics)} DQN + Helper episodes")
+        
+    except FileNotFoundError as e:
+        print(f"⚠️  DQN + Helper files not found: {e}")
+        dqn_helper_eval = None
     
     # Generate plots for HeRoN
     if heron_eval:
@@ -166,6 +186,42 @@ def main():
             
         except Exception as e:
             print(f"❌ Error generating Baseline plots: {e}")
+            import traceback
+            traceback.print_exc()
+
+    # Generate plots for DQN + Helper
+    if dqn_helper_eval:
+        print(f"\n{'='*80}")
+        print("Generating DQN + Helper plots...")
+        print(f"{'='*80}")
+        
+        # Output to training directory as requested
+        dqn_helper_output_dir = "training/dqn_helper_output/plots"
+        plotter = AdvancedPlotter(output_dir=dqn_helper_output_dir)
+        
+        try:
+            print("\n→ Generating reward distribution...")
+            plotter.plot_reward_distribution(dqn_helper_eval.metrics_list)
+            
+            print("→ Generating moving average trends...")
+            plotter.plot_moving_average_trends(dqn_helper_eval.metrics_list, window_size=10)
+            
+            print("→ Generating helper dependency decay...")
+            plotter.plot_helper_dependency_decay(dqn_helper_eval.metrics_list)
+            
+            print("→ Generating efficiency scatter...")
+            plotter.plot_efficiency_scatter(dqn_helper_eval.metrics_list)
+            
+            print("→ Generating achievement heatmap...")
+            plotter.plot_achievement_heatmap(dqn_helper_eval.metrics_list)
+            
+            print("→ Generating multi-metric dashboard...")
+            plotter.plot_multi_metric_dashboard(dqn_helper_eval)
+            
+            print(f"\n✓ All DQN + Helper plots generated in {dqn_helper_output_dir}/")
+            
+        except Exception as e:
+            print(f"❌ Error generating DQN + Helper plots: {e}")
             import traceback
             traceback.print_exc()
     
