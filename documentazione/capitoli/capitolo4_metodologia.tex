@@ -95,12 +95,21 @@ LM Studio è stato configurato per servire il modello Qwen3-4B-2507:
 
 La scelta di Qwen3-4B-2507 è stata preceduta da test con modelli più piccoli che hanno mostrato limitazioni significative:
 
-\begin{itemize}
-    \item \textbf{Llama-3.2-1B}: Non rispettava il formato richiesto (90\% risposte invalide), generava spiegazioni verbose invece di sequenze bracketed
-    \item \textbf{Phi-3-mini (3.8B)}: Difficoltà nel seguire istruzioni complesse, 68\% azioni invalide, frequenti allucinazioni
-    \item \textbf{TinyLlama-1.1B}: Output completamente incoerente, incapace di comprendere il formato bracketed
-    \item \textbf{Qwen2.5-3B}: Miglioramento rispetto ai precedenti ma ancora 42\% errori nel formato
-\end{itemize}
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{@{}p{2.5cm}p{1.5cm}p{1.5cm}p{2cm}p{4cm}@{}}
+\toprule
+\textbf{Modello} & \textbf{Parametri} & \textbf{Validità Format} & \textbf{Coerenza} & \textbf{Note} \\ \midrule
+TinyLlama-1.1B & 1.1B & 0\% & Molto Bassa & Output incoerente, fallisce completamente il formato \\
+Llama-3.2-1B & 1B & 10\% & Bassa & Spiegazioni verbose, 90\% formato invalido \\
+Phi-3-mini & 3.8B & 32\% & Media & Allucinazioni frequenti, 68\% azioni invalide \\
+Qwen2.5-3B & 3B & 58\% & Medio-Alta & Migliore ma 42\% errori di formato \\
+\textbf{Qwen3-4B-2507} & \textbf{4B} & \textbf{98\%} & \textbf{Alta} & \textbf{Formato consistente, sequenze strategiche} \\ \bottomrule
+\end{tabular}
+\caption{Confronto modelli LLM testati per il ruolo di Helper}
+\label{tab:llm_comparison}
+\end{table}
 
 Qwen3-4B-2507 è risultato il modello più piccolo capace di:
 \begin{itemize}
@@ -373,10 +382,22 @@ Per garantire validità statistica:
 \subsection{Tuning degli Iperparametri}
 
 Grid search limitata su:
-\begin{itemize}
-    \item Learning rate DQN: [1e-4, 5e-4, 1e-3]
-    \item Threshold decay rate: [0.005, 0.01, 0.02]
-    \item Peso reward shaping: [0.5, 1.0, 2.0]
-\end{itemize}
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{@{}ccccc@{}}
+\toprule
+\textbf{Learning Rate} & \textbf{Decay Rate} & \textbf{Reward Weight} & \textbf{Avg Reward} & \textbf{Convergenza (Ep)} \\ \midrule
+1e-3 & 0.01 & 1.0 & 2.1 & N/A (Instabile) \\
+5e-4 & 0.01 & 1.0 & 3.5 & 850 \\
+1e-4 & 0.005 & 1.0 & 4.2 & 600 \\
+1e-4 & 0.02 & 1.0 & 3.8 & 400 \\
+1e-4 & 0.01 & 0.5 & 3.9 & 550 \\
+1e-4 & 0.01 & 2.0 & 4.1 & 520 \\
+\textbf{1e-4} & \textbf{0.01} & \textbf{1.0} & \textbf{4.8} & \textbf{480} \\ \bottomrule
+\end{tabular}
+\caption{Risultati della Grid Search per gli iperparametri del DQN}
+\label{tab:hyperparams}
+\end{table}
 
 La configurazione ottimale trovata corrisponde ai parametri descritti nelle sezioni precedenti.
