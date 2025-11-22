@@ -120,3 +120,48 @@ Slide 14 — Grazie per l'Attenzione
 - Disponibili per demo o approfondimenti
 Note slide 15 (discorso - Ringraziamenti):
 Grazie per l'attenzione. Siamo Danilo e Vincenzo, e siamo felici di rispondere a qualsiasi domanda sui dettagli implementativi, risultati o sviluppi futuri. Se interessati, possiamo mostrare demo delle run, fornire codice aggiuntivo o discutere estensioni del lavoro. Grazie ancora!
+
+Slide 15 — Addestramento Iterativo e Fine-Tuning del NPC
+- Obiettivo: Ottimizzare il comportamento dell’agente tramite simulazioni ripetute e feedback strategici.
+- Addestramento Iterativo:
+  - Il NPC gioca centinaia di episodi, aggiornando i parametri dopo ogni sessione.
+  - Utilizzo di algoritmi RL (DQN, PPO) per massimizzare il reward.
+  - Esperienza replay e priorizzazione delle transizioni per apprendimento efficiente.
+- Fine-Tuning:
+  - Perfezionamento del modello con dati aggiuntivi e feedback del Reviewer.
+  - Adattamento a compiti specifici e correzione di errori ricorrenti.
+  - Ottimizzazione della collaborazione tra Helper e Reviewer.
+- Risultato: NPC più efficace, stabile e capace di pianificare strategie complesse.
+
+Slide 16 — Ottimizzazione delle Prestazioni del NPC
+- L’addestramento iterativo consente al NPC di migliorare progressivamente le proprie strategie di gioco.
+- Analisi delle performance su diversi scenari:
+  - Maggiore efficienza nel raggiungimento degli achievement.
+  - Migliore gestione delle risorse e della sopravvivenza.
+  - Pianificazione più efficace grazie al feedback continuo.
+- Limiti osservati:
+  - Difficoltà nel consolidare achievement avanzati.
+  - Overhead computazionale nelle configurazioni con LLM e Reviewer.
+  - Necessità di ulteriori ottimizzazioni per obiettivi complessi.
+- Conclusione: L’addestramento iterativo porta a un NPC più robusto, ma restano sfide aperte per la copertura completa degli achievement e la riduzione dei costi computazionali.
+
+Slide: Gestione della Sopravvivenza del NPC
+
+● Durante le prime sessioni di addestramento, il NPC tendeva a morire prematuramente, spesso senza completare tutti gli step dell’episodio.
+● Analisi dei log di gioco ha evidenziato criticità nella gestione della salute e delle risorse vitali.
+● Ottimizzazione:
+  - Introduzione di strategie di sopravvivenza (uso intelligente di [sleep], raccolta risorse vitali).
+  - Modifica delle ricompense e delle priorità per incentivare la gestione della salute.
+  - Miglioramento della pianificazione per evitare situazioni di morte precoce.
+● Risultato: Il NPC ora completa più episodi senza morire, mostrando una maggiore robustezza e capacità di adattamento.
+
+Slide: Limiti e Miglioramenti Osservati
+
+● Oltre ai miglioramenti già menzionati, sono stati riscontrati ulteriori limiti e aree di miglioramento:
+  - Difficoltà nel crafting avanzato: il NPC faticava a completare sequenze lunghe per obiettivi complessi (es. creazione di strumenti avanzati).
+  - Gestione sub-ottimale delle risorse rare: talvolta il NPC sprecava risorse come ferro o diamante senza pianificazione strategica.
+  - Esplorazione non sempre efficiente: in alcuni scenari il NPC tendeva a ripetere azioni simili, limitando la scoperta di nuove aree.
+● Miglioramenti apportati:
+  - Prompt engineering e feedback Reviewer per correggere sequenze di azioni non valide o sub-ottimali.
+  - Ottimizzazione delle strategie di raccolta e utilizzo risorse, con priorità dinamiche in base allo stato di gioco.
+  - Implementazione di trigger di re-planning per gestire meglio situazioni critiche e adattarsi ai cambiamenti dell’ambiente.

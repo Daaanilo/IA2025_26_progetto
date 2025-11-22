@@ -76,12 +76,17 @@ Tutte le sfide sono state risolte con successo, come dimostrato dai migliorament
 
 \begin{table}[H]
 \centering
-\begin{tabular}{@{}lccc@{}}
-\toprule
-\textbf{Sfida} & \textbf{Metrica} & \textbf{Prima} & \textbf{Dopo} \\ \midrule
+\begin{tabular}{|l|c|c|c|}
+\hline
+\rowcolor{gray!20}
+\textbf{Sfida} & \textbf{Metrica} & \textbf{Prima} & \textbf{Dopo} \\
+\hline
 Reward Sparsity & Achievement (0-100 ep) & 0.4 & 1.1 (+175\%) \\
+\hline
 Emergency Handling & Death rate & 38\% & 7\% (-81.6\%) \\
-Hallucinations & Valid actions & 87\% & 98\% (+11\%) \\ \bottomrule
+\hline
+Hallucinations & Valid actions & 87\% & 98\% (+11\%) \\
+\hline
 \end{tabular}
 \caption{Impatto delle soluzioni implementate}
 \end{table}
