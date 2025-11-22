@@ -162,6 +162,9 @@ def train_dqn_baseline(episodes=300, batch_size=32, episode_length=1000, load_mo
         achievements_per_episode.append(episode_achievements)
         moves_per_episode.append(episode_moves)
         
+        # No LLM in baseline DQN, so valid_actions_percentage is N/A
+        valid_actions_percentage = 0.0  # Not applicable for pure DQN
+        
         # Add to evaluation system
         evaluation_system.add_episode(
             episode=episode,
@@ -171,7 +174,8 @@ def train_dqn_baseline(episodes=300, batch_size=32, episode_length=1000, load_mo
             achievements_unlocked=episode_achievements,
             moves=episode_moves,
             helper_calls=0,  # No LLM in baseline
-            hallucinations=0  # No LLM in baseline
+            hallucinations=0,  # No LLM in baseline
+            valid_actions_percentage=valid_actions_percentage
         )
         
         # Save best model checkpoint

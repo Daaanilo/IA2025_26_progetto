@@ -352,6 +352,17 @@ def train_dqn_crafter(episodes=100, batch_size=32, episode_length=1000, threshol
         helper_calls.append(episode_helper_calls)
         hallucinations.append(episode_hallucinations)
         
+        # Calculate valid actions percentage
+        # Formula: (Valid Actions / Total Actions Generated) * 100%
+        # Where: Valid Actions = Total Helper Calls - Hallucinations
+        if episode_helper_calls > 0:
+            valid_actions = episode_helper_calls - episode_hallucinations
+            valid_actions_percentage = (valid_actions / episode_helper_calls) * 100.0
+        else:
+            valid_actions_percentage = 0.0
+        
+        print(f"  Valid Actions Percentage: {valid_actions_percentage:.2f}% ({episode_helper_calls - episode_hallucinations}/{episode_helper_calls})")
+        
         # Add to F10 EvaluationSystem
         evaluation_system.add_episode(
             episode=e,
@@ -361,7 +372,8 @@ def train_dqn_crafter(episodes=100, batch_size=32, episode_length=1000, threshol
             achievements_unlocked=episode_achievements,
             moves=moves,
             helper_calls=episode_helper_calls,
-            hallucinations=episode_hallucinations
+            hallucinations=episode_hallucinations,
+            valid_actions_percentage=valid_actions_percentage
         )
         
         # F09: Performance-based checkpointing

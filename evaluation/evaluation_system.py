@@ -67,6 +67,7 @@ class EpisodeMetrics:
     reward_per_move: Optional[float] = None
     reward_per_helper_call: Optional[float] = None
     achievements_per_move: Optional[float] = None
+    valid_actions_percentage: Optional[float] = None  # Percentuale di azioni valide
 
 
 @dataclass
@@ -370,8 +371,20 @@ class EvaluationSystem:
     
     def add_episode(self, episode: int, shaped_reward: float, native_reward: float, 
                     shaped_bonus: float, achievements_unlocked: int, moves: int,
-                    helper_calls: int, hallucinations: int):
-        """Add metrics from a completed training episode."""
+                    helper_calls: int, hallucinations: int, valid_actions_percentage: float = 0.0):
+        """Add metrics from a completed training episode.
+        
+        Args:
+            episode: Episode number
+            shaped_reward: Shaped reward for episode
+            native_reward: Native/sparse reward for episode
+            shaped_bonus: Reward shaping bonus
+            achievements_unlocked: Number of achievements unlocked
+            moves: Number of moves/steps taken
+            helper_calls: Number of times LLM Helper was called
+            hallucinations: Number of hallucinated/invalid actions
+            valid_actions_percentage: Percentuale di azioni valide = (helper_calls - hallucinations) / helper_calls * 100%
+        """
         hallucination_rate = hallucinations / max(1, helper_calls)
         
         metric = EpisodeMetrics(
@@ -383,7 +396,8 @@ class EvaluationSystem:
             moves=moves,
             helper_calls=helper_calls,
             hallucinations=hallucinations,
-            hallucination_rate=hallucination_rate
+            hallucination_rate=hallucination_rate,
+            valid_actions_percentage=valid_actions_percentage
         )
         
         self.metrics_list.append(metric)
@@ -416,7 +430,25 @@ class EvaluationSystem:
         achievements = [m.achievements_unlocked for m in self.metrics_list]
         moves = [m.moves for m in self.metrics_list]
         helper_calls = [m.helper_calls for m in self.metrics_list]
+        hallucinations_list = [m.hallucinations for m in self.metrics_list]
         hallucination_rates = [m.hallucination_rate for m in self.metrics_list]
+        
+        # Calculate valid actions percentage using formula:
+        # Percentuale di azioni valide = (Numero di azioni valide / Numero totale di azioni generate) × 100%
+        # Valid actions = helper_calls - hallucinations
+        total_helper_calls = sum(helper_calls)
+        total_hallucinations = sum(hallucinations_list)
+        valid_actions_total = total_helper_calls - total_hallucinations
+        valid_actions_percentage = (valid_actions_total / total_helper_calls * 100) if total_helper_calls > 0 else 0.0
+        
+        # Per-episode valid actions percentages
+        valid_actions_per_episode = []
+        for m in self.metrics_list:
+            if m.helper_calls > 0:
+                valid_pct = ((m.helper_calls - m.hallucinations) / m.helper_calls) * 100
+                valid_actions_per_episode.append(valid_pct)
+            else:
+                valid_actions_per_episode.append(0.0)
         
         return {
             'total_episodes': len(self.metrics_list),
@@ -455,10 +487,22 @@ class EvaluationSystem:
                 'final_episode': helper_calls[-1] if helper_calls else None
             },
             'hallucinations': {
-                'total': sum(m.hallucinations for m in self.metrics_list),
+                'total': total_hallucinations,
                 'mean_rate': np.mean(hallucination_rates),
                 'std_rate': np.std(hallucination_rates),
                 'final_rate': hallucination_rates[-1] if hallucination_rates else None
+            },
+            'valid_actions_percentage': {
+                'formula': 'Percentuale di azioni valide = (Numero di azioni valide / Numero totale di azioni generate) × 100%',
+                'total_valid_actions': int(valid_actions_total),
+                'total_helper_calls': int(total_helper_calls),
+                'total_hallucinations': int(total_hallucinations),
+                'overall_percentage': valid_actions_percentage,
+                'mean_per_episode': np.mean(valid_actions_per_episode),
+                'std_per_episode': np.std(valid_actions_per_episode),
+                'min_per_episode': np.min(valid_actions_per_episode) if valid_actions_per_episode else 0.0,
+                'max_per_episode': np.max(valid_actions_per_episode) if valid_actions_per_episode else 0.0,
+                'final_episode_percentage': valid_actions_per_episode[-1] if valid_actions_per_episode else 0.0
             }
         }
     
@@ -554,6 +598,17 @@ class EvaluationSystem:
         print(f"  Total helper calls: {summary['helper_calls']['total']}")
         print(f"  Mean calls per episode: {summary['helper_calls']['mean']:.2f}")
         print(f"  Hallucination rate: {summary['hallucinations']['mean_rate']:.1%}")
+        
+        print(f"\n[Valid Actions Percentage - Formula Application]")
+        print(f"  Formula: {summary['valid_actions_percentage']['formula']}")
+        print(f"  Total valid actions: {summary['valid_actions_percentage']['total_valid_actions']}")
+        print(f"  Total helper calls: {summary['valid_actions_percentage']['total_helper_calls']}")
+        print(f"  Total hallucinations: {summary['valid_actions_percentage']['total_hallucinations']}")
+        print(f"  Overall percentage: {summary['valid_actions_percentage']['overall_percentage']:.2f}%")
+        print(f"  Mean per episode: {summary['valid_actions_percentage']['mean_per_episode']:.2f}%")
+        print(f"  Std per episode: {summary['valid_actions_percentage']['std_per_episode']:.2f}%")
+        print(f"  Range: [{summary['valid_actions_percentage']['min_per_episode']:.2f}%, {summary['valid_actions_percentage']['max_per_episode']:.2f}%]")
+        print(f"  Final episode: {summary['valid_actions_percentage']['final_episode_percentage']:.2f}%")
         
         print(f"\n[Convergence Analysis]")
         if convergence['shaped_reward_convergence']['converged']:
