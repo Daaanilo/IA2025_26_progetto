@@ -132,6 +132,101 @@ Il Reviewer analizza:
     \item Fornisce feedback strutturato che usiamo per ri-interrogare l'Helper con più informazioni.
 \end{itemize}
 
+\section{Gestione del Contesto dell'Helper}
+
+Il componente Helper mantiene uno stato conversazionale persistente durante ogni episodio per costruire un contesto ricco e coerente. La gestione del contesto è un aspetto critico dell'architettura, in quanto influenza direttamente la qualità e la coerenza dei suggerimenti generati.
+
+\subsection{Struttura della Memoria Conversazionale}
+
+L'Helper mantiene una cronologia di messaggi (\texttt{message\_history}) che accumula:
+\begin{itemize}
+    \item \textbf{Prompt iniziali}: Descrizioni dello stato di gioco e richieste di azioni
+    \item \textbf{Risposte LLM}: Sequenze di azioni generate precedentemente
+    \item \textbf{Feedback del Reviewer}: Suggerimenti strategici per migliorare i piani
+    \item \textbf{Contesto di gioco}: Posizione, inventario, achievement sbloccati
+\end{itemize}
+
+La cronologia consente al LLM di mantenere coerenza logica tra azioni successive e di comprendere l'evoluzione dello stato di gioco all'interno dell'episodio.
+
+\subsection{Gestione Intelligente del Contesto (Token-Aware)}
+
+L'Helper implementa un sistema di gestione intelligente del contesto per prevenire l'overflow della finestra di contesto del modello LLM (Qwen3-4B-2507 ha 8192 token di limite):
+
+\begin{enumerate}
+    \item \textbf{Monitoraggio token}: Il Helper conta il numero di token nella cronologia usando il tokenizer Qwen2.5 (compatibile con Qwen3)
+    
+    \item \textbf{Soglia di sicurezza}: Quando il contesto raggiunge 6500 token (80\% del limite), viene attivato un reset intelligente per evitare crash e risposte vuote
+    
+    \item \textbf{Reset con riassunto episodio}: Invece di scartare tutto il contesto, il Helper genera un \textbf{riassunto condensato} che include:
+    \begin{itemize}
+        \item Numero di step eseguiti nell'episodio
+        \item Reward totale accumulato
+        \item Lista degli achievement sbloccati
+        \item Feedback recente del Reviewer (se disponibile)
+        \item Descrizione dello stato di gioco corrente
+    \end{itemize}
+    Questo riassunto diventa il nuovo inizio della cronologia, preservando informazioni strategiche critiche.
+\end{enumerate}
+
+\textbf{Vantaggi del reset intelligente}:
+\begin{itemize}
+    \item \textbf{Continuità strategica}: Il modello comprende il progresso episodico complessivo
+    \item \textbf{Efficienza token}: Riduce i token inutili mantenendo informazioni essenziali
+    \item \textbf{Riduzione allucinazioni}: Contesto pulito riduce risposte errate o non coerenti
+    \item \textbf{Maggiore lunghezza episodio}: Consente episodi più lunghi senza crash
+\end{itemize}
+
+\subsection{Meccanismi di Re-planning e Aggiornamento Contesto}
+
+Durante l'esecuzione di una sequenza di azioni, il Helper monitora determinati eventi per aggiornare intelligentemente il contesto:
+
+\textbf{Trigger di Re-query (Interruzione Sequenza)}:
+\begin{itemize}
+    \item \textbf{Achievement sbloccato}: Quando il giocatore sblocca un nuovo achievement, il Helper riceve una nuova query con il contesto aggiornato che include il nuovo achievement nel set di quelli sbloccati
+    
+    \item \textbf{Salute critica} ($health \leq 5$): Se la salute scende sotto soglia critica, la sequenza viene interrotta e il Helper viene re-interrogato per suggerire azioni di emergenza (mangiare, bere, dormire)
+    
+    \item \textbf{Salute bassa} ($health < 30\%$): Se la salute è bassa ma non critica, il Helper viene ri-consultato per bilanciare l'esplorazione con la gestione della sopravvivenza
+    
+    \item \textbf{Risorsa completamente consumata}: Se una risorsa chiave (legno, pietra, carbone) raggiunge 0, viene attivata una nuova query per raccoglierla prioritariamente
+\end{itemize}
+
+\textbf{Aggiornamento dello Stato Episodio}:
+
+Ad ogni passo, il Helper aggiorna il suo tracciamento interno:
+\begin{verbatim}
+helper.update_episode_progress(
+    achievements=nuovi_achievement_sbloccati,
+    step_count=numero_step_corrente,
+    reward=reward_episodio_accumulato,
+    reviewer_feedback=ultimo_feedback_reviewer
+)
+\end{verbatim}
+
+Questi dati vengono usati durante il reset del contesto per generare il riassunto episodico. Questo assicura che il LLM comprenda il progresso complessivo anche dopo un reset di contesto.
+
+\subsection{Reset Episodio e Pulizia Contesto}
+
+All'inizio di ogni nuovo episodio, il Helper esegue una pulizia completa:
+\begin{itemize}
+    \item Cancellazione della cronologia messaggi (\texttt{message\_history = []})
+    \item Reset del tracciamento achievement episodio
+    \item Azzeramento del feedback Reviewer recente
+    \item Pulizia della cronologia delle sequenze (usata per rilevare loop)
+\end{itemize}
+
+Questo previene l'accumulo di contesto da episodi precedenti e garantisce che il LLM inizi ogni episodio con uno stato cognitivo "fresco".
+
+\textbf{Esempio di reset a episodio 5}:
+\begin{verbatim}
+[Episode 5] Conversation history cleared for new episode
+[Helper] Token overflow detected: 7200/8192 tokens
+[Helper] Current context: 6500, New prompt: 700
+[Helper] Performing SMART RESET with episode summary...
+[Helper] Context reset complete: 1200 tokens (saved 5300 tokens)
+[Helper] Summary includes: 5 achievements, step 342
+\end{verbatim}
+
 \section{Workflow dell'Architettura}
 
 Il workflow di HeRoN durante il training si articola in queste fasi:
