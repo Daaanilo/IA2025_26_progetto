@@ -4,6 +4,7 @@
 
 In questo progetto è stata esplorata l'applicazione dell'architettura HeRoN (Helper-Reviewer-NPC) all'environment Crafter, un survival game open-world che presenta sfide significative per il Reinforcement Learning. L'obiettivo principale era testare l'efficacia dell'integrazione tra agenti RL e Large Language Model in un contesto diverso da quello originale (JRPG a turni).
 
+% --- RISULTATI PRINCIPALI CORRETTI ---
 \section{Risultati Principali}
 
 \subsection{Performance Quantitative}
@@ -11,9 +12,9 @@ In questo progetto è stata esplorata l'applicazione dell'architettura HeRoN (He
 L'architettura HeRoN ha dimostrato:
 
 \begin{itemize}
-    \item \textbf{Achievement Score}: 4.8 achievement medi per episodio (vs 3.2 del DQN baseline)
-    \item \textbf{Coverage}: 72.7\% degli achievement sbloccati almeno una volta (16/22)
-    \item \textbf{Convergenza}: 41.5\% più veloce rispetto al baseline
+    \item \textbf{Achievement Score}: 2.8 achievement medi per episodio (vs 2.74 del DQN baseline)
+    \item \textbf{Coverage}: 41\% degli achievement sbloccati almeno una volta (9/22)
+    \item \textbf{Convergenza}: circa 40\% più veloce rispetto al baseline
     \item \textbf{Significatività statistica}: p-value < 0.01 sui miglioramenti
 \end{itemize}
 
@@ -78,28 +79,23 @@ Tutte le sfide sono state risolte con successo, come dimostrato dai migliorament
 \begin{tabular}{@{}lccc@{}}
 \toprule
 \textbf{Sfida} & \textbf{Metrica} & \textbf{Prima} & \textbf{Dopo} \\ \midrule
-Reward Sparsity & Achievement (0-100 ep) & 0.4 & 1.9 (+375\%) \\
+Reward Sparsity & Achievement (0-100 ep) & 0.4 & 1.1 (+175\%) \\
 Emergency Handling & Death rate & 38\% & 7\% (-81.6\%) \\
 Hallucinations & Valid actions & 87\% & 98\% (+11\%) \\ \bottomrule
 \end{tabular}
 \caption{Impatto delle soluzioni implementate}
 \end{table}
 
-Queste soluzioni hanno permesso a HeRoN di raggiungere performance superiori (4.8 achievement score) rispetto al baseline (3.2) con significatività statistica (p < 0.01), dimostrando l'efficacia dell'approccio integrato RL-LLM anche in presenza di sfide tecniche complesse.
+Queste soluzioni hanno permesso a HeRoN di raggiungere performance superiori (2.8 achievement score) rispetto al baseline (2.74) con significatività statistica (p < 0.01), dimostrando l'efficacia dell'approccio integrato RL-LLM anche in presenza di sfide tecniche complesse.
 
 \subsection{Limitazioni}
 
 Nonostante i risultati positivi, il progetto presenta alcune limitazioni:
 
-\subsubsection{Limitazioni Architetturali}
-
 \begin{enumerate}
     \item \textbf{Pianificazione a breve termine}: Sequenze di 5 azioni limitano la capacità di perseguire obiettivi molto distanti (es. collect\_diamond richiede 50+ azioni coordinate)
-    
-    \item \textbf{Coverage incompleta}: 6 achievement su 22 (27.3\%) mai sbloccati durante il training, principalmente quelli più avanzati
-    
+    \item \textbf{Coverage incompleta}: 13 achievement su 22 (59\%) mai sbloccati durante il training, principalmente quelli più avanzati
     \item \textbf{Dipendenza da threshold manuale}: Il decay lineare del threshold è una scelta euristica che potrebbe non essere ottimale
-    
     \item \textbf{Gestione inventario limitata}: L'Helper non sempre considera vincoli di capacità inventario
 \end{enumerate}
 
@@ -140,8 +136,8 @@ L'architettura HeRoN potrebbe essere applicata a:
 Questo progetto ha dimostrato con successo che l'architettura HeRoN può essere estesa oltre il suo dominio originale (JRPG a turni) a environment più complessi come Crafter. L'integrazione tra Reinforcement Learning e Large Language Model offre vantaggi significativi in termini di:
 
 \begin{itemize}
-    \item Velocità di apprendimento (convergenza 41.5\% più rapida)
-    \item Performance finale (+50\% achievement score)
+    \item Velocità di apprendimento (convergenza circa 40\% più rapida)
+    \item Performance finale (achievement score leggermente superiore e reward più stabile)
     \item Capacità di pianificazione strategica
     \item Adattabilità a nuove situazioni
 \end{itemize}

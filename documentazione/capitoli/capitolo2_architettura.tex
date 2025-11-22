@@ -59,25 +59,25 @@ L'architettura HeRoN combina il meglio di RL (apprendimento da esperienza) e LLM
 
 L'architettura HeRoN è composta da tre componenti principali che interagiscono in modo coordinato:
 
-\subsection{NPC (Non-Player Character)}
+\subsection{NPC (Non-Player Character) - Versione Semplificata}
 
-Il componente NPC è un agente di Reinforcement Learning che rappresenta il "giocatore" nell'environment. Nel contesto di questo progetto, l'NPC è implementato utilizzando l'algoritmo Deep Q-Network (DQN) con le seguenti caratteristiche:
+L'NPC è l'agente che gioca in Crafter usando il Reinforcement Learning. In questo progetto, l'NPC usa l'algoritmo Deep Q-Network (DQN), che funziona così:
 
 \begin{itemize}
-    \item \textbf{Architettura}: Usa una versione chiamata Double DQN con una rete (target network) per rendere l’apprendimento più stabile.
-    \item \textbf{Replay Buffer}: Memorizza le esperienze passate dando priorità alle esperienze importanti, con spazio per 10.000 eventi.
-    \item \textbf{Parametri}:
+    \item \textbf{Architettura}: DQN usa una seconda rete (target network) per rendere l'apprendimento più stabile.
+    \item \textbf{Replay Buffer}: Salva le esperienze passate e dà più importanza a quelle utili, con spazio per 10.000 eventi.
+    \item \textbf{Parametri principali}:
     \begin{itemize}
-        \item $\alpha = 0.6$: quanto diamo priorità alle esperienze importanti
-        \item $\beta = 0.4 \rightarrow 1.0$: peso per correggere il campionamento delle esperienze
-        \item $\gamma = 0.99$: quanto valutiamo l'importanza delle ricompense future
-        \item $\epsilon = 1.0 \rightarrow 0.05$: probabilità di esplorare nuove azioni, che diminuisce col tempo
+        \item $\alpha = 0.6$: priorità alle esperienze importanti
+        \item $\beta = 0.4$ che cresce fino a $1.0$: corregge il campionamento
+        \item $\gamma = 0.99$: importanza delle ricompense future
+        \item $\epsilon = 1.0$ che scende fino a $0.05$: probabilità di provare azioni nuove
     \end{itemize}
-    \item \textbf{Input}: Stato dell'ambiente a 43 dimensioni
-    \item \textbf{Output}: Q-values per 17 azioni possibili
+    \item \textbf{Input}: Stato dell'ambiente (43 numeri)
+    \item \textbf{Output}: Valori Q per 17 azioni possibili
 \end{itemize}
 
-L'NPC impara attraverso l'esperienza diretta, accumulando transizioni $(s, a, r, s')$ nel replay buffer e aggiornando i pesi della rete neurale per massimizzare il reward atteso.
+In pratica, l'NPC osserva lo stato, sceglie un'azione, riceve una ricompensa e aggiorna la sua memoria per imparare a giocare meglio nel tempo.
 
 \subsection{Helper}
 
