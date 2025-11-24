@@ -6,7 +6,7 @@ HeRoN (Helper-Reviewer-NPC) è un'architettura multi-agente che combina Reinforc
 
 \subsection{Diagramma Architettura DQN Baseline}
 
-Prima di descrivere l'architettura completa HeRoN, parliamo dell'architettura baseline DQN che usiamo come base e per confrontare i benefici dell'integrazione con LLM.
+Prima di descrivere l'architettura completa HeRoN, viene presentata l'architettura baseline DQN utilizzata come riferimento per il confronto con l'integrazione LLM.
 
 
 \textbf{Flusso Operativo DQN}:
@@ -19,11 +19,13 @@ Prima di descrivere l'architettura completa HeRoN, parliamo dell'architettura ba
     \item \textbf{Stabilizzazione}: Ogni 100 steps, copia DQN weights → Target Network
 \end{enumerate}
 
-L'architettura DQN baseline impara solo attraverso prove ed errori, senza aiuto esterno.
+
+L'architettura DQN baseline apprende esclusivamente tramite interazione diretta con l'ambiente, senza supporto esterno.
 
 \subsection{Diagramma Architettura HeRoN Completa}
 
-L'architettura HeRoN estende il DQN baseline aggiungendo due componenti LLM per una guida strategica, usando un meccanismo di threshold decay che bilancia LLM e RL.
+
+L'architettura HeRoN rappresenta un'estensione del DQN baseline, con l'aggiunta di due componenti LLM per la guida strategica, e l'utilizzo di un meccanismo di threshold decay che bilancia l'intervento tra LLM e RL.
 
 
 \textbf{Meccanismo Chiave - Threshold Decay}:
@@ -37,7 +39,7 @@ dove $e$ è il numero dell'episodio corrente. Questo garantisce:
 \begin{itemize}
     \item \textbf{Episodi 0-100}: $\theta$: 1.0 → 0.0, transizione graduale da 100\% LLM a 0\% LLM
     \item \textbf{Episodi 100+}: $\theta = 0$, DQN completamente autonomo
-    \item \textbf{Vantaggio}: LLM guida nelle fasi iniziali quando DQN è inesperto, poi DQN diventa indipendente
+    \item \textbf{Vantaggio}: Nelle fasi iniziali, l'intervento LLM supporta il processo decisionale, mentre nelle fasi successive il DQN opera in modo autonomo
 \end{itemize}
 
 \textbf{Flusso Completo (Esempio con LLM Path)}:
@@ -55,7 +57,8 @@ dove $e$ è il numero dell'episodio corrente. Questo garantisce:
     \item DQN training: sample batch → compute loss → update weights
 \end{enumerate}
 
-L'architettura HeRoN combina il meglio di RL (apprendimento da esperienza) e LLM (conoscenza a priori + ragionamento strategico), con una transizione graduale verso autonomia completa.
+
+L'architettura HeRoN integra i vantaggi del Reinforcement Learning (apprendimento da esperienza) e dei Large Language Model (conoscenza a priori e ragionamento strategico), con una transizione graduale verso l'autonomia dell'agente.
 
 L'architettura HeRoN è composta da tre componenti principali che interagiscono in modo coordinato:
 
@@ -235,16 +238,16 @@ Il workflow di HeRoN durante il training si articola in queste fasi:
 
 Ad ogni step dell'episodio, l'architettura decide se consultare i componenti LLM basandosi su una soglia dinamica $\theta$.
 
-%\begin{algorithm}
-%\caption{Decisione di consultazione LLM}
-%\begin{algorithmic}
-%\IF{$random() > \theta$ AND $episode < 600$}
-%    \STATE Procedi con workflow LLM
-%\ELSE
-%    \STATE Usa solo DQN: $a = \arg\max_a Q(s, a)$
-%\ENDIF
-%\end{algorithmic}
-%\end{algorithm}
+\begin{algorithm}[H]
+\caption{Decisione di consultazione LLM}
+\begin{algorithmic}
+\IF{$random() > \theta$ AND $episode < 600$}
+    \STATE Procedi con workflow LLM
+\ELSE
+    \STATE Usa solo DQN: $a = \arg\max_a Q(s, a)$
+\ENDIF
+\end{algorithmic}
+\end{algorithm}
 
 Quando decidiamo di consultare l'LLM, l'Helper genera una sequenza di azioni basandosi sullo stato corrente.
 

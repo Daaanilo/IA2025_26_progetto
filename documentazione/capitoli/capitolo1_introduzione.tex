@@ -14,30 +14,25 @@ La sfida principale di questo progetto è stata estendere e testare HeRoN in un 
 
 \section{Obiettivi del Progetto}
 
-Il progetto mira a raggiungere questi obiettivi principali:
+
+Gli obiettivi principali del lavoro sono i seguenti:
 
 \subsection{Obiettivi Primari}
 
 \begin{itemize}
-    \item \textbf{Adattamento dell'architettura HeRoN}: L'architettura HeRoN è stata estesa dall'environment JRPG a turni all'environment Crafter, un survival game open-world in tempo continuo.
-    
-    \item \textbf{Fine-tuning del Reviewer}: Il componente Reviewer è stato adattato ai nuovi task specifici di Crafter, generando un dataset appropriato e addestrando il modello per fornire feedback efficaci nel contesto del survival game.
-    
-    \item \textbf{Modifica del Helper}: Il comportamento del componente Helper è stato modificato affinché generi sequenze di azioni coerenti (3-5 azioni) anziché singole decisioni, permettendo una pianificazione più strategica.
-    
-    \item \textbf{Implementazione dell'NPC}: È stato sviluppato un agente di Reinforcement Learning basato sull'algoritmo Deep Q-Network (DQN) ottimizzato per le 17 azioni disponibili in Crafter e il suo spazio di stati a 43 dimensioni.
-    
-    \item \textbf{Valutazione delle prestazioni}: Le prestazioni dell'architettura HeRoN completa sono state valutate quantitativamente rispetto a baseline tradizionali, misurando il numero di achievement sbloccati nei 22 obiettivi disponibili in Crafter.
+    \item \textbf{Adattamento dell'architettura HeRoN}: L'architettura HeRoN viene estesa dall'environment JRPG a turni all'environment Crafter, un survival game open-world in tempo continuo.
+    \item \textbf{Fine-tuning del Reviewer}: Il componente Reviewer viene adattato ai nuovi task specifici di Crafter, con generazione di un dataset appropriato e addestramento del modello per fornire feedback efficaci nel contesto del survival game.
+    \item \textbf{Modifica del Helper}: Il comportamento del componente Helper viene modificato affinché vengano generate sequenze di azioni coerenti (3-5 azioni) anziché singole decisioni, permettendo una pianificazione più strategica.
+    \item \textbf{Implementazione dell'NPC}: Viene sviluppato un agente di Reinforcement Learning basato sull'algoritmo Deep Q-Network (DQN) ottimizzato per le 17 azioni disponibili in Crafter e il suo spazio di stati a 43 dimensioni.
+    \item \textbf{Valutazione delle prestazioni}: Le prestazioni dell'architettura HeRoN completa vengono valutate quantitativamente rispetto a baseline tradizionali, misurando il numero di achievement sbloccati nei 22 obiettivi disponibili in Crafter.
 \end{itemize}
 
 \subsection{Obiettivi Secondari}
 
 \begin{itemize}
-    \item Analizzare il numero ottimale di azioni da suggerire per ciascuna chiamata del Helper.
-    
-    \item Studiare l'impatto del reward shaping sulle prestazioni dell'agente.
-    
-    \item Implementare meccanismi di re-planning intelligenti che interrompano le sequenze di azioni in situazioni critiche (salute bassa, achievement sbloccati).
+    \item Analisi del numero ottimale di azioni da suggerire per ciascuna chiamata del Helper.
+    \item Studio dell'impatto del reward shaping sulle prestazioni dell'agente.
+    \item Implementazione di meccanismi di re-planning che interrompono le sequenze di azioni in situazioni critiche (salute bassa, achievement sbloccati).
 \end{itemize}
 
 %\subsection{Struttura del Documento}

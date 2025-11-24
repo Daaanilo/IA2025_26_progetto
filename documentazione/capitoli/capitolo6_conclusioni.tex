@@ -2,7 +2,8 @@
 
 \section{Sintesi del Lavoro Svolto}
 
-In questo progetto è stata esplorata l'applicazione dell'architettura HeRoN (Helper-Reviewer-NPC) all'environment Crafter, un survival game open-world che presenta sfide significative per il Reinforcement Learning. L'obiettivo principale era testare l'efficacia dell'integrazione tra agenti RL e Large Language Model in un contesto diverso da quello originale (JRPG a turni).
+
+Il presente lavoro esplora l'applicazione dell'architettura HeRoN (Helper-Reviewer-NPC) all'environment Crafter, un survival game open-world che presenta sfide significative per il Reinforcement Learning. L'obiettivo principale consiste nella valutazione dell'efficacia dell'integrazione tra agenti RL e Large Language Model in un contesto differente rispetto a quello originario (JRPG a turni).
 
 % --- RISULTATI PRINCIPALI CORRETTI ---
 \section{Risultati Principali}
@@ -27,7 +28,8 @@ L'architettura HeRoN ha dimostrato:
     \item \textbf{Sequenze di 5 azioni}: Configurazione ottimale per bilanciare pianificazione e flessibilità
 \end{itemize}
 
-Durante l'implementazione sono emerse diverse sfide che sono state affrontate con successo:
+
+Nel corso dell'implementazione sono state riscontrate diverse sfide, superate mediante soluzioni specifiche:
 
 \subsection{Challenge 1: Sparsità del Reward}
 
@@ -98,6 +100,7 @@ Queste soluzioni hanno permesso a HeRoN di raggiungere performance superiori (2.
 Nonostante i risultati positivi, il progetto presenta alcune limitazioni:
 
 \begin{enumerate}
+    \item \textbf{Assenza di informazioni visive}: Il progetto lavora esclusivamente su uno stato vettoriale di 43 dimensioni, senza accesso a osservazioni visive (immagini RGB). Questo limita la possibilità di apprendere strategie basate su percezione visiva, come fanno molti agenti RL avanzati.
     \item \textbf{Pianificazione a breve termine}: Sequenze di 5 azioni limitano la capacità di perseguire obiettivi molto distanti (es. collect\_diamond richiede 50+ azioni coordinate)
     \item \textbf{Coverage incompleta}: 13 achievement su 22 (59\%) mai sbloccati durante il training, principalmente quelli più avanzati
     \item \textbf{Dipendenza da threshold manuale}: Il decay lineare del threshold è una scelta euristica che potrebbe non essere ottimale
@@ -117,13 +120,6 @@ Il progetto apre diverse direzioni di ricerca futura:
     \item \textbf{Multi-agent learning}: Condivisione esperienze tra agenti con Helper centralizzato.
 \end{enumerate}
 
-\subsubsection{Analisi Teoriche}
-
-\begin{enumerate}
-    \item \textbf{Convergenza formale}: Dimostrazione matematica e analisi impatto LLM.
-    \item \textbf{Sample efficiency}: Quantificazione riduzione complessità con LLM.
-    \item \textbf{Interpretabilità}: Analisi strategie e visualizzazioni decisioni.
-\end{enumerate}
 
 \subsubsection{Applicazioni Pratiche}
 

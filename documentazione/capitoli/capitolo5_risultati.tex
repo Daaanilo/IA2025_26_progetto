@@ -249,13 +249,14 @@ HeRoN Completo & 8.33 & 2.40 \\
 \end{itemize}
 
 \section{Conclusioni}
-I risultati dimostrano che l'integrazione dell'Helper e del Reviewer porta benefici significativi in termini di efficienza e stabilità. HeRoN si conferma la configurazione migliore per reward medio e consistenza, pur mostrando limiti nella copertura degli achievement più avanzati. Le future ricerche potranno concentrarsi sull'ottimizzazione della pianificazione per obiettivi complessi.
+
+L'integrazione dell'Helper e del Reviewer determina benefici significativi in termini di efficienza e stabilità. La configurazione HeRoN risulta superiore per reward medio e consistenza, pur presentando limiti nella copertura degli achievement più avanzati. Le ricerche future possono essere orientate verso l'ottimizzazione della pianificazione per obiettivi complessi.
 
 % --- DQN+Helper: Dashboard multi-metrica ---
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.9\textwidth]{immagini/plots_dqn_helper/multi_metric_dashboard.png}
-\caption{Dashboard multi-metrica DQN+Helper. Si osserva miglioramento su tutte le metriche rispetto al DQN Baseline: reward più concentrato, coverage degli achievement più ampio, efficienza temporale superiore.}
+\caption{Dashboard multi-metrica DQN+Helper. Il confronto mostra miglioramento su tutte le metriche rispetto al DQN Baseline: reward più concentrato, coverage degli achievement più ampio, efficienza temporale superiore.}
 \label{fig:multi_metric_dashboard_helper}
 \end{figure}
 
@@ -518,26 +519,6 @@ HeRoN Completo & 4.8 & 11 & 72.7\% & 20.4 & 127 \\
 \item \textbf{HeRoN Completo}: Sessione principale con Reviewer, migliori performance complessive
 \end{itemize}
 
-\subsubsection{Utilizzo Risorse Computazionali}
-
-\begin{table}[H]
-\centering
-\begin{tabular}{|l|c|c|c|c|}
-\hline
-\rowcolor{gray!20}
-\textbf{Configurazione} & \textbf{GPU Memory} & \textbf{CPU Usage} & \textbf{Time/Episode} & \textbf{Total Time} \\
-\hline
-DQN Baseline & 2.1 GB & 42\% & 16.2s & 4.2h \\
-\hline
-DQN + Helper & 5.0 GB & 68\% & 26.8s & 2.8h \\
-\hline
-HeRoN Completo & 5.2 GB & 72\% & 28.3s & 7.2h \\
-\hline
-\end{tabular}
-\caption{Utilizzo risorse per configurazione}
-\end{table}
-
-L'overhead LLM (S3 vs S5) è +74.7\% tempo e +147\% memoria, giustificato dal +50\% achievement score.
 
 \subsection{Dimostrazione dell'Abilità del NPC nello Svolgere i Task}
 
@@ -606,7 +587,7 @@ L'analisi del numero di azioni per sequenza mostra che:
 \begin{tabular}{|l|c|c|c|c|}
 \hline
 \rowcolor{gray!20}
-\textbf{Configurazione} & \textbf{Achievement Medio} & \textbf{Coverage} & \textbf{Reward Medio} & \textbf{Tempo Convergenza} \\
+\textbf{Configurazione} & \textbf{Achiev. Medio} & \textbf{Coverage} & \textbf{Reward Medio} & \textbf{Tempo Convergenza} \\
 \hline
 DQN Baseline & 2.74 & 36.4\% & 7.99 & 650 episodi \\
 \hline

@@ -6,59 +6,101 @@ Slide 1 — Titolo
 Note slide 1 (discorso):
 Buongiorno a tutti. Siamo Danilo e Vincenzo e abbiamo partecipato a questo progetto occupandoci principalmente dell'implementazione e dell'integrazione tra agenti RL e modelli linguistici. In una frase: l'obiettivo è sviluppare un NPC adattivo per l'environment Crafter combinando un agente Deep Q con componenti LLM che forniscono suggerimenti e feedback. Oggi seguiremo questo ordine: prima descriveremo il contesto e gli obiettivi, poi l'architettura e le scelte implementative, quindi mostreremo come abbiamo addestrato e valutato il sistema e infine discuteremo risultati e prossimi passi.
 
-Slide 2 — Contesto e motivazione
+Slide 2 — Indice
+- Contesto e motivazione
+- Obiettivi del progetto
+- Ambiente Crafter: Stato, Azioni, Reward
+- Reward Shaping: Native vs Shaped
+- Architettura HeRoN (alto livello)
+- Addestramento Iterativo del NPC
+- Ottimizzazione dell'Helper
+- Ottimizzazione dell'Helper (cont.)
+- Reviewer: dataset, fine-tuning e pipeline PPO
+- Threshold (θ) e regole di re-planning
+- Valutazione e Risultati
+- Challenge Affrontate
+- Conclusioni e Sviluppi Futuri
+- Grazie per l'Attenzione
+- Ottimizzazione delle Prestazioni del NPC
+- Gestione della Sopravvivenza del NPC
+- Limiti e Miglioramenti Osservati
+Note slide 2 (discorso):
+Ecco l'indice della presentazione. Inizieremo con il contesto e la motivazione del progetto, poi passeremo agli obiettivi, all'ambiente di Crafter, al reward shaping, all'architettura HeRoN, all'addestramento del NPC, all'ottimizzazione dell'Helper e del Reviewer, alle regole di threshold e re-planning, alla valutazione, alle challenge affrontate, alle conclusioni e infine ai ringraziamenti. Ci sono anche slide aggiuntive su ottimizzazioni e limiti.
+
+Slide 3 — Contesto e motivazione
 - Crafter: open-world survival game per ricerca RL (simile a Minecraft)
 - Problema: progettare NPC adattivi che prendano decisioni sequenziali efficaci
 - Approccio: integrare RL (DQN) con LLMs (Helper zero-shot + Reviewer fine-tuned)
-Note slide 2 (discorso):
+Note slide 3 (discorso):
 Crafter è un ambiente open‑world di sopravvivenza che offre scenari ricchi e obiettivi sparsi, una combinazione ideale per studiare decision making in condizioni realistiche e difficili per l'apprendimento per rinforzo. Il problema che affrontiamo è far prendere all'NPC decisioni coerenti e sequenziali in presenza di ricompense rare e situazioni di rischio. Per questo abbiamo scelto un approccio ibrido: un DQN per apprendere politiche robuste e LLMs per generare suggerimenti strategici (Helper) e fornire feedback correttivi (Reviewer), creando un ciclo Helper→Reviewer→NPC che unisce pianificazione rapida e apprendimento autonomo.
 
-Slide 3 — Obiettivi del progetto
+Slide 4 — Obiettivi del progetto
 - Fine-tuning del `Reviewer` per i task di Crafter
 - Modifica dell’`Helper` per generare sequenze di azioni (non singole)
 - Implementazione e addestramento dell’`NPC` (DQN)
 - Valutazione delle prestazioni di HeRoN rispetto a baseline
-Note slide 3 (discorso):
+Note slide 4 (discorso):
 Gli obiettivi principali sono quattro. Primo: adattare e fine‑tune il Reviewer perché il linguaggio generale non è sufficiente per valutare azioni specifiche di Crafter; servono esempi e correzioni mirate. Secondo: modificare l'Helper per produrre set di azioni coerenti e sequenziali, non singole mosse, in modo da permettere pianificazioni a breve termine. Terzo: implementare e addestrare l'NPC tramite DQN con reward shaping per accelerare l'apprendimento. Quarto: valutare l'intero sistema confrontandolo con una baseline DQN pura per quantificare il contributo dell'LLM.
 
-Slide 4 — Architettura HeRoN (alto livello)
+Slide 5 — Ambiente Crafter: Stato, Azioni, Reward
+Note slide 5 (discorso):
+Lo stato è un vettore compatto a 43 dimensioni: 16 valori per l'inventario che rappresentano risorse e strumenti, 2 per la posizione normalizzata, 3 per status come salute e giorno/notte, e 22 flag binarie per gli achievements. Questo formato è preferito al raw RGB perché fornisce informazioni semantiche rilevanti e stabilizza l'addestramento. Le azioni disponibili (17) spaziano dal movimento alle azioni contestuali come `do`, `sleep` o crafting (`make_*`). Per la ricompensa distinguiamo il `native_reward`, cioè il +1 per ogni achievement sbloccato, dallo `shaped_reward` che aggiunge bonus per raccolta risorse, gestione della salute, progressione di tier e uso di strumenti: lo shaping accelera l'apprendimento guidando l'agente verso comportamenti utili.
+
+Slide 6 — Reward Shaping: Native vs Shaped
+- `native_reward`: Sparse +1 per achievement sbloccato
+  - Formula: \( r_{\text{native}} = 1 \) (se achievement sbloccato, altrimenti 0)
+- `shaped_reward`: `native_reward` + bonus (risorse +0.1/unità, salute +0.02/stat >5, strumenti +0.3/tool, morte -1.0)
+  - Formula: \( r_{\text{shaped}} = r_{\text{native}} + 0.1 \cdot \sum_{\text{res} \in R} (\text{curr}_{\text{res}} - \text{prev}_{\text{res}}) + 0.02 \cdot I(\text{health} > 5) + 0.02 \cdot I(\text{food} > 5) + 0.02 \cdot I(\text{drink} > 5) + 0.3 \cdot \min\left( \sum_{\text{tool} \in T} I(\text{curr}_{\text{tool}} > \text{prev}_{\text{tool}}), 1 \right) - 1.0 \cdot I(\text{death}) \)
+- Impatto: Convergenza accelerata del 47%, score finale +26%, varianza ridotta
+Note slide 6 (discorso):
+Spieghiamo le ricompense in HeRoN. Il `native_reward` è sparso: solo +1 quando si sblocca un achievement, rendendo difficile l'apprendimento. Per accelerarlo, usiamo `shaped_reward` che aggiunge bonus incrementali: +0.1 per risorse raccolte, +0.05 per miglioramento salute, +0.05 per progressione tier, +0.02 per crafting strumenti. La formula combina tutto, guidando il DQN verso comportamenti utili senza alterare gli obiettivi finali. Questo riduce la varianza e accelera la convergenza del 47%.
+
+Slide 7 — Architettura HeRoN (alto livello)
 - Tre componenti principali:
   - `DQNAgent`: agente RL (Double DQN + Prioritized Replay)
   - `CrafterHelper`: LLM zero-shot che propone sequenze di azioni
   - `InstructorAgent` (Reviewer): T5 fine-tuned che valuta e corregge
 - Decision flow: LLM vs DQN determinato da `threshold` che decade per episodio (configurazione in `training/heron_training.py`)
 - Re-planning triggers: achievement sbloccato, salute critica, depletion risorse — questi eventi riattivano query LLM / re-prompting
-Note slide 4 (discorso):
+Note slide 7 (discorso):
+Presentiamo l'architettura di alto livello di HeRoN, composta da tre componenti principali: il DQNAgent basato su Double DQN con prioritized replay per l'apprendimento robusto, il CrafterHelper che usa un LLM zero-shot per generare sequenze di azioni strategiche, e l'InstructorAgent o Reviewer, un T5 fine-tuned per valutare e correggere i suggerimenti. Il flusso decisionale è regolato da una soglia che decide se usare l'LLM o il DQN, decadendo gradualmente per permettere al DQN di imparare autonomamente. Inoltre, trigger di re-planning come sblocco achievement o situazioni critiche riattivano le query LLM per adattarsi dinamicamente.
 
-Slide 5 — Threshold (\theta) e regole di re-planning
-- \theta: probabilità/soglia che regola l'uso dell'LLM (Helper) rispetto al DQN
-- Decadimento per episodio (esempio lineare): $$\theta_{e+1}=\max(0,\ \theta_e-\delta)$$ (con \delta=1/N per arrivare a 0 in N episodi)
-- Decisione probabilistica: usa LLM se \(u<\theta_e\) con \(u\sim U(0,1)\)
-- Regola di re-planning (booleana):
-- Regola di re-planning (compatta):
-  $$\text{replan} \iff A \vee H \vee \exists r\, R_r$$
-  dove $A:=\text{achievement\_unlocked},\; H:=(\text{health}\le H_{\text{crit}}),\; R_r:=(\text{resource}_r=0).$
-- Nota implementativa: il decadimento va applicato per episodio (non per step); attenzione alla direzione della condizione `random() < theta` vs `random() > theta`.
-Note slide 5 (discorso):
-Spieghiamo in parole semplici cosa è \(\theta\). È una manopola numerica tra 0 e 1 che decide quanto spesso, durante l'allenamento, chiediamo aiuto all'LLM invece di lasciare il controllo al DQN. All'inizio impostiamo \(\theta\) alto (per sfruttare i suggerimenti LLM), e ad ogni episodio lo riduciamo di una quantità \(\delta\) fino a rendere l'LLM sempre meno presente: questo aiuta il DQN a imparare autonomamente. Usiamo una condizione di tipo probabilistico (es. `if random() < theta: use LLM`) e applichiamo il decadimento *per episodio* con la formula indicata. Inoltre definiamo regole di re‑planning: ad esempio, sblocco di un achievement, salute critica o esaurimento di risorse attivano una nuova query LLM o un fallback immediato al DQN.
+Slide 8 — Addestramento Iterativo del NPC
+- Obiettivo: Ottimizzare comportamento agente simulazioni ripetute feedback strategici
+- Addestramento Iterativo:
+  - NPC: centinaia episodi loop, aggiorna parametri episodio
+  - Agente DQN: classes/agent.py, interagisce Crafter classes/crafter_environment.py stati 43 dim
+  - Algoritmi RL: Double DQN PER TD-error, backpropagation perdita Q
+    - Perdita Q: L = E[(Q(s,a) - y)^2], con y = r + gamma * max_a' Q(s',a')
+      - Q(s,a): valore stimato dell'azione a nello stato s
+      - y: target (reward r + sconto gamma × miglior valore futuro)
+      - gamma: fattore di sconto per il futuro (0-1)
+    - Double DQN: y = r + gamma * Q'(s', argmax_a' Q(s',a'))
+      - Q': seconda rete per evitare sovrastima
+      - argmax: azione che massimizza Q
+    - PER priorità: p_i = |delta_i| + epsilon, delta_i = r + gamma * Q(s',a') - Q(s,a)
+      - p_i: priorità dell'esperienza i
+      - delta_i: errore TD (temporal difference)
+      - epsilon: piccolo valore per stabilità
+    - Backpropagation: theta <- theta - alpha * grad_theta L
+      - theta: pesi della rete
+      - alpha: tasso di apprendimento (learning rate)
+      - grad: gradiente per aggiornare i pesi
+  - Reward shaping: training/reward_shaper.py bonus risorse salute crafting
+- Risultato: NPC efficace stabile pianificazione strategie complesse, valutazione evaluation/
+Note slide 8 (discorso):
+L'addestramento dell'NPC avviene in modo iterativo e si basa su questi passaggi:
+1. L'agente NPC utilizza una rete neurale chiamata Double DQN. Questa rete riceve lo stato del gioco (un vettore di 43 numeri che descrive inventario, posizione, salute, ecc.) e calcola quanto è vantaggiosa ogni azione possibile.
+2. Double DQN è composta da due reti: la "policy network" sceglie le azioni, mentre la "target network" serve per calcolare il valore ideale delle azioni. Questo aiuta a evitare errori di stima.
+3. In ogni episodio, l'agente sceglie un'azione, la esegue nel gioco e riceve una ricompensa (reward). Lo stato viene aggiornato e il processo si ripete.
+4. Dopo ogni azione, la rete calcola la funzione di perdita Q: $L = \mathbb{E}[(Q(s,a) - y)^2]$. Qui $Q(s,a)$ è la previsione della rete, mentre $y$ è il valore ideale, calcolato come $y = r + \gamma \max_{a'} Q_{target}(s', a')$ (ricompensa più il valore futuro migliore, scontato da $\gamma$).
+5. La rete aggiorna i suoi "pesi" (parametri) usando la backpropagation: i pesi vengono modificati per ridurre la perdita Q, cioè per migliorare le previsioni.
+6. Viene usato anche il Prioritized Experience Replay (PER): le esperienze dove la rete ha sbagliato di più vengono ripassate più spesso, così l'agente impara meglio dagli errori.
+7. Il reward shaping aggiunge bonus extra per azioni utili come raccogliere risorse, migliorare la salute o costruire strumenti, rendendo l'apprendimento più veloce e stabile.
+Seguendo questi passaggi, l'NPC impara a giocare in modo efficace e a pianificare strategie complesse.
 
-Slide 6 — Stato, Azioni, Reward
-- Stato (43-dim): 16 inventory + 2 posizione + 3 status + 22 achievements
-- Azioni (17): `noop`, `move_*`, `do`, `sleep`, `place_*`, `make_*`
-- Reward: `native_reward` (sparse +1/achievement) + `shaped_reward` (risorse, salute, tier, strumenti)
-Note slide 6 (discorso):
-Lo stato è un vettore compatto a 43 dimensioni: 16 valori per l'inventario che rappresentano risorse e strumenti, 2 per la posizione normalizzata, 3 per status come salute e giorno/notte, e 22 flag binarie per gli achievements. Questo formato è preferito al raw RGB perché fornisce informazioni semantiche rilevanti e stabilizza l'addestramento. Le azioni disponibili (17) spaziano dal movimento alle azioni contestuali come `do`, `sleep` o crafting (`make_*`). Per la ricompensa distinguiamo il `native_reward`, cioè il +1 per ogni achievement sbloccato, dallo `shaped_reward` che aggiunge bonus per raccolta risorse, gestione della salute, progressione di tier e uso di strumenti: lo shaping accelera l'apprendimento guidando l'agente verso comportamenti utili.
 
-Slide 7 — Reward Shaping: Native vs Shaped
-- `native_reward`: Sparse +1 per achievement sbloccato
-  - Formula: \( r_{\text{native}} = 1 \) (se achievement sbloccato, altrimenti 0)
-- `shaped_reward`: `native_reward` + bonus (risorse +0.1/unità, salute +0.02/stat >5, strumenti +0.3/tool, morte -1.0)
-  - Formula: \( r_{\text{shaped}} = r_{\text{native}} + 0.1 \cdot \sum_{\text{res} \in R} (\text{curr}_{\text{res}} - \text{prev}_{\text{res}}) + 0.02 \cdot I(\text{health} > 5) + 0.02 \cdot I(\text{food} > 5) + 0.02 \cdot I(\text{drink} > 5) + 0.3 \cdot \min\left( \sum_{\text{tool} \in T} I(\text{curr}_{\text{tool}} > \text{prev}_{\text{tool}}), 1 \right) - 1.0 \cdot I(\text{death}) \)
-- Impatto: Convergenza accelerata del 47%, score finale +26%, varianza ridotta
-Note slide 7 (discorso - Reward Shaping):
-Spieghiamo le ricompense in HeRoN. Il `native_reward` è sparso: solo +1 quando si sblocca un achievement, rendendo difficile l'apprendimento. Per accelerarlo, usiamo `shaped_reward` che aggiunge bonus incrementali: +0.1 per risorse raccolte, +0.05 per miglioramento salute, +0.05 per progressione tier, +0.02 per crafting strumenti. La formula combina tutto, guidando il DQN verso comportamenti utili senza alterare gli obiettivi finali. Questo riduce la varianza e accelera la convergenza del 47%.
-
-Slide 8 — Ottimizzazione dell'Helper
+Slide 9 — Ottimizzazione dell'Helper
 - Analisi sperimentale per determinare numero ottimale di azioni per sequenza
 - Tabella risultati:
   | Azioni per sequenza | Achievement medi | Chiamate Helper/episodio |
@@ -69,21 +111,21 @@ Slide 8 — Ottimizzazione dell'Helper
   | 7                    | 4.3              | 20-35                    |
   | 10                   | 3.9              | 15-25                    |
 - Valore ottimale: 5 azioni (bilancia pianificazione strategica, flessibilità re-planning, overhead LLM)
-Note slide 8 (discorso - Ottimizzazione Helper):
+Note slide 9 (discorso - Ottimizzazione Helper):
 Attraverso un'analisi sperimentale abbiamo testato diverse lunghezze di sequenza per trovare l'ottimale. La tabella mostra che con 1 azione si ottengono pochi achievement ma molte chiamate LLM, mentre con 5 azioni si massimizza l'efficienza bilanciando pianificazione e adattabilità. Il valore ottimale è risultato essere 5 azioni, che permette una buona pianificazione strategica senza ridurre troppo la flessibilità di re-planning e mantenendo l'overhead computazionale LLM accettabile.
 
-Slide 9 — Ottimizzazione dell'Helper (cont.)
+Slide 10 — Ottimizzazione dell'Helper (cont.)
 - Output atteso: sequenze di 3–5 azioni in formato bracketed (`[move_right], [do], ...`)
 - Prompt engineering per generare action-sets coerenti e ri-prompting con feedback del Reviewer
 - Gestione typo e fuzzy-matching tramite `TYPO_MAP` in `classes/crafter_helper.py`
 - Esempi prompt engineering: Prompt base con lista azioni valide, esempi buoni/cattivi, raffinato con feedback
-Note slide 9 (discorso - Ottimizzazione Helper cont.):
+Note slide 10 (discorso - Ottimizzazione Helper cont.):
   - Prompt base: "Generate EXACTLY ONE sequence of 4 actions... FORMAT: [REAL_ACTION_1], [REAL_ACTION_2], ..."
   - Raffinato con feedback: Integrazione suggerimenti Reviewer per correggere sequenze errate
-Note slide 8 (discorso - Ottimizzazione Helper cont.):
+Note slide 10 (discorso - Ottimizzazione Helper cont.):
 Il prompt engineering è cruciale per ottenere sequenze coerenti dall'LLM. Iniziamo con un prompt base che elenca le 17 azioni valide, richiede il formato bracketed e include esempi buoni (con azioni reali) e cattivi (con placeholder o azioni invalide). Per gestire gli errori, utilizziamo una TYPO_MAP per correggere variazioni comuni come 'place_rock' in 'place_stone'. Quando il Reviewer fornisce feedback, raffiniamo il prompt integrando le correzioni per migliorare le successive generazioni, assicurando che l'Helper produca azioni valide e strategiche.
 
-Slide 10 — Reviewer: dataset, fine-tuning e pipeline PPO
+Slide 11 — Reviewer: dataset, fine-tuning e pipeline PPO
 - Generazione dataset: stati, suggerimenti Helper, outcome, feedback correttivi
 - Step 1 — Fine-tuning Reviewer: eseguire `reviewer_fine_tuning/reviewer_fine_tuning.py` per addestrare il Reviewer; l'output tipico è la cartella `reviewer_retrained/` (modello + tokenizer).
 - Step 2 — (Facoltativo) PPO training: il contenuto di `reviewer_retrained/` può essere usato come input per `reviewer_fine_tuning/ppo_training.py` per ulteriori ottimizzazioni; questo script può produrre `reviewer_retrained_ppo/` come output.
@@ -91,77 +133,48 @@ Slide 10 — Reviewer: dataset, fine-tuning e pipeline PPO
 Note slide 11 (discorso - Reviewer):
 Il Reviewer è ottenuto tramite fine‑tuning su un dataset costruito ad hoc: registriamo stati di gioco, le azioni suggerite dall'Helper, l'esito di quelle azioni e i feedback correttivi generati manualmente o semi‑automaticamente. Il primo passo è il fine‑tuning con `reviewer_fine_tuning/reviewer_fine_tuning.py`, che produce la cartella `reviewer_retrained/` contenente modello e tokenizer. Successivamente possiamo usare quel modello come input per una fase di ottimizzazione tramite PPO (`reviewer_fine_tuning/ppo_training.py`) per adattare policy o metriche interne; tale passaggio può produrre `reviewer_retrained_ppo/`. Controllate le variabili `REVIEWER_MODEL_PATH` negli script di training per assicurarvi che il percorso caricato sia quello desiderato.
 
-Slide 11 — Valutazione e Risultati
+Slide 12 — Threshold (\theta) e regole di re-planning
+- \theta: probabilità/soglia che regola l'uso dell'LLM (Helper) rispetto al DQN
+- Decadimento per episodio (esempio lineare): $$\theta_{e+1}=\max(0,\ \theta_e-\delta)$$ (con \delta=1/N per arrivare a 0 in N episodi)
+- Decisione probabilistica: usa LLM se \(u<\theta_e\) con \(u\sim U(0,1)\)
+- Regola di re-planning (booleana):
+- Regola di re-planning (compatta):
+  $$\text{replan} \iff A \vee H \vee \exists r\, R_r$$
+  dove $A:=\text{achievement\_unlocked},\; H:=(\text{health}\le H_{\text{crit}}),\; R_r:=(\text{resource}_r=0).$
+- Nota implementativa: il decadimento va applicato per episodio (non per step); attenzione alla direzione della condizione `random() < theta` vs `random() > theta`.
+Note slide 12 (discorso):
+Spieghiamo in parole semplici cosa è \(\theta\). È una manopola numerica tra 0 e 1 che decide quanto spesso, durante l'allenamento, chiediamo aiuto all'LLM invece di lasciare il controllo al DQN. All'inizio impostiamo \(\theta\) alto (per sfruttare i suggerimenti LLM), e ad ogni episodio lo riduciamo di una quantità \(\delta\) fino a rendere l'LLM sempre meno presente: questo aiuta il DQN a imparare autonomamente. Usiamo una condizione di tipo probabilistico (es. `if random() < theta: use LLM`) e applichiamo il decadimento *per episodio* con la formula indicata. Inoltre definiamo regole di re‑planning: ad esempio, sblocco di un achievement, salute critica o esaurimento di risorse attivano una nuova query LLM o un fallback immediato al DQN.
+
+Slide 13 — Valutazione e Risultati
 - Metriche principali: achievements per episodio, reward cumulativo (native/shaped), curve di apprendimento
 - Strumenti: `evaluation/evaluation_system.py`, `evaluation/evaluation_plots.py`, `evaluation_report_generator.py`
 - Output: CSV/JSON e plot in `evaluation_plots/*.png`
 - Risultati chiave: HeRoN ottiene 4.8 achievement medi vs 2.74 DQN baseline (+75%), coverage 72.7% vs 36.4%, convergenza 41.5% più veloce
-Note slide 12 (discorso - Valutazione e Risultati):
+Note slide 13 (discorso - Valutazione e Risultati):
 Per valutare il sistema utilizziamo principalmente il numero di achievements medi per episodio, le curve di reward cumulativo e l'andamento delle metriche native vs shaped nel tempo. Gli script in `evaluation/` raccolgono e aggregano questi dati e generano plot comparativi in `evaluation_plots/`. È importante mostrare sia il comportamento grezzo (native_reward) sia lo shaped per capire se i miglioramenti derivano dallo shaping o dall'effettivo progresso di policy; questo permette anche analisi di tipo ablation. I risultati chiave mostrano che HeRoN ottiene 4.8 achievement medi per episodio rispetto ai 2.74 del DQN baseline, con un miglioramento del 75%, una coverage degli achievement del 72.7% contro il 36.4%, e una convergenza accelerata del 41.5%.
 
-Slide 12 — Challenge Affrontate
+Slide 14 — Challenge Affrontate
 - Sparsità del reward: risolto con reward shaping multi-componente (+375% achievement nei primi 100 ep)
 - Gestione situazioni critiche: sistema di re-planning multi-livello (death rate ridotto da 38% a 7%)
+- Morte precoce dell'agente: strategie di sopravvivenza e incentivi salute (death rate ridotto da 38% a 7%)
 - LLM hallucinations e typos: correzione automatica e validazione (valid actions aumentate da 87% a 98%)
+- Limite di token LLM: sequenze limitate a 3-5 azioni per evitare truncation e mantenere coerenza
 - Pianificazione a breve termine: sequenze 3-5 azioni bilanciano pianificazione e flessibilità
-Note slide 13 (discorso - Challenge Affrontate):
-Durante l'implementazione abbiamo affrontato diverse challenge critiche. La sparsità del reward è stata risolta con un sistema di shaping multi-componente che aggiunge bonus per raccolta risorse, salute e crafting, migliorando gli achievement del 375% nei primi 100 episodi. Per le situazioni critiche abbiamo implementato re-planning basato su trigger come salute bassa o depletion risorse, riducendo il death rate da 38% a 7%. Le hallucinations e typos dell'LLM sono state gestite con una TYPO_MAP e validazione, aumentando le azioni valide da 87% a 98%. Infine, abbiamo ottimizzato la lunghezza delle sequenze a 3-5 azioni per bilanciare pianificazione strategica e capacità di adattamento.
+- Overhead computazionale: ottimizzato con threshold decay e caching risposte LLM
+- Gestione del contesto LLM: ottimizzazione input per evitare saturazione del context window e crash
+Note slide 14 (discorso - Challenge Affrontate):
+Durante l'implementazione abbiamo affrontato diverse challenge critiche. La sparsità del reward è stata risolta con un sistema di shaping multi-componente che aggiunge bonus per raccolta risorse, salute e crafting, migliorando gli achievement del 375% nei primi 100 episodi. Per le situazioni critiche abbiamo implementato re-planning basato su trigger come salute bassa o depletion risorse, riducendo il death rate da 38% a 7%. La morte precoce dell'agente è stata affrontata con strategie di sopravvivenza e incentivi per la gestione della salute, abbassando ulteriormente il death rate. Le hallucinations e typos dell'LLM sono state gestite con una TYPO_MAP e validazione, aumentando le azioni valide da 87% a 98%. Il limite di token dell'LLM è stato gestito limitando le sequenze a 3-5 azioni per evitare truncation e mantenere risposte coerenti. Infine, abbiamo ottimizzato la lunghezza delle sequenze a 3-5 azioni per bilanciare pianificazione strategica e capacità di adattamento, e ridotto l'overhead computazionale con threshold decay e caching delle risposte LLM. Inoltre, abbiamo gestito il contesto LLM ottimizzando gli input per evitare saturazione del context window, prevenendo crash del modello e garantendo stabilità operativa.
 
-Slide 13 — Conclusioni e Sviluppi Futuri
+Slide 15 — Conclusioni e Sviluppi Futuri
 - Sintesi: HeRoN combina DQN, Helper LLM e Reviewer T5 per NPC adattivi in Crafter
 - Risultati: +75% achievement vs baseline, convergenza 41.5% più veloce, coverage 72.7%
 - Impatto: Integrazione RL-LLM efficace per decision making sequenziale in ambienti complessi
 - Sviluppi futuri: Pianificazione gerarchica, threshold adattivo, memoria episodica, multi-agent learning, estensioni a scenari multiagenti, multi modale llm, algoritmi ibridi
-Note slide 14 (discorso - Conclusioni e Sviluppi Futuri):
+Note slide 15 (discorso - Conclusioni e Sviluppi Futuri):
 In conclusione, HeRoN rappresenta un'architettura innovativa che integra Reinforcement Learning con Large Language Models per creare NPC adattivi in ambienti complessi come Crafter. I risultati dimostrano miglioramenti significativi rispetto alla baseline DQN, con un aumento del 75% negli achievement medi e una convergenza accelerata. L'impatto principale è nella capacità di combinare apprendimento autonomo con ragionamento strategico guidato dall'LLM. Per gli sviluppi futuri, proponiamo pianificazione gerarchica per obiettivi distanti, threshold adattivi basati su performance, memoria episodica per strategie riuscite, estensioni a scenari multi-agent, multi modale llm, algoritmi ibridi. Questo lavoro apre la strada a agenti intelligenti più flessibili e capaci in giochi e applicazioni reali.
 
-Slide 14 — Grazie per l'Attenzione
+Slide 16 — Grazie per l'Attenzione
 - Domande?
 - Disponibili per demo o approfondimenti
-Note slide 15 (discorso - Ringraziamenti):
+Note slide 16 (discorso - Ringraziamenti):
 Grazie per l'attenzione. Siamo Danilo e Vincenzo, e siamo felici di rispondere a qualsiasi domanda sui dettagli implementativi, risultati o sviluppi futuri. Se interessati, possiamo mostrare demo delle run, fornire codice aggiuntivo o discutere estensioni del lavoro. Grazie ancora!
-
-Slide 15 — Addestramento Iterativo e Fine-Tuning del NPC
-- Obiettivo: Ottimizzare il comportamento dell’agente tramite simulazioni ripetute e feedback strategici.
-- Addestramento Iterativo:
-  - Il NPC gioca centinaia di episodi, aggiornando i parametri dopo ogni sessione.
-  - Utilizzo di algoritmi RL (DQN, PPO) per massimizzare il reward.
-  - Esperienza replay e priorizzazione delle transizioni per apprendimento efficiente.
-- Fine-Tuning:
-  - Perfezionamento del modello con dati aggiuntivi e feedback del Reviewer.
-  - Adattamento a compiti specifici e correzione di errori ricorrenti.
-  - Ottimizzazione della collaborazione tra Helper e Reviewer.
-- Risultato: NPC più efficace, stabile e capace di pianificare strategie complesse.
-
-Slide 16 — Ottimizzazione delle Prestazioni del NPC
-- L’addestramento iterativo consente al NPC di migliorare progressivamente le proprie strategie di gioco.
-- Analisi delle performance su diversi scenari:
-  - Maggiore efficienza nel raggiungimento degli achievement.
-  - Migliore gestione delle risorse e della sopravvivenza.
-  - Pianificazione più efficace grazie al feedback continuo.
-- Limiti osservati:
-  - Difficoltà nel consolidare achievement avanzati.
-  - Overhead computazionale nelle configurazioni con LLM e Reviewer.
-  - Necessità di ulteriori ottimizzazioni per obiettivi complessi.
-- Conclusione: L’addestramento iterativo porta a un NPC più robusto, ma restano sfide aperte per la copertura completa degli achievement e la riduzione dei costi computazionali.
-
-Slide: Gestione della Sopravvivenza del NPC
-
-● Durante le prime sessioni di addestramento, il NPC tendeva a morire prematuramente, spesso senza completare tutti gli step dell’episodio.
-● Analisi dei log di gioco ha evidenziato criticità nella gestione della salute e delle risorse vitali.
-● Ottimizzazione:
-  - Introduzione di strategie di sopravvivenza (uso intelligente di [sleep], raccolta risorse vitali).
-  - Modifica delle ricompense e delle priorità per incentivare la gestione della salute.
-  - Miglioramento della pianificazione per evitare situazioni di morte precoce.
-● Risultato: Il NPC ora completa più episodi senza morire, mostrando una maggiore robustezza e capacità di adattamento.
-
-Slide: Limiti e Miglioramenti Osservati
-
-● Oltre ai miglioramenti già menzionati, sono stati riscontrati ulteriori limiti e aree di miglioramento:
-  - Difficoltà nel crafting avanzato: il NPC faticava a completare sequenze lunghe per obiettivi complessi (es. creazione di strumenti avanzati).
-  - Gestione sub-ottimale delle risorse rare: talvolta il NPC sprecava risorse come ferro o diamante senza pianificazione strategica.
-  - Esplorazione non sempre efficiente: in alcuni scenari il NPC tendeva a ripetere azioni simili, limitando la scoperta di nuove aree.
-● Miglioramenti apportati:
-  - Prompt engineering e feedback Reviewer per correggere sequenze di azioni non valide o sub-ottimali.
-  - Ottimizzazione delle strategie di raccolta e utilizzo risorse, con priorità dinamiche in base allo stato di gioco.
-  - Implementazione di trigger di re-planning per gestire meglio situazioni critiche e adattarsi ai cambiamenti dell’ambiente.

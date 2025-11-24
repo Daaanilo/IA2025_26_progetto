@@ -1,14 +1,10 @@
-La formula utilizzata per il calcolo della percentuale di azioni valide è la seguente:
-dove $N_{valid}$ è il numero di azioni conformi al set ufficiale e al formato richiesto, mentre $N_{total}$ è il numero totale di azioni generate dal modello per il campione analizzato.
-\begin{equation}
-\text{Valid Actions \%} = \frac{N_{valid}}{N_{total}} \times 100
-\end{equation}
-dove $N_{valid}$ è il numero di azioni conformi al set ufficiale e al formato richiesto, mentre $N_{total}$ è il numero totale di azioni generate dal modello per il campione analizzato.
 \chapter{Metodologia di Implementazione}
 
 \section{Introduzione}
 
 Questo capitolo descrive la metodologia utilizzata per sviluppare e valutare l'architettura HeRoN nel dominio Crafter. Viene fornita una panoramica delle fasi principali (implementazione dell'NPC, integrazione LLM, generazione del dataset per il Reviewer, fine-tuning e training integrato), seguita da dettagli tecnici e protocolli sperimentali.
+
+Le sezioni sono organizzate per guidare il lettore dalla teoria all'implementazione pratica, passando per la progettazione dei moduli, la raccolta dati e la valutazione sperimentale. Ogni tabella e algoritmo è presentato subito dopo la relativa spiegazione, per garantire coerenza e leggibilità.
 
 \section{Panoramica del Processo}
 
@@ -24,54 +20,100 @@ Di seguito vengono sintetizzate le fasi principali del flusso di lavoro. Le sezi
 
 \section{NPC (DQN Agent)}
 
+
 \subsection{Architettura della Rete Neurale}
-
-L'agente DQN è stato implementato con una rete neurale feedforward:
-
-\begin{verbatim}
-Input Layer: 43 neuroni (dimensione stato)
-    ↓
-Hidden Layer 1: 256 neuroni + ReLU + Dropout(0.1)
-    ↓
-Hidden Layer 2: 256 neuroni + ReLU + Dropout(0.1)
-    ↓
-Hidden Layer 3: 128 neuroni + ReLU
-    ↓
-Output Layer: 17 neuroni (Q-values per azioni)
-\end{verbatim}
+L'agente DQN è stato progettato con una rete neurale feedforward composta da:
+\begin{itemize}
+    \item \textbf{Input Layer}: 43 neuroni (corrispondenti alla dimensione dello stato)
+    \item \textbf{Hidden Layer 1}: 256 neuroni, attivazione ReLU, Dropout(0.1)
+    \item \textbf{Hidden Layer 2}: 256 neuroni, attivazione ReLU, Dropout(0.1)
+    \item \textbf{Hidden Layer 3}: 128 neuroni, attivazione ReLU
+    \item \textbf{Output Layer}: 17 neuroni (Q-values, uno per ciascuna azione)
+\end{itemize}
 
 \subsubsection{Implementazione Double DQN}
-
-Sono state implementate due reti neurali:
+Per evitare la sovrastima dei Q-values, sono state implementate due reti distinte:
 \begin{itemize}
-    \item \textbf{Policy Network}: Usata per selezionare azioni e aggiornata ad ogni step
-    \item \textbf{Target Network}: Usata per calcolare i target Q-values, aggiornata periodicamente
+    \item \textbf{Policy Network}: aggiornata ad ogni step, utilizzata per selezionare le azioni
+    \item \textbf{Target Network}: aggiornata periodicamente, utilizzata per calcolare i target Q-values
 \end{itemize}
+Questa distinzione è essenziale per la stabilità dell'apprendimento, come approfondito nella sezione algoritmi RL.
+
+\subsubsection{Algoritmi RL: Double DQN, PER, TD-error, Backpropagation}
+
+L'addestramento dell'agente DQN si basa su alcuni concetti fondamentali dell'apprendimento automatico, che spieghiamo qui in modo semplice:
+
+\begin{itemize}
+    \item \textbf{Funzione di perdita Q (Errore di previsione)}:
+    
+    La funzione di perdita misura la differenza tra la previsione del valore di un'azione in uno stato e il valore ideale atteso. La formula è:
+    $$L = \mathbb{E}[(Q(s,a) - y)^2]$$
+    Dove:
+    \begin{itemize}
+        \item $Q(s,a)$ rappresenta la stima del valore dell'azione $a$ nello stato $s$.
+        \item $y$ è il valore ideale, calcolato come:
+        $$y = r + \gamma \max_{a'} Q(s',a')$$
+        \item $r$ è il premio (reward) ottenuto dopo l'esecuzione dell'azione.
+        \item $\gamma$ è un numero tra 0 e 1 che indica il peso attribuito ai premi futuri (più è vicino a 1, maggiore è l'importanza del lungo termine).
+        \item $s'$ è lo stato successivo dopo l'azione.
+        \item $\max_{a'} Q(s',a')$ indica la migliore stima tra tutte le azioni possibili nel nuovo stato.
+    \end{itemize}
+
+    \item \textbf{Double DQN}:
+    
+    Per evitare che l'agente sia troppo ottimista nelle sue previsioni, si usano due reti neurali diverse:
+    \begin{itemize}
+        \item La "policy network" sceglie le azioni.
+        \item La "target network" serve solo per calcolare il valore ideale $y$.
+    \end{itemize}
+    La formula diventa:
+    $$y = r + \gamma Q'(s', \arg\max_{a'} Q(s',a'))$$
+    Dove $Q'$ è la rete target e $\arg\max$ indica l'azione migliore secondo la policy network.
+
+    \item \textbf{Prioritized Experience Replay (PER)}:
+    
+    L'agente impara rivedendo le sue esperienze passate. Non tutte le esperienze sono uguali: quelle dove ha sbagliato di più sono più utili per imparare. Si assegna una "priorità" a ogni esperienza usando questa formula:
+    $$p_i = |\delta_i| + \epsilon$$
+    Dove:
+    \begin{itemize}
+        \item $\delta_i$ è l'errore di previsione (TD-error):
+        $$\delta_i = r + \gamma \max_{a'} Q_{target}(s', a') - Q(s, a)$$
+        Più è grande, più l'agente ha sbagliato e più deve imparare da quell'esperienza.
+        \item $\epsilon$ è un piccolo numero che serve solo a evitare problemi matematici.
+    \end{itemize}
+
+    \item \textbf{Backpropagation (Aggiornamento dei pesi)}:
+    
+    L'agente aggiorna i "pesi" della rete neurale (cioè i suoi parametri interni) per ridurre l'errore. La regola di aggiornamento è:
+    $$\theta \leftarrow \theta - \alpha \nabla_{\theta} L$$
+    Dove:
+    \begin{itemize}
+        \item $\theta$ sono i pesi della rete.
+        \item $\alpha$ è la velocità di apprendimento (learning rate).
+        \item $\nabla_{\theta} L$ è il gradiente, cioè la direzione in cui bisogna cambiare i pesi per ridurre l'errore.
+    \end{itemize}
+\end{itemize}
+
+In sintesi: l'agente prova azioni, riceve premi, aggiorna le sue previsioni e impara soprattutto dagli errori più grandi, migliorando così la sua capacità di prendere decisioni nel tempo.
 
 L'aggiornamento della target network avviene ogni $C = 1000$ step tramite soft update:
 $$\theta_{target} \leftarrow \tau \theta_{policy} + (1-\tau) \theta_{target}$$
 con $\tau = 0.001$.
 
 \subsubsection{Prioritized Experience Replay}
-
-Il replay buffer implementa prioritized sampling:
-
+Il replay buffer utilizza un campionamento prioritario per migliorare l'efficienza dell'apprendimento:
 \begin{enumerate}
-    \item \textbf{Calcolo priorità}: Per ogni transizione, la priorità è basata sul TD-error:
+    \item \textbf{Calcolo priorità}: Per ogni transizione, la priorità si basa sul TD-error:
     $$p_i = |\delta_i|^\alpha + \epsilon$$
     dove $\delta_i = r + \gamma \max_{a'} Q_{target}(s', a') - Q(s, a)$
-    
-    \item \textbf{Sampling}: La probabilità di campionare la transizione $i$ è:
+    \item \textbf{Sampling}: La probabilità di selezionare la transizione $i$ è:
     $$P(i) = \frac{p_i^\alpha}{\sum_k p_k^\alpha}$$
-    
-    \item \textbf{Importance Sampling}: Per correggere il bias, i pesi sono:
+    \item \textbf{Importance Sampling}: Per correggere il bias introdotto dal campionamento, i pesi sono:
     $$w_i = \left(\frac{1}{N \cdot P(i)}\right)^\beta$$
 \end{enumerate}
 
 \subsubsection{Training Baseline DQN}
-
-Prima di integrare i componenti LLM, abbiamo addestrato un agente DQN baseline:
-
+Prima dell'integrazione dei moduli LLM, è stato addestrato un agente DQN baseline con i seguenti parametri:
 \begin{itemize}
     \item \textbf{Episodi}: 1000
     \item \textbf{Max steps per episodio}: 1000
@@ -79,10 +121,11 @@ Prima di integrare i componenti LLM, abbiamo addestrato un agente DQN baseline:
     \item \textbf{Learning rate}: $\alpha = 0.0001$
     \item \textbf{Batch size}: 64
 \end{itemize}
-
-Il baseline ci serve come riferimento per valutare quanto funziona l'integrazione con gli LLM.
+Questo baseline costituisce il riferimento per valutare l'efficacia dell'integrazione con i moduli LLM.
 
 \section{Helper (LLM) e Prompt Design}
+
+La progettazione del modulo Helper e dei prompt è stata fondamentale per ottenere sequenze di azioni coerenti e strategiche. Le tabelle seguenti mostrano la selezione dei modelli e l'evoluzione dei prompt.
 
 
 \subsubsection{Setup LM Studio}
@@ -97,7 +140,17 @@ LM Studio è stato configurato per servire il modello Qwen3-4B-2507:
 \end{itemize}
 
 \textbf{Selezione del Modello}:
+
 Sono stati testati diversi modelli, ma nella tabella sono riportati solo quelli rilevanti per la selezione finale. Qwen3-4B-2507 è stato scelto per la sua elevata conformità al formato richiesto e coerenza strategica.
+
+\medskip
+	\textbf{Calcolo della percentuale di azioni valide}
+
+Per valutare la conformità delle azioni generate dai modelli LLM rispetto al set ufficiale e al formato richiesto, è stata utilizzata la seguente formula:
+\begin{equation}
+	\text{Valid Actions \%} = \frac{N_{valid}}{N_{total}} \times 100
+\end{equation}
+dove $N_{valid}$ è il numero di azioni conformi e $N_{total}$ il numero totale di azioni generate per il campione analizzato.
 
 % --- TABELLA CONFRONTO MODELLI LLM ---
 \begin{table}[H]
@@ -126,30 +179,21 @@ Il prompt per l'Helper è stato progettato iterativamente attraverso esperimenti
 % --- TABELLA 4.1 CON VERSIONI ESPLICITE ---
 \begin{table}[H]
 \centering
-\resizebox{\textwidth}{!}{%
 \begin{tabular}{|p{0.22\textwidth}|p{0.22\textwidth}|p{0.22\textwidth}|p{0.22\textwidth}|}
 \hline
 \rowcolor{gray!20}
-\textbf{Versione Prompt} & \textbf{Descrizione} & \textbf{Obiettivo} & \textbf{\% valid actions} \\
+\textbf{Versione Prompt} & \textbf{Descrizione} & \textbf{Obiettivo} \\
 \hline
-v1 (Base) & Azioni semplici, nessun contesto & Sequenza generica & 87\% \\
+v1 (Base) & Azioni semplici, nessun contesto & Sequenza generica \\
 \hline
-v2 (Intermedio) & Lista azioni valide, goal survival & Sequenza contestualizzata & 94\% \\
+v2 (Intermedio) & Lista azioni valide, goal survival & Sequenza contestualizzata \\
 \hline
-v3 (Rifinito) & Goal multipli, errori da evitare, stato attuale & Sequenza ottimizzata & 98\% \\
+v3 (Rifinito) & Goal multipli, errori da evitare, stato attuale & Sequenza ottimizzata \\
 \hline
-\end{tabular}%
-}
-\caption{Versioni dei prompt Helper LLM e percentuale di azioni valide generate}
+\end{tabular}
+\caption{Versioni dei prompt Helper LLM}
 \end{table}
 
-\textbf{Nota metodologica sulle percentuali di azioni valide:} 
-
-Le percentuali di valid actions riportate in tabella sono state calcolate eseguendo ciascuna versione del prompt su un campione di 100 sequenze generate dall'Helper LLM. 
-
-Ogni sequenza è stata analizzata automaticamente tramite uno script Python che verifica la conformità delle azioni al set ufficiale di azioni ammesse (17 azioni Crafter). Sono considerate valide solo le azioni che rispettano il formato bracketed e corrispondono esattamente alle azioni implementate nell'ambiente. 
-
-Gli errori di formato, azioni non riconosciute o placeholder (es. [action1]) sono stati conteggiati come non validi. Il valore percentuale rappresenta la proporzione di azioni corrette sul totale delle azioni generate per ciascun prompt.
 
 % --- NUOVA TABELLA: ESEMPI DI PROMPT ---
 \begin{table}[H]
@@ -196,6 +240,8 @@ YOUR TURN: [final instructions] \\
 \subsubsection{Meccanismi di Re-planning}
 
 Sono state implementate logiche per interrompere e ri-pianificare:
+
+L'algoritmo seguente descrive il processo di re-planning durante l'esecuzione, garantendo che l'agente possa adattarsi dinamicamente a cambiamenti critici nello stato.
 
 \begin{algorithm}
 \caption{Re-planning durante esecuzione}
@@ -282,11 +328,13 @@ Metriche monitorate durante il training:
     \item BLEU score (similarità con feedback attesi)
 \end{itemize}
 
-\subsection{Fase 6: Training Integrato HeRoN}
+\section{Training Integrato HeRoN}
 
 \subsubsection{Protocollo di Training}
 
 Il training completo dell'architettura HeRoN segue questo protocollo:
+
+L'algoritmo seguente mostra il ciclo di training integrato, con la gestione del threshold e la selezione tra LLM e DQN.
 
 \begin{algorithm}
 \caption{Training Loop HeRoN}
@@ -333,7 +381,7 @@ Il training completo dell'architettura HeRoN segue questo protocollo:
 
 È stata condotta un'analisi sperimentale per determinare il numero ottimale di azioni per sequenza:
 
-\begin{table}[h]
+\begin{table}[H]
 \centering
 \begin{tabular}{|c|c|c|}
 \hline
@@ -361,7 +409,7 @@ Il valore ottimale è risultato essere 5 azioni, che bilancia:
     \item Overhead computazionale LLM
 \end{itemize}
 
-\subsection{Fase 7: Valutazione delle Prestazioni}
+\section{Valutazione delle Prestazioni}
 
 \subsubsection{Metriche di Valutazione}
 
@@ -404,6 +452,7 @@ Per garantire validità statistica:
 \subsection{Tuning degli Iperparametri}
 
 Grid search limitata su:
+% La 'grid search limitata' consiste nel testare sistematicamente solo un sottoinsieme selezionato di combinazioni di iperparametri, invece di esplorare tutte le possibili opzioni. Questo approccio permette di individuare rapidamente i valori più promettenti, riducendo il tempo e le risorse computazionali necessarie rispetto a una grid search completa.
 \begin{itemize}
     \item Learning rate DQN: [1e-4, 5e-4, 1e-3]
     \item Threshold decay rate: [0.005, 0.01, 0.02]
@@ -457,7 +506,7 @@ Helper calls per episodio & ogni 5 step \\
 
 Queste configurazioni sono state selezionate tramite test iterativi e grid search limitata, con l'obiettivo di massimizzare la qualità delle correzioni generate dal Reviewer e la generalizzazione sulle strategie di gioco. Il dataset è stato generato simulando tra 50 e 100 episodi, con chiamate al modulo Helper ogni 5 step, per ottenere una varietà di situazioni e feedback strategici.
 
-\subsection{Fine-Tuning del Reviewer tramite Reinforcement Learning}
+\section{Estensione: Fine-tuning del Reviewer tramite RL}
 
 Il fine-tuning avanzato del modulo Reviewer è stato realizzato tramite Reinforcement Learning (PPO), seguendo un workflow strutturato:
 
