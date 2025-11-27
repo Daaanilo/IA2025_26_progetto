@@ -94,11 +94,11 @@
 %% ABSTRACT
 %% ----------------------------------------------------------------------------
 \begin{abstract}
-Il progetto HeRoN propone un'architettura innovativa a tre agenti che combina apprendimento per rinforzo e ragionamento basato su Large Language Models (LLM) per controllare in modo intelligente agenti nel gioco Crafter. 
+Questo lavoro presenta l'adattamento e la validazione dell'architettura HeRoN (Helper-Reviewer-NPC) all'environment Crafter, un survival game open-world che rappresenta un benchmark significativo per il Reinforcement Learning. L'architettura integra tre componenti principali: un agente Deep Q-Network (DQN) con Double DQN e Prioritized Experience Replay, un Helper basato su Large Language Model (Qwen3-4B-2507) che genera sequenze strategiche di 3-5 azioni, e un Reviewer fine-tuned (FLAN-T5-base) che fornisce feedback correttivi per migliorare i suggerimenti dell'Helper.
 
-La pipeline unisce tre componenti chiave: un DQNAgent basato su Double DQN con replay prioritario per il controllo basato su valore, un Helper che genera sequenze d'azione tramite LLM per la pianificazione a breve termine, e un Reviewer che dà feedback critico e revisioni alle proposte del Helper.
+L'implementazione affronta sfide tecniche complesse: la sparsità del reward nativo di Crafter viene mitigata attraverso un sistema di reward shaping multi-componente; la gestione delle situazioni critiche è garantita da meccanismi di re-planning che interrompono le sequenze pre-pianificate in caso di emergenza; le allucinazioni dell'LLM sono corrette mediante un sistema di validazione e fuzzy matching che porta la percentuale di azioni valide dal 87\% al 98\%.
 
-Lo studio copre l'estrazione dello stato attraverso un vettore a 43 dimensioni, la mappatura delle 17 azioni discrete del dominio Crafter, l'implementazione di strategie di checkpointing avanzate e la valutazione comparativa contro baseline DQN tradizionali. 
+Lo spazio di stati è rappresentato da un vettore a 43 dimensioni comprendente inventario (16 item), posizione, statistiche vitali e achievement sbloccati (22 obiettivi). Il training integrato utilizza un meccanismo di threshold decay che riduce progressivamente l'intervento LLM da 100\% a 0\% nei primi 100 episodi, permettendo all'agente DQN di acquisire gradualmente autonomia.
 
 I risultati sperimentali includono metriche di apprendimento dettagliate, analisi approfondite delle policy miste RL+LLM e strumenti avanzati per la visualizzazione e la valutazione degli apprendimenti conseguiti dall'architettura proposta.
 
