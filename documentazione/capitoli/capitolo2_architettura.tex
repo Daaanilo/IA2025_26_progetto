@@ -120,7 +120,6 @@ Il componente Reviewer è un LLM fine-tuned (basato su T5) che valuta i suggerim
 \begin{enumerate}
     \item Raccolta di stati dell'environment durante sessioni di gioco
     \item Generazione di suggerimenti dall'Helper per ciascuno stato
-    \item Annotazione manuale o semi-automatica di feedback correttivi
     \item Fine-tuning del modello T5 su coppie (suggerimento, feedback)
 \end{enumerate}
 
@@ -156,11 +155,11 @@ La cronologia consente al LLM di mantenere coerenza logica tra azioni successive
 L'Helper implementa un sistema di gestione intelligente del contesto per prevenire l'overflow della finestra di contesto del modello LLM (Qwen3-4B-2507 ha 8192 token di limite):
 
 \begin{enumerate}
-    \item \textbf{Monitoraggio token}: Il Helper conta il numero di token nella cronologia usando il tokenizer Qwen2.5 (compatibile con Qwen3)
+    \item \textbf{Monitoraggio token}: L'Helper conta il numero di token nella cronologia usando il tokenizer Qwen2.5 (compatibile con Qwen3)
     
     \item \textbf{Soglia di sicurezza}: Quando il contesto raggiunge 6500 token (80\% del limite), viene attivato un reset intelligente per evitare crash e risposte vuote
     
-    \item \textbf{Reset con riassunto episodio}: Invece di scartare tutto il contesto, il Helper genera un \textbf{riassunto condensato} che include:
+    \item \textbf{Reset con riassunto episodio}: Invece di scartare tutto il contesto, l'Helper genera un \textbf{riassunto condensato} che include:
     \begin{itemize}
         \item Numero di step eseguiti nell'episodio
         \item Reward totale accumulato
@@ -181,22 +180,22 @@ L'Helper implementa un sistema di gestione intelligente del contesto per preveni
 
 \subsection{Meccanismi di Re-planning e Aggiornamento Contesto}
 
-Durante l'esecuzione di una sequenza di azioni, il Helper monitora determinati eventi per aggiornare intelligentemente il contesto:
+Durante l'esecuzione di una sequenza di azioni, l'Helper monitora determinati eventi per aggiornare intelligentemente il contesto:
 
 \textbf{Trigger di Re-query (Interruzione Sequenza)}:
 \begin{itemize}
-    \item \textbf{Achievement sbloccato}: Quando il giocatore sblocca un nuovo achievement, il Helper riceve una nuova query con il contesto aggiornato che include il nuovo achievement nel set di quelli sbloccati
+    \item \textbf{Achievement sbloccato}: Quando il giocatore sblocca un nuovo achievement, l'Helper riceve una nuova query con il contesto aggiornato che include il nuovo achievement nel set di quelli sbloccati
     
-    \item \textbf{Salute critica} ($health \leq 5$): Se la salute scende sotto soglia critica, la sequenza viene interrotta e il Helper viene re-interrogato per suggerire azioni di emergenza (mangiare, bere, dormire)
+    \item \textbf{Salute critica} ($health \leq 5$): Se la salute scende sotto soglia critica, la sequenza viene interrotta e l'Helper viene re-interrogato per suggerire azioni di emergenza (mangiare, bere, dormire)
     
-    \item \textbf{Salute bassa} ($health < 30\%$): Se la salute è bassa ma non critica, il Helper viene ri-consultato per bilanciare l'esplorazione con la gestione della sopravvivenza
+    \item \textbf{Salute bassa} ($health < 30\%$): Se la salute è bassa ma non critica, l'Helper viene ri-consultato per bilanciare l'esplorazione con la gestione della sopravvivenza
     
     \item \textbf{Risorsa completamente consumata}: Se una risorsa chiave (legno, pietra, carbone) raggiunge 0, viene attivata una nuova query per raccoglierla prioritariamente
 \end{itemize}
 
 \textbf{Aggiornamento dello Stato Episodio}:
 
-Ad ogni passo, il Helper aggiorna il suo tracciamento interno:
+Ad ogni passo, l'Helper aggiorna il suo tracciamento interno:
 \begin{verbatim}
 helper.update_episode_progress(
     achievements=nuovi_achievement_sbloccati,
@@ -210,7 +209,7 @@ Questi dati vengono usati durante il reset del contesto per generare il riassunt
 
 \subsection{Reset Episodio e Pulizia Contesto}
 
-All'inizio di ogni nuovo episodio, il Helper esegue una pulizia completa:
+All'inizio di ogni nuovo episodio, l'Helper esegue una pulizia completa:
 \begin{itemize}
     \item Cancellazione della cronologia messaggi (\texttt{message\_history = []})
     \item Reset del tracciamento achievement episodio
@@ -218,7 +217,7 @@ All'inizio di ogni nuovo episodio, il Helper esegue una pulizia completa:
     \item Pulizia della cronologia delle sequenze (usata per rilevare loop)
 \end{itemize}
 
-Questo previene l'accumulo di contesto da episodi precedenti e garantisce che il LLM inizi ogni episodio con uno stato cognitivo "fresco".
+Questo previene l'accumulo di contesto da episodi precedenti.
 
 \textbf{Esempio di reset a episodio 5}:
 \begin{verbatim}

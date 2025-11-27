@@ -395,7 +395,7 @@ place\_table & 0.7 & 2.0 & 1.7 \\
 wake\_up & 68.0 & 80.0 & 85.4 \\
 \hline
 \end{tabular}
-\caption{Success rate per tutti gli achievement (DQN: 300 episodi, DQN+Helper: 300 episodi, HeRoN: 301 episodi)}
+\caption{Success rate per tutti gli achievement (DQN: 300 episodi, DQN+Helper: 300 episodi, HeRoN: 300 episodi)}
 \end{table}
 
 \textbf{Conclusioni}: HeRoN si conferma superiore su tutti i fronti: efficienza, stabilità, copertura e pianificazione strategica. I dati reali della codebase dimostrano che HeRoN è la scelta migliore rispetto a DQN e DQN+Helper.
@@ -439,13 +439,6 @@ Le curve di apprendimento mostrano il numero medio di achievement su finestre di
 \label{fig:learning_curve_baseline}
 \end{figure}
 
-\textbf{Osservazioni}:
-\begin{itemize}
-\item \textbf{Episodi 0-100}: HeRoN mostra apprendimento più rapido grazie ai suggerimenti LLM
-\item \textbf{Episodi 100-400}: Crescita continua, convergenza del DQN con supporto LLM
-\item \textbf{Episodi 400-600}: Plateau, il threshold LLM è vicino allo zero
-\item \textbf{Episodi 600-1000}: Solo DQN, stabilizzazione delle performance
-\end{itemize}
 
 \subsubsection{Velocità di Convergenza}
 Episodio in cui ciascuna configurazione raggiunge l'80\% del suo score massimo:
