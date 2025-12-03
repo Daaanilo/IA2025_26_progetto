@@ -37,13 +37,13 @@ Nel corso dell'implementazione sono state riscontrate diverse sfide, superate me
 
 \textbf{Soluzione}: Implementazione di reward shaping multi-componente con bonus incrementali per:
 \begin{itemize}
-    \item Raccolta risorse (+0.1 per resource)
-    \item Miglioramento salute (+0.05 per eating/drinking/sleeping)
-    \item Progressione tecnologica (+0.05 per advancement)
-    \item Crafting strumenti (+0.02 per tool creation)
+    \item Raccolta risorse (+0.1 per risorsa)
+    \item Gestione salute (+0.02 se health, food o drink $>$ 5)
+    \item Crafting strumenti (+0.3 per tool creato)
+    \item Penalty morte (-1.0)
 \end{itemize}
 
-\textbf{Risultato}: Convergenza accelerata del 47\% mantenendo gli ottimi della policy. Achievement score migliorato da 0.4 (sparse) a 1.9 (shaped) nei primi 100 episodi (+375\%).
+\textbf{Risultato}: Convergenza accelerata del 45\% mantenendo gli ottimi della policy.
 
 \subsection{Challenge 2: Gestione Situazioni Critiche}
 
@@ -74,26 +74,26 @@ Nel corso dell'implementazione sono state riscontrate diverse sfide, superate me
 
 \subsubsection{Sintesi Soluzioni}
 
-Tutte le sfide sono state risolte con successo, come dimostrato dai miglioramenti misurabili:
+Le sfide sono state affrontate con soluzioni specifiche:
 
 \begin{table}[H]
 \centering
-\begin{tabular}{|l|c|c|c|}
+\begin{tabular}{|l|c|c|}
 \hline
 \rowcolor{gray!20}
-\textbf{Sfida} & \textbf{Metrica} & \textbf{Prima} & \textbf{Dopo} \\
+\textbf{Sfida} & \textbf{Soluzione} & \textbf{Impatto} \\
 \hline
-Reward Sparsity & Achievement (0-100 ep) & 0.4 & 1.1 (+175\%) \\
+Reward Sparsity & Reward shaping multi-componente & Convergenza più rapida \\
 \hline
-Emergency Handling & Death rate & 38\% & 7\% (-81.6\%) \\
+Emergency Handling & Re-planning multi-livello & Maggiore sopravvivenza \\
 \hline
-Hallucinations & Valid actions & 87\% & 98\% (+11\%) \\
+Hallucinations & TYPO\_MAP + fuzzy matching & 98\% azioni valide \\
 \hline
 \end{tabular}
-\caption{Impatto delle soluzioni implementate}
+\caption{Sintesi delle soluzioni implementate}
 \end{table}
 
-Queste soluzioni hanno permesso a HeRoN di raggiungere performance superiori (2.8 achievement score) rispetto al baseline (2.74) con significatività statistica (p < 0.01), dimostrando l'efficacia dell'approccio integrato RL-LLM anche in presenza di sfide tecniche complesse.
+Queste soluzioni hanno permesso a HeRoN di raggiungere performance superiori (2.8 achievement score) rispetto al baseline (2.74), dimostrando l'efficacia dell'approccio integrato RL-LLM.
 
 \subsection{Limitazioni}
 

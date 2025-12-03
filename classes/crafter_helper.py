@@ -215,7 +215,7 @@ class CrafterHelper:
         Generate 3-5 action sequence using LLM.
         
         Args:
-            state: 41-dim numpy array from CrafterEnv
+            state: 43-dim numpy array from CrafterEnv
             info: info dict from env.step()
             previous_info: optional previous info for change context
             override_prompt: optional custom prompt (for Reviewer refinement workflow)

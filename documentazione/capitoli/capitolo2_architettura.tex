@@ -49,10 +49,10 @@ dove $e$ è il numero dell'episodio corrente. Questo garantisce:
     \item Helper riceve state description → genera \texttt{[move\_right], [do],} \\
     \texttt{[move\_left], [do], [noop]}
     \item Reviewer analizza → feedback: \textit{"Health low, prioritize eating"}
-    \item Helper re-query con feedback → sequenza raffinata: \texttt{[eat\_plant], [sleep],} \\
-    \texttt{[move\_right], [do], [noop]}
-    \item Action Executor esegue \texttt{[eat\_plant]} → $(s_1, r_1, info_1)$
-    \item Salva $(s_0, eat\_plant, r_1, s_1, done)$ in Prioritized Replay
+    \item Helper re-query con feedback → sequenza raffinata: \texttt{[sleep],} \\
+    \texttt{[move\_right], [do], [move\_left], [noop]}
+    \item Action Executor esegue \texttt{[sleep]} → $(s_1, r_1, info_1)$
+    \item Salva $(s_0, sleep, r_1, s_1, done)$ in Prioritized Replay
     \item Monitor: achievement unlocked? → \textbf{SÌ} → interrompi sequenza, nuova query Helper
     \item DQN training: sample batch → compute loss → update weights
 \end{enumerate}
@@ -68,7 +68,7 @@ L'NPC è l'agente che gioca in Crafter usando il Reinforcement Learning. In ques
 
 \begin{itemize}
     \item \textbf{Architettura}: DQN usa una seconda rete (target network) per rendere l'apprendimento più stabile.
-    \item \textbf{Replay Buffer}: Salva le esperienze passate e dà più importanza a quelle utili, con spazio per 10.000 eventi.
+    \item \textbf{Replay Buffer}: Salva le esperienze passate e dà più importanza a quelle utili, con spazio per 5.000 eventi.
     \item \textbf{Parametri principali}:
     \begin{itemize}
         \item $\alpha = 0.6$: priorità alle esperienze importanti
@@ -240,7 +240,7 @@ Ad ogni step dell'episodio, l'architettura decide se consultare i componenti LLM
 \begin{algorithm}[H]
 \caption{Decisione di consultazione LLM}
 \begin{algorithmic}
-\IF{$random() > \theta$ AND $episode < 600$}
+\IF{$random() > \theta$ AND $episode < 100$}
     \STATE Procedi con workflow LLM
 \ELSE
     \STATE Usa solo DQN: $a = \arg\max_a Q(s, a)$

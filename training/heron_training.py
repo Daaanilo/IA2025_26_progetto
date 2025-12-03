@@ -416,7 +416,7 @@ def train_dqn_crafter(episodes=100, batch_size=32, episode_length=1000, threshol
     print(f"\n[Training] Complete!")
     print(f"[Training] Average Shaped Reward: {np.mean(rewards_per_episode):.2f}")
     print(f"[Training] Average Native Reward: {np.mean(native_rewards_per_episode):.2f}")
-    print(f"[Training] Average Shaped Bonus: {np.mean(shaped_rewards_per_episode):.2f}")
+    print(f"[Training] Average Shaped Bonus: {np.mean(shaped_bonus_per_episode):.2f}")
     print(f"[Training] Average Achievements: {np.mean(achievements_per_episode):.2f}")
     print(f"[Training] Average Moves: {np.mean(moves_per_episode):.2f}")
     print(f"[Training] Total Helper Calls: {sum(helper_calls)}")

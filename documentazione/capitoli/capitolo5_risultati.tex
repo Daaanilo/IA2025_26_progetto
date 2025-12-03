@@ -11,7 +11,7 @@ In questo capitolo vengono presentati e confrontati i risultati sperimentali del
 \rowcolor{gray!20}
 \textbf{Parametro} & \textbf{Valore} \\
 \hline
-Episodi totali & 1000 \\
+Episodi totali & 300 \\
 \hline
 Max steps per episodio & 1000 \\
 \hline
@@ -25,9 +25,9 @@ Epsilon iniziale & 1.0 \\
 \hline
 Epsilon finale & 0.05 \\
 \hline
-Epsilon decay & 800 episodi \\
+Epsilon decay & 300 episodi \\
 \hline
-Replay buffer size & 10,000 \\
+Replay buffer size & 5,000 \\
 \hline
 Alpha prioritization & 0.6 \\
 \hline
@@ -37,7 +37,7 @@ Threshold iniziale & 1.0 \\
 \hline
 Threshold decay & 0.01 per episodio \\
 \hline
-LLM cutoff & Episodio 600 \\
+LLM cutoff & Episodio 100 \\
 \hline
 \end{tabular}
 \caption{Parametri di training}
@@ -340,66 +340,6 @@ L'integrazione dell'Helper e del Reviewer determina benefici significativi in te
 \label{fig:multi_metric_dashboard_baseline}
 \end{figure}
 
-% --- TABELLA SUCCESS RATE PER ACHIEVEMENT ---
-\subsection{Success Rate per Achievement}
-\begin{table}[H]
-\centering
-\small
-\begin{tabular}{|l|c|c|c|}
-\hline
-\rowcolor{gray!20}
-\textbf{Achievement} & \textbf{DQN (\%)} & \textbf{DQN+Helper (\%)} & \textbf{HeRoN (\%)} \\
-\hline
-collect\_coal & 0.0 & 0.0 & 0.0 \\
-\hline
-collect\_diamond & 0.0 & 0.0 & 0.0 \\
-\hline
-collect\_drink & 19.3 & 14.3 & 17.3 \\
-\hline
-collect\_iron & 0.0 & 0.0 & 0.0 \\
-\hline
-collect\_sapling & 83.0 & 87.0 & 85.4 \\
-\hline
-collect\_stone & 0.0 & 0.0 & 0.0 \\
-\hline
-collect\_wood & 28.0 & 32.0 & 26.2 \\
-\hline
-defeat\_skeleton & 0.0 & 0.5 & 0.3 \\
-\hline
-defeat\_zombie & 4.0 & 2.5 & 1.7 \\
-\hline
-eat\_cow & 4.7 & 3.0 & 2.3 \\
-\hline
-eat\_plant & 0.0 & 0.0 & 0.0 \\
-\hline
-make\_iron\_pickaxe & 0.0 & 0.0 & 0.0 \\
-\hline
-make\_iron\_sword & 0.0 & 0.0 & 0.0 \\
-\hline
-make\_stone\_pickaxe & 0.0 & 0.0 & 0.0 \\
-\hline
-make\_stone\_sword & 0.0 & 0.0 & 0.0 \\
-\hline
-make\_wood\_pickaxe & 0.0 & 1.0 & 0.0 \\
-\hline
-make\_wood\_sword & 0.0 & 1.0 & 0.0 \\
-\hline
-place\_furnace & 0.0 & 0.0 & 0.0 \\
-\hline
-place\_plant & 55.3 & 78.0 & 82.7 \\
-\hline
-place\_stone & 0.0 & 0.0 & 0.0 \\
-\hline
-place\_table & 0.7 & 2.0 & 1.7 \\
-\hline
-wake\_up & 68.0 & 80.0 & 85.4 \\
-\hline
-\end{tabular}
-\caption{Success rate per tutti gli achievement (DQN: 300 episodi, DQN+Helper: 300 episodi, HeRoN: 300 episodi)}
-\end{table}
-
-\textbf{Conclusioni}: HeRoN si conferma superiore su tutti i fronti: efficienza, stabilità, copertura e pianificazione strategica. I dati reali della codebase dimostrano che HeRoN è la scelta migliore rispetto a DQN e DQN+Helper.
-
 \subsection{Reward Cumulativo - Dettaglio}
 Reward medio per episodio (shaped reward):
 
@@ -408,14 +348,10 @@ Reward medio per episodio (shaped reward):
 \begin{tabular}{|l|c|c|c|}
 \hline
 \rowcolor{gray!20}
-\textbf{Configurazione} & \textbf{Media} & \textbf{Std Dev} & \textbf{Max} \\
-\hline
-DQN Baseline & 7.99 & 2.62 & 14.12 \\
-\hline
-DQN + Helper & 24.1 & 5.2 & 51.8 \\
-\hline
-HeRoN Completo & \textbf{27.3} & \textbf{4.8} & \textbf{56.2} \\
-\hline
+\textbf{Configurazione} & \textbf{Media} & \textbf{Std Dev} & \textbf{Max} \\\hline
+DQN Baseline & 7.99 & 2.62 & 14.12 \\\hline
+DQN + Helper & 7.86 & 2.31 & 15.8 \\\hline
+HeRoN Completo & \textbf{8.33} & \textbf{2.40} & \textbf{16.2} \\\hline
 \end{tabular}
 \caption{Reward cumulativo per episodio (ultimi 100 episodi)}
 \end{table}
@@ -445,22 +381,20 @@ Episodio in cui ciascuna configurazione raggiunge l'80\% del suo score massimo:
 
 \begin{table}[H]
 \centering
+\begin{table}[H]
+\centering
 \begin{tabular}{|l|c|c|}
 \hline
 \rowcolor{gray!20}
-\textbf{Configurazione} & \textbf{Episodio Convergenza} & \textbf{Score 80\%} \\
-\hline
-DQN Baseline & 650 & 2.6 \\
-\hline
-DQN + Helper & 420 & 3.6 \\
-\hline
-HeRoN Completo & \textbf{380} & \textbf{3.8} \\
-\hline
+\textbf{Configurazione} & \textbf{Episodio Convergenza} & \textbf{Score 80\%} \\\hline
+DQN Baseline & 220 & 2.2 \\\hline
+DQN + Helper & 150 & 2.1 \\\hline
+HeRoN Completo & \textbf{120} & \textbf{2.2} \\\hline
 \end{tabular}
 \caption{Velocità di convergenza}
 \end{table}
 
-HeRoN converge il \textbf{41.5\% più velocemente} rispetto al DQN baseline.
+HeRoN converge il \textbf{45\% più velocemente} rispetto al DQN baseline.
 
 \subsection{Analisi del Numero di Azioni per Sequenza}
 È stato condotto un esperimento per determinare il numero ottimale di azioni per sequenza Helper.
@@ -493,14 +427,10 @@ Il training del sistema HeRoN è stato condotto attraverso multiple sessioni con
 \begin{tabular}{|l|c|c|c|c|c|}
 \hline
 \rowcolor{gray!20}
-\textbf{Configurazione} & \textbf{Avg Ach} & \textbf{Max Ach} & \textbf{Coverage} & \textbf{Avg Reward} & \textbf{Best Ep} \\
-\hline
-DQN Baseline & 2.74 & 6 & 36.4\% & 7.99 & 171 \\
-\hline
-DQN + Helper & 3.8 & 7 & 45.5\% & 16.2 & 72 \\
-\hline
-HeRoN Completo & 4.8 & 11 & 72.7\% & 20.4 & 127 \\
-\hline
+\textbf{Configurazione} & \textbf{Avg Ach} & \textbf{Max Ach} & \textbf{Coverage} & \textbf{Avg Reward} & \textbf{Best Ep} \\\hline
+DQN Baseline & 2.74 & 6 & 36.4\% & 7.99 & 171 \\\hline
+DQN + Helper & 2.67 & 6 & 50.0\% & 7.86 & 72 \\\hline
+HeRoN Completo & 2.80 & 5 & 41.0\% & 8.33 & 127 \\\hline
 \end{tabular}
 \caption{Performance per configurazione di training (ultimi 100 episodi)}
 \end{table}
@@ -523,20 +453,15 @@ L'analisi delle metriche di training dimostra che il NPC HeRoN è in grado di co
 \begin{tabular}{|l|c|c|c|}
 \hline
 \rowcolor{gray!20}
-\textbf{Task Category} & \textbf{HeRoN} & \textbf{DQN Baseline} & \textbf{Miglioramento} \\
-\hline
-Raccolta Risorse & 99\% & 28\% & +254\% \\
-\hline
-Gestione Sopravvivenza & 91\% & 19\% & +379\% \\
-\hline
-Crafting Base & 78\% & 0.7\% & +11,043\% \\
-\hline
-Crafting Avanzato & 42\% & 0\% & --- \\
-\hline
-Combat & 35\% & 3\% & +1,067\% \\
-\hline
+\textbf{Task Category} & \textbf{HeRoN} & \textbf{DQN Baseline} & \textbf{Miglioramento} \\\hline
+Raccolta Risorse & 85.7\% & 26.3\% & +226\% \\\hline
+Gestione Sopravvivenza & 59.7\% & 19\% & +214\% \\\hline
+Crafting Base & 1\% & 0.7\% & +43\% \\\hline
+Crafting Avanzato & 0\% & 0\% & --- \\\hline
+Combat & 0\% & 0\% & --- \\\hline
 \end{tabular}
 \caption{Success rate per categoria di task}
+\end{table}
 \end{table}
 
 \subsubsection{Progressione Tecnologica}
@@ -563,31 +488,19 @@ L'analisi del numero di azioni per sequenza mostra che:
 
 \textbf{Conclusione}: La lunghezza della sequenza di 4 azioni è ottimale per bilanciare pianificazione e flessibilità.
 
-\subsubsection{Sessioni di Addestramento del NPC - Dettagli Aggiuntivi}
-
-\begin{itemize}
-	\item Le sessioni di training sono state condotte su GPU con almeno 8 GB di VRAM per garantire il caricamento dei modelli LLM.
-	\item La maggior parte del tempo di training è stata spesa nella fase di esplorazione iniziale (primi 300 episodi).
-	\item Le configurazioni con Reviewer (HeRoN) hanno richiesto più tempo per episodio a causa del sovraccarico computazionale dell'LLM, ma hanno mostrato una maggiore stabilità nelle performance.
-\end{itemize}
-
 \section{Analisi Comparativa Finale}
 
 \subsection{Riepilogo Metriche Chiave}
 
 \begin{table}[H]
 \centering
-\begin{tabular}{|l|c|c|c|c|}
+\begin{tabular}{|l|c|c|c|}
 \hline
 \rowcolor{gray!20}
-\textbf{Configurazione} & \textbf{Achiev. Medio} & \textbf{Coverage} & \textbf{Reward Medio} & \textbf{Tempo Convergenza} \\
-\hline
-DQN Baseline & 2.74 & 36.4\% & 7.99 & 650 episodi \\
-\hline
-DQN + Helper & 4.5 & 63.6\% & 24.1 & 420 episodi \\
-\hline
-HeRoN Completo & \textbf{4.8} & \textbf{72.7\%} & \textbf{27.3} & \textbf{380 episodi} \\
-\hline
+\textbf{Configurazione} & \textbf{Achiev. Medio} & \textbf{Coverage} & \textbf{Reward Medio} \\\hline
+DQN Baseline & 2.74 & 36.4\% & 7.99 \\\hline
+DQN + Helper & 2.67 & 50.0\% & 7.86 \\\hline
+HeRoN Completo & \textbf{2.80} & 41.0\% & \textbf{8.33} \\\hline
 \end{tabular}
 \caption{Riepilogo delle metriche chiave per configurazione}
 \end{table}

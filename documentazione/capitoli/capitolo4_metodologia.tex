@@ -25,9 +25,9 @@ Di seguito vengono sintetizzate le fasi principali del flusso di lavoro. Le sezi
 L'agente DQN è stato progettato con una rete neurale feedforward composta da:
 \begin{itemize}
     \item \textbf{Input Layer}: 43 neuroni (corrispondenti alla dimensione dello stato)
-    \item \textbf{Hidden Layer 1}: 256 neuroni, attivazione ReLU, Dropout(0.1)
-    \item \textbf{Hidden Layer 2}: 256 neuroni, attivazione ReLU, Dropout(0.1)
-    \item \textbf{Hidden Layer 3}: 128 neuroni, attivazione ReLU
+    \item \textbf{Hidden Layer 1}: 128 neuroni, attivazione ReLU
+    \item \textbf{Hidden Layer 2}: 128 neuroni, attivazione ReLU
+    \item \textbf{Hidden Layer 3}: 64 neuroni, attivazione ReLU
     \item \textbf{Output Layer}: 17 neuroni (Q-values, uno per ciascuna azione)
 \end{itemize}
 
@@ -96,9 +96,8 @@ L'addestramento dell'agente DQN si basa su alcuni concetti fondamentali dell'app
 
 In sintesi: l'agente prova azioni, riceve premi, aggiorna le sue previsioni e impara soprattutto dagli errori più grandi, migliorando così la sua capacità di prendere decisioni nel tempo.
 
-L'aggiornamento della target network avviene ogni $C = 1000$ step tramite soft update:
-$$\theta_{target} \leftarrow \tau \theta_{policy} + (1-\tau) \theta_{target}$$
-con $\tau = 0.001$.
+L'aggiornamento della target network avviene ogni $C = 100$ step tramite hard copy:
+$$\theta_{target} \leftarrow \theta_{policy}$$
 
 \subsubsection{Prioritized Experience Replay}
 Il replay buffer utilizza un campionamento prioritario per migliorare l'efficienza dell'apprendimento:
@@ -115,9 +114,9 @@ Il replay buffer utilizza un campionamento prioritario per migliorare l'efficien
 \subsubsection{Training Baseline DQN}
 Prima dell'integrazione dei moduli LLM, è stato addestrato un agente DQN baseline con i seguenti parametri:
 \begin{itemize}
-    \item \textbf{Episodi}: 1000
+    \item \textbf{Episodi}: 300
     \item \textbf{Max steps per episodio}: 1000
-    \item \textbf{Epsilon decay}: $\epsilon = 1.0 \rightarrow 0.05$ in 800 episodi
+    \item \textbf{Epsilon decay}: $\epsilon = 1.0 \rightarrow 0.05$ in 300 episodi
     \item \textbf{Learning rate}: $\alpha = 0.0001$
     \item \textbf{Batch size}: 64
 \end{itemize}
@@ -334,46 +333,13 @@ Metriche monitorate durante il training:
 
 Il training completo dell'architettura HeRoN segue questo protocollo:
 
-L'algoritmo seguente mostra il ciclo di training integrato, con la gestione del threshold e la selezione tra LLM e DQN.
-
-\begin{algorithm}
-\caption{Training Loop HeRoN}
-\begin{algorithmic}
-\STATE $threshold \gets 1.0$
-\STATE $threshold\_decay \gets 0.01$
-\STATE $threshold\_episodes \gets 100$
-\FOR{$episode = 1$ to $max\_episodes$}
-    \STATE $state \gets env.reset()$
-    \STATE $action\_sequence \gets []$
-    \STATE $sequence\_index \gets 0$
-    \FOR{$step = 1$ to $max\_steps$}
-        \IF{$len(action\_sequence) == 0$ OR $sequence\_index \geq len(action\_sequence)$}
-            \IF{$random() > threshold$ AND $episode < 600$}
-                \STATE $action\_sequence \gets$ Helper-Reviewer workflow
-                \STATE $sequence\_index \gets 0$
-            \ELSE
-                \STATE $action \gets$ DQN selection
-            \ENDIF
-        \ELSE
-            \STATE $action \gets action\_sequence[sequence\_index]$
-            \STATE $sequence\_index \gets sequence\_index + 1$
-        \ENDIF
-        \STATE Esegui azione e aggiorna DQN
-    \ENDFOR
-    \IF{$episode < threshold\_episodes$}
-        \STATE $threshold \gets \max(0, threshold - threshold\_decay)$
-    \ENDIF
-\ENDFOR
-\end{algorithmic}
-\end{algorithm}
-
 \subsubsection{Parametri di Training}
 
 \begin{itemize}
-    \item \textbf{Episodi totali}: 1000
+    \item \textbf{Episodi totali}: 300
     \item \textbf{Max steps per episodio}: 1000
     \item \textbf{Threshold decay}: 1.0 → 0.0 in 100 episodi
-    \item \textbf{LLM cutoff}: Episodio 600 (dopo, solo DQN)
+    \item \textbf{LLM cutoff}: Episodio 100 (dopo, solo DQN)
     \item \textbf{Checkpoint}: Salvataggio ogni 50 episodi + best model
 \end{itemize}
 

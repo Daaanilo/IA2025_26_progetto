@@ -51,12 +51,12 @@ Ogni livello sblocca nuove azioni e obiettivi.
 
 Nel progetto usiamo una rappresentazione strutturata a 43 dimensioni per migliorare efficienza, interpretabilità, apprendimento e compatibilità con LLM:
 
-\paragraph{Inventario (16 dimensioni)} Conteggio degli oggetti:
+\paragraph{Inventario (16 dimensioni)} Statistiche vitali e conteggio degli oggetti:
 \begin{verbatim}
-[wood, stone, coal, iron, diamond, sapling, 
+[health, food, drink, energy, sapling,
+ wood, stone, coal, iron, diamond,
  wood_pickaxe, stone_pickaxe, iron_pickaxe,
- wood_sword, stone_sword, iron_sword,
- drink, food, health_potion, arrow]
+ wood_sword, stone_sword, iron_sword]
 \end{verbatim}
 
 \paragraph{Posizione e Orientamento (2 dimensioni)}
@@ -134,11 +134,10 @@ Questo reward è estremamente sparso: in un episodio tipico, il giocatore può s
 Per facilitare l'apprendimento, viene implementato un sistema di reward shaping che fornisce segnali più frequenti:
 
 \begin{align}
-r_{shaped} &= r_{native} + r_{resources} + r_{health} + r_{tier} + r_{tools} \\
+r_{shaped} &= r_{native} + r_{resources} + r_{health} + r_{tools} \\
 r_{resources} &= 0.1 \times \text{\# nuove risorse raccolte} \\
-r_{health} &= 0.05 \times \Delta_{health} \quad (\text{se positivo}) \\
-r_{tier} &= 0.05 \times \Delta_{tier} \quad (\text{progressione tecnologica}) \\
-r_{tools} &= 0.02 \times \text{\# nuovi strumenti crafted}
+r_{health} &= 0.02 \quad (\text{se health, food o drink} > 5) \\
+r_{tools} &= 0.3 \times \text{\# nuovi strumenti crafted}
 \end{align}
 
 Il reward shaping mantiene i seguenti principi:
