@@ -15,17 +15,15 @@ Slide 2 — Indice
 - Addestramento Iterativo del NPC
 - Ottimizzazione dell'Helper
 - Ottimizzazione dell'Helper (cont.)
-- Reviewer: dataset, fine-tuning e pipeline PPO
 - Threshold (θ) e regole di re-planning
+- Reviewer: dataset, fine-tuning e pipeline PPO
+- Reward Function PPO per il Reviewer
 - Valutazione e Risultati
 - Challenge Affrontate
 - Conclusioni e Sviluppi Futuri
 - Grazie per l'Attenzione
-- Ottimizzazione delle Prestazioni del NPC
-- Gestione della Sopravvivenza del NPC
-- Limiti e Miglioramenti Osservati
 Note slide 2 (discorso):
-Ecco l'indice della presentazione. Inizieremo con il contesto e la motivazione del progetto, poi passeremo agli obiettivi, all'ambiente di Crafter, al reward shaping, all'architettura HeRoN, all'addestramento del NPC, all'ottimizzazione dell'Helper e del Reviewer, alle regole di threshold e re-planning, alla valutazione, alle challenge affrontate, alle conclusioni e infine ai ringraziamenti. Ci sono anche slide aggiuntive su ottimizzazioni e limiti.
+Ecco l'indice della presentazione. Inizieremo con il contesto e la motivazione del progetto, poi passeremo agli obiettivi, all'ambiente di Crafter, al reward shaping, all'architettura HeRoN, all'addestramento del NPC, all'ottimizzazione dell'Helper, alle regole di threshold e re-planning, al Reviewer e alla sua reward function PPO, alla valutazione, alle challenge affrontate, e infine alle conclusioni.
 
 Slide 3 — Contesto e motivazione
 - Crafter: open-world survival game per ricerca RL (simile a Minecraft)
@@ -125,15 +123,7 @@ Note slide 10 (discorso - Ottimizzazione Helper cont.):
 Note slide 10 (discorso - Ottimizzazione Helper cont.):
 Il prompt engineering è cruciale per ottenere sequenze coerenti dall'LLM. Iniziamo con un prompt base che elenca le 17 azioni valide, richiede il formato bracketed e include esempi buoni (con azioni reali) e cattivi (con placeholder o azioni invalide). Per gestire gli errori, utilizziamo una TYPO_MAP per correggere variazioni comuni come 'place_rock' in 'place_stone'. Quando il Reviewer fornisce feedback, raffiniamo il prompt integrando le correzioni per migliorare le successive generazioni, assicurando che l'Helper produca azioni valide e strategiche.
 
-Slide 11 — Reviewer: dataset, fine-tuning e pipeline PPO
-- Generazione dataset: stati, suggerimenti Helper, outcome, feedback correttivi
-- Step 1 — Fine-tuning Reviewer: eseguire `reviewer_fine_tuning/reviewer_fine_tuning.py` per addestrare il Reviewer; l'output tipico è la cartella `reviewer_retrained/` (modello + tokenizer).
-- Step 2 — (Facoltativo) PPO training: il contenuto di `reviewer_retrained/` può essere usato come input per `reviewer_fine_tuning/ppo_training.py` per ulteriori ottimizzazioni; questo script può produrre `reviewer_retrained_ppo/` come output.
-- Nota: alcuni workflow (e `training/heron_training.py`) possono essere configurati per caricare `reviewer_retrained_ppo/` come percorso del Reviewer in runtime (controllare la variabile `REVIEWER_MODEL_PATH` nello script di training).
-Note slide 11 (discorso - Reviewer):
-Il Reviewer è ottenuto tramite fine‑tuning su un dataset costruito ad hoc: registriamo stati di gioco, le azioni suggerite dall'Helper, l'esito di quelle azioni e i feedback correttivi generati manualmente o semi‑automaticamente. Il primo passo è il fine‑tuning con `reviewer_fine_tuning/reviewer_fine_tuning.py`, che produce la cartella `reviewer_retrained/` contenente modello e tokenizer. Successivamente possiamo usare quel modello come input per una fase di ottimizzazione tramite PPO (`reviewer_fine_tuning/ppo_training.py`) per adattare policy o metriche interne; tale passaggio può produrre `reviewer_retrained_ppo/`. Controllate le variabili `REVIEWER_MODEL_PATH` negli script di training per assicurarvi che il percorso caricato sia quello desiderato.
-
-Slide 12 — Threshold (\theta) e regole di re-planning
+Slide 11 — Threshold (\theta) e regole di re-planning
 - \theta: probabilità/soglia che regola l'uso dell'LLM (Helper) rispetto al DQN
 - Decadimento per episodio (esempio lineare): $$\theta_{e+1}=\max(0,\ \theta_e-\delta)$$ (con \delta=1/N per arrivare a 0 in N episodi)
 - Decisione probabilistica: usa LLM se \(u<\theta_e\) con \(u\sim U(0,1)\)
@@ -142,18 +132,39 @@ Slide 12 — Threshold (\theta) e regole di re-planning
   $$\text{replan} \iff A \vee H \vee \exists r\, R_r$$
   dove $A:=\text{achievement\_unlocked},\; H:=(\text{health}\le H_{\text{crit}}),\; R_r:=(\text{resource}_r=0).$
 - Nota implementativa: il decadimento va applicato per episodio (non per step); attenzione alla direzione della condizione `random() < theta` vs `random() > theta`.
-Note slide 12 (discorso):
+Note slide 11 (discorso):
 Spieghiamo in parole semplici cosa è \(\theta\). È una manopola numerica tra 0 e 1 che decide quanto spesso, durante l'allenamento, chiediamo aiuto all'LLM invece di lasciare il controllo al DQN. All'inizio impostiamo \(\theta\) alto (per sfruttare i suggerimenti LLM), e ad ogni episodio lo riduciamo di una quantità \(\delta\) fino a rendere l'LLM sempre meno presente: questo aiuta il DQN a imparare autonomamente. Usiamo una condizione di tipo probabilistico (es. `if random() < theta: use LLM`) e applichiamo il decadimento *per episodio* con la formula indicata. Inoltre definiamo regole di re‑planning: ad esempio, sblocco di un achievement, salute critica o esaurimento di risorse attivano una nuova query LLM o un fallback immediato al DQN.
 
-Slide 13 — Valutazione e Risultati
+Slide 12 — Reviewer: dataset, fine-tuning e pipeline PPO
+- Generazione dataset: stati, suggerimenti Helper, outcome, feedback correttivi
+- Step 1 — Fine-tuning Reviewer: eseguire `reviewer_fine_tuning/reviewer_fine_tuning.py` per addestrare il Reviewer; l'output tipico è la cartella `reviewer_retrained/` (modello + tokenizer).
+- Step 2 — (Facoltativo) PPO training: il contenuto di `reviewer_retrained/` può essere usato come input per `reviewer_fine_tuning/ppo_training.py` per ulteriori ottimizzazioni; questo script può produrre `reviewer_retrained_ppo/` come output.
+- Nota: alcuni workflow (e `training/heron_training.py`) possono essere configurati per caricare `reviewer_retrained_ppo/` come percorso del Reviewer in runtime (controllare la variabile `REVIEWER_MODEL_PATH` nello script di training).
+Note slide 12 (discorso - Reviewer):
+Il Reviewer è ottenuto tramite fine‑tuning su un dataset costruito ad hoc: registriamo stati di gioco, le azioni suggerite dall'Helper, l'esito di quelle azioni e i feedback correttivi generati manualmente o semi‑automaticamente. Il primo passo è il fine‑tuning con `reviewer_fine_tuning/reviewer_fine_tuning.py`, che produce la cartella `reviewer_retrained/` contenente modello e tokenizer. Successivamente possiamo usare quel modello come input per una fase di ottimizzazione tramite PPO (`reviewer_fine_tuning/ppo_training.py`) per adattare policy o metriche interne; tale passaggio può produrre `reviewer_retrained_ppo/`. Controllate le variabili `REVIEWER_MODEL_PATH` negli script di training per assicurarvi che il percorso caricato sia quello desiderato.
+
+Slide 13 — Reward Function PPO per il Reviewer
+- Obiettivo: ottimizzare il Reviewer tramite Reinforcement Learning (PPO) per generare feedback strategici di alta qualità
+- Reward function multi-componente:
+  $$r = r_{\text{length}} + r_{\text{terms}} + r_{\text{actions}} + r_{\text{quality}} + r_{\text{penalty}}$$
+  - $r_{\text{length}}$: penalità per feedback troppo corti (<10 char) o troppo lunghi (>500 char)
+  - $r_{\text{terms}} = 0.5 \times \#\text{strategic\_terms}$: bonus per termini chiave Crafter (achievement, resource, collect, craft, health, wood, stone, iron, pickaxe, sword, table, prioritize, efficiency, progression, tier)
+  - $r_{\text{actions}} = 3.0 \times \frac{|\text{ideal\_actions} \cap \text{suggested\_actions}|}{|\text{ideal\_actions}|}$: overlap tra azioni suggerite e target
+  - $r_{\text{quality}} = +2.0$ se presenti indicatori (EXCELLENT, GOOD, CRITICAL, WARNING, SUGGESTION)
+  - $r_{\text{penalty}} = -1.0$ se output > 500 caratteri (troppo verboso)
+- Pipeline: modello genera feedback → calcola reward → aggiorna policy via PPO
+Note slide 13 (discorso - Reward Function PPO):
+Per ottimizzare il Reviewer con PPO, abbiamo definito una reward function che valuta la qualità dei feedback generati. La funzione è multi-componente: penalizza feedback troppo corti o vuoti (-5.0), premia la presenza di termini strategici specifici di Crafter (+0.5 per termine), aggiunge un bonus significativo (+3.0) per l'overlap tra azioni suggerite e quelle ideali nel dataset, e premia feedback strutturati con indicatori di qualità come EXCELLENT o CRITICAL (+2.0). Inoltre, penalizza output troppo verbosi (-1.0 se superano 500 caratteri). Questo schema di reward guida il modello a generare feedback concisi, strategici e orientati alle azioni di Crafter.
+
+Slide 14 — Valutazione e Risultati
 - Metriche principali: achievements per episodio, reward cumulativo (native/shaped), curve di apprendimento
 - Strumenti: `evaluation/evaluation_system.py`, `evaluation/evaluation_plots.py`, `evaluation_report_generator.py`
 - Output: CSV/JSON e plot in `evaluation_plots/*.png`
 - Risultati chiave: HeRoN ottiene 4.8 achievement medi vs 2.74 DQN baseline (+75%), coverage 72.7% vs 36.4%, convergenza 41.5% più veloce
-Note slide 13 (discorso - Valutazione e Risultati):
+Note slide 14 (discorso - Valutazione e Risultati):
 Per valutare il sistema utilizziamo principalmente il numero di achievements medi per episodio, le curve di reward cumulativo e l'andamento delle metriche native vs shaped nel tempo. Gli script in `evaluation/` raccolgono e aggregano questi dati e generano plot comparativi in `evaluation_plots/`. È importante mostrare sia il comportamento grezzo (native_reward) sia lo shaped per capire se i miglioramenti derivano dallo shaping o dall'effettivo progresso di policy; questo permette anche analisi di tipo ablation. I risultati chiave mostrano che HeRoN ottiene 4.8 achievement medi per episodio rispetto ai 2.74 del DQN baseline, con un miglioramento del 75%, una coverage degli achievement del 72.7% contro il 36.4%, e una convergenza accelerata del 41.5%.
 
-Slide 14 — Challenge Affrontate
+Slide 15 — Challenge Affrontate
 - Sparsità del reward: risolto con reward shaping multi-componente (+375% achievement nei primi 100 ep)
 - Gestione situazioni critiche: sistema di re-planning multi-livello (death rate ridotto da 38% a 7%)
 - Morte precoce dell'agente: strategie di sopravvivenza e incentivi salute (death rate ridotto da 38% a 7%)
@@ -162,19 +173,19 @@ Slide 14 — Challenge Affrontate
 - Pianificazione a breve termine: sequenze 3-5 azioni bilanciano pianificazione e flessibilità
 - Overhead computazionale: ottimizzato con threshold decay e caching risposte LLM
 - Gestione del contesto LLM: ottimizzazione input per evitare saturazione del context window e crash
-Note slide 14 (discorso - Challenge Affrontate):
+Note slide 15 (discorso - Challenge Affrontate):
 Durante l'implementazione abbiamo affrontato diverse challenge critiche. La sparsità del reward è stata risolta con un sistema di shaping multi-componente che aggiunge bonus per raccolta risorse, salute e crafting, migliorando gli achievement del 375% nei primi 100 episodi. Per le situazioni critiche abbiamo implementato re-planning basato su trigger come salute bassa o depletion risorse, riducendo il death rate da 38% a 7%. La morte precoce dell'agente è stata affrontata con strategie di sopravvivenza e incentivi per la gestione della salute, abbassando ulteriormente il death rate. Le hallucinations e typos dell'LLM sono state gestite con una TYPO_MAP e validazione, aumentando le azioni valide da 87% a 98%. Il limite di token dell'LLM è stato gestito limitando le sequenze a 3-5 azioni per evitare truncation e mantenere risposte coerenti. Infine, abbiamo ottimizzato la lunghezza delle sequenze a 3-5 azioni per bilanciare pianificazione strategica e capacità di adattamento, e ridotto l'overhead computazionale con threshold decay e caching delle risposte LLM. Inoltre, abbiamo gestito il contesto LLM ottimizzando gli input per evitare saturazione del context window, prevenendo crash del modello e garantendo stabilità operativa.
 
-Slide 15 — Conclusioni e Sviluppi Futuri
+Slide 16 — Conclusioni e Sviluppi Futuri
 - Sintesi: HeRoN combina DQN, Helper LLM e Reviewer T5 per NPC adattivi in Crafter
 - Risultati: +75% achievement vs baseline, convergenza 41.5% più veloce, coverage 72.7%
 - Impatto: Integrazione RL-LLM efficace per decision making sequenziale in ambienti complessi
 - Sviluppi futuri: Pianificazione gerarchica, threshold adattivo, memoria episodica, multi-agent learning, estensioni a scenari multiagenti, multi modale llm, algoritmi ibridi
-Note slide 15 (discorso - Conclusioni e Sviluppi Futuri):
+Note slide 16 (discorso - Conclusioni e Sviluppi Futuri):
 In conclusione, HeRoN rappresenta un'architettura innovativa che integra Reinforcement Learning con Large Language Models per creare NPC adattivi in ambienti complessi come Crafter. I risultati dimostrano miglioramenti significativi rispetto alla baseline DQN, con un aumento del 75% negli achievement medi e una convergenza accelerata. L'impatto principale è nella capacità di combinare apprendimento autonomo con ragionamento strategico guidato dall'LLM. Per gli sviluppi futuri, proponiamo pianificazione gerarchica per obiettivi distanti, threshold adattivi basati su performance, memoria episodica per strategie riuscite, estensioni a scenari multi-agent, multi modale llm, algoritmi ibridi. Questo lavoro apre la strada a agenti intelligenti più flessibili e capaci in giochi e applicazioni reali.
 
-Slide 16 — Grazie per l'Attenzione
+Slide 17 — Grazie per l'Attenzione
 - Domande?
 - Disponibili per demo o approfondimenti
-Note slide 16 (discorso - Ringraziamenti):
+Note slide 17 (discorso - Ringraziamenti):
 Grazie per l'attenzione. Siamo Danilo e Vincenzo, e siamo felici di rispondere a qualsiasi domanda sui dettagli implementativi, risultati o sviluppi futuri. Se interessati, possiamo mostrare demo delle run, fornire codice aggiuntivo o discutere estensioni del lavoro. Grazie ancora!

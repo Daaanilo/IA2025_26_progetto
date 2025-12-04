@@ -130,8 +130,6 @@ La progettazione del modulo Helper e dei prompt è stata fondamentale per ottene
 \subsubsection{Setup LM Studio}
 LM Studio è stato configurato per servire il modello Qwen3-4B-2507:
 \begin{itemize}
-    \item Server locale su \texttt{http://127.0.0.1:1234}
-    \item API compatibile con OpenAI
     \item Temperatura: 0.7 (bilanciamento tra creatività e coerenza)
     \item Max tokens: 150 (sufficiente per sequenze di 3-5 azioni)
     \item Context window: 8192 tokens (gestione conversazioni lunghe)
@@ -513,3 +511,73 @@ Obiettivo & Policy ottimizzata per feedback strategici \\
 \end{table}
 
 Questo approccio consente al Reviewer di apprendere non solo dai dati supervisionati, ma anche dall'interazione iterativa e dal reward, migliorando la qualità dei suggerimenti e la sinergia tra i moduli dell'architettura HeRoN.
+
+\subsection{Reward Function per PPO}
+
+La reward function utilizzata per l'addestramento PPO del Reviewer è stata progettata per valutare la qualità dei feedback strategici generati. La funzione è multi-componente e combina diversi criteri:
+
+\begin{equation}
+r = r_{\text{length}} + r_{\text{terms}} + r_{\text{actions}} + r_{\text{quality}} + r_{\text{penalty}}
+\end{equation}
+
+I componenti sono definiti come segue:
+
+\begin{itemize}
+    \item \textbf{Penalità lunghezza} ($r_{\text{length}}$): Feedback troppo corti (meno di 10 caratteri) o vuoti ricevono una penalità di $-5.0$, poiché non forniscono informazioni utili.
+    
+    \item \textbf{Bonus termini strategici} ($r_{\text{terms}}$): 
+    \begin{equation}
+    r_{\text{terms}} = 0.5 \times \sum_{t \in T} \mathbb{1}[t \in \text{feedback}]
+    \end{equation}
+    dove $T$ è l'insieme dei termini strategici specifici di Crafter: \textit{achievement, resource, collect, craft, health, wood, stone, iron, pickaxe, sword, table, prioritize, efficiency, progression, tier}.
+    
+    \item \textbf{Overlap azioni} ($r_{\text{actions}}$): Misura la corrispondenza tra le azioni suggerite nel feedback e quelle ideali nel dataset:
+    \begin{equation}
+    r_{\text{actions}} = 3.0 \times \frac{|A_{\text{ideal}} \cap A_{\text{suggested}}|}{\max(|A_{\text{ideal}}|, 1)}
+    \end{equation}
+    dove $A_{\text{ideal}}$ e $A_{\text{suggested}}$ sono rispettivamente gli insiemi di azioni nel feedback target e in quello generato, estratte tramite pattern matching sui tag \texttt{[action]}.
+    
+    \item \textbf{Indicatori di qualità} ($r_{\text{quality}}$): Un bonus di $+2.0$ viene assegnato se il feedback contiene indicatori strutturati come \texttt{EXCELLENT}, \texttt{GOOD}, \texttt{CRITICAL}, \texttt{WARNING} o \texttt{SUGGESTION}.
+    
+    \item \textbf{Penalità verbosità} ($r_{\text{penalty}}$): Feedback eccessivamente lunghi (oltre 500 caratteri) ricevono una penalità di $-1.0$ per scoraggiare output prolissi e poco concisi.
+\end{itemize}
+
+\subsubsection{Pipeline di Addestramento PPO}
+
+Il processo di addestramento segue questi passi:
+
+\begin{enumerate}
+    \item \textbf{Input}: Il modello riceve la concatenazione di stato del gioco e risposta dell'Helper
+    \item \textbf{Generazione}: Il Reviewer genera un feedback strategico
+    \item \textbf{Calcolo reward}: La reward function valuta la qualità del feedback generato
+    \item \textbf{Aggiornamento policy}: PPO aggiorna i pesi del modello per massimizzare il reward atteso
+\end{enumerate}
+
+\begin{table}[H]
+\centering
+\caption{Parametri PPO per Fine-Tuning Reviewer}
+\begin{tabular}{|l|l|}
+\hline
+\rowcolor{gray!20}
+\textbf{Parametro} & \textbf{Valore} \\
+\hline
+Learning rate & $5 \times 10^{-7}$ \\
+\hline
+PPO epochs & 1 \\
+\hline
+Mini batch size & 1 \\
+\hline
+Batch size & 1 \\
+\hline
+Temperature (generazione) & 0.4 \\
+\hline
+Top-k sampling & 50 \\
+\hline
+Top-p sampling & 0.8 \\
+\hline
+Max new tokens & 128 \\
+\hline
+\end{tabular}
+\end{table}
+
+Questa configurazione è stata scelta per garantire stabilità nell'addestramento e generazione di feedback concisi ma informativi.
