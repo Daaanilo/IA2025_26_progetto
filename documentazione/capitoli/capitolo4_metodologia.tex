@@ -4,19 +4,20 @@
 
 Questo capitolo descrive la metodologia utilizzata per sviluppare e valutare l'architettura HeRoN nel dominio Crafter. Viene fornita una panoramica delle fasi principali (implementazione dell'NPC, integrazione LLM, generazione del dataset per il Reviewer, fine-tuning e training integrato), seguita da dettagli tecnici e protocolli sperimentali.
 
-Le sezioni sono organizzate per guidare il lettore dalla teoria all'implementazione pratica, passando per la progettazione dei moduli, la raccolta dati e la valutazione sperimentale. Ogni tabella e algoritmo è presentato subito dopo la relativa spiegazione, per garantire coerenza e leggibilità.
+Le sezioni sono organizzate al fine di orientare la lettura dalla teoria all'implementazione pratica, passando per la progettazione dei moduli, la raccolta dati e la valutazione sperimentale. Ogni tabella e algoritmo è presentato subito dopo la relativa spiegazione, per garantire coerenza e leggibilità.
 
 \section{Panoramica del Processo}
 
-Di seguito vengono sintetizzate le fasi principali del flusso di lavoro. Le sezioni successive sviluppano ciascun punto in dettaglio.
+Le fasi principali dello sviluppo sono:
 \begin{enumerate}
     \item Implementazione e addestramento del NPC (DQN)
     \item Progettazione e integrazione dell'Helper (LLM)
     \item Generazione del dataset per il Reviewer
     \item Fine-tuning supervised del Reviewer (T5)
-    \item Estensione: fine-tuning tramite Reinforcement Learning (PPO)
     \item Training integrato dell'architettura HeRoN e valutazione
 \end{enumerate}
+
+Per una descrizione dettagliata dei componenti architetturali (NPC, Helper, Reviewer) e del meccanismo di threshold decay, si rimanda al Capitolo~2. Le sezioni seguenti sviluppano i dettagli implementativi di ciascuna fase.
 
 \section{NPC (DQN Agent)}
 
@@ -171,7 +172,7 @@ Phi-3-mini & 3.8B & 72\% & Media & Difficoltà istruzioni, allucinazioni frequen
 
 \subsubsection{Progettazione del Prompt}
 
-Il prompt per l'Helper è stato progettato iterativamente attraverso esperimenti. La tabella seguente mostra l'evoluzione delle versioni del prompt per migliorare lo zero-shot dell'Helper:
+Il prompt per l'Helper è stato sottoposto a progettazione iterativa mediante sperimentazione. La tabella seguente mostra l'evoluzione delle versioni del prompt per migliorare lo zero-shot dell'Helper:
 
 % --- TABELLA 4.1 CON VERSIONI ESPLICITE ---
 \begin{table}[H]
@@ -300,15 +301,30 @@ Per addestrare il Reviewer, è stato necessario generare un dataset di esempi:
 
 Il fine-tuning è stato eseguito con i seguenti parametri:
 
-\begin{verbatim}
-Optimizer: AdamW
-Learning rate: 5e-5
-Batch size: 8
-Epochs: 5
-Max input length: 512 tokens
-Max output length: 128 tokens
-Gradient accumulation steps: 2
-\end{verbatim}
+\begin{table}[H]
+\centering
+\begin{tabular}{|l|l|}
+\hline
+\rowcolor{gray!20}
+\textbf{Parametro} & \textbf{Valore} \\
+\hline
+Optimizer & AdamW \\
+\hline
+Learning rate & 5e-5 \\
+\hline
+Batch size & 8 \\
+\hline
+Epochs & 5 \\
+\hline
+Max input length & 512 token \\
+\hline
+Max output length & 128 token \\
+\hline
+Gradient accumulation steps & 2 \\
+\hline
+\end{tabular}
+\caption{Parametri di fine-tuning del Reviewer}
+\end{table}
 
 \subsubsection{Validazione}
 

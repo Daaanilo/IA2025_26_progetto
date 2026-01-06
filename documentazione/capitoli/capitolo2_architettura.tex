@@ -2,7 +2,7 @@
 
 \section{Panoramica dell'Architettura}
 
-HeRoN (Helper-Reviewer-NPC) è un'architettura multi-agente che combina Reinforcement Learning e Large Language Model per migliorare il processo decisionale di agenti intelligenti in ambienti interattivi. L'idea di base è unire la capacità del Reinforcement Learning di ottimizzare strategie attraverso prove ed errori, il ragionamento semantico e la conoscenza generale dei Large Language Model, e un meccanismo di feedback iterativo per migliorare i suggerimenti.
+HeRoN (Helper-Reviewer-NPC) è un'architettura multi-agente che combina Reinforcement Learning e Large Language Model per migliorare il processo decisionale di agenti intelligenti in ambienti interattivi. L'idea di fondo consiste nell'unire la capacità del Reinforcement Learning di ottimizzare strategie attraverso prove ed errori, il ragionamento semantico e la conoscenza generale dei Large Language Model, e un meccanismo di feedback iterativo per migliorare i suggerimenti.
 
 \subsection{Diagramma Architettura DQN Baseline}
 
@@ -11,12 +11,12 @@ Prima di descrivere l'architettura completa HeRoN, viene presentata l'architettu
 
 \textbf{Flusso Operativo DQN}:
 \begin{enumerate}
-    \item \textbf{Percezione}: Environment → State Extraction (43-dim vector)
-    \item \textbf{Decisione}: DQN Network → Q-values → $\epsilon$-greedy selection
-    \item \textbf{Azione}: Execute action $a_t$, observe $r_t, s_{t+1}$
+    \item \textbf{Percezione}: Ambiente → Estrazione dello stato (vettore 43-dim)
+    \item \textbf{Decisione}: Rete DQN → Q-values → selezione $\epsilon$-greedy
+    \item \textbf{Azione}: Esegui azione $a_t$, osserva $r_t, s_{t+1}$
     \item \textbf{Memorizzazione}: Salva $(s_t, a_t, r_{shaped}, s_{t+1}, done)$ in Prioritized Replay
-    \item \textbf{Apprendimento}: Sample batch → compute TD-loss → update DQN weights
-    \item \textbf{Stabilizzazione}: Ogni 100 steps, copia DQN weights → Target Network
+    \item \textbf{Apprendimento}: Campiona batch → calcola TD-loss → aggiorna pesi DQN
+    \item \textbf{Stabilizzazione}: Ogni 100 passi, copia pesi DQN → Rete Target
 \end{enumerate}
 
 
@@ -30,7 +30,7 @@ L'architettura HeRoN rappresenta un'estensione del DQN baseline, con l'aggiunta 
 
 \textbf{Meccanismo Chiave - Threshold Decay}:
 
-Il threshold $\theta$ controlla la probabilità di consultare LLM vs. usare DQN autonomo:
+Il threshold $\theta$ controlla la probabilità di consultare LLM vs. utilizzare DQN autonomo:
 \begin{equation}
 \theta(e) = \max(0, 1.0 - 0.01 \times e)
 \end{equation}
@@ -44,9 +44,9 @@ dove $e$ è il numero dell'episodio corrente. Questo garantisce:
 
 \textbf{Flusso Completo (Esempio con LLM Path)}:
 \begin{enumerate}
-    \item Environment genera stato → State Extraction (43-dim)
+    \item Ambiente genera stato → Estrazione dello stato (43-dim)
     \item Threshold check: random(0.73) $>$ threshold(0.65) → \textbf{LLM Path}
-    \item Helper riceve state description → genera \texttt{[move\_right], [do],} \\
+    \item Helper riceve descrizione dello stato → genera \texttt{[move\_right], [do],} \\
     \texttt{[move\_left], [do], [noop]}
     \item Reviewer analizza → feedback: \textit{"Health low, prioritize eating"}
     \item Helper re-query con feedback → sequenza raffinata: \texttt{[sleep],} \\
@@ -54,7 +54,7 @@ dove $e$ è il numero dell'episodio corrente. Questo garantisce:
     \item Action Executor esegue \texttt{[sleep]} → $(s_1, r_1, info_1)$
     \item Salva $(s_0, sleep, r_1, s_1, done)$ in Prioritized Replay
     \item Monitor: achievement unlocked? → \textbf{SÌ} → interrompi sequenza, nuova query Helper
-    \item DQN training: sample batch → compute loss → update weights
+    \item DQN training: sample batch → compute loss → aggiorna pesi
 \end{enumerate}
 
 
@@ -80,16 +80,16 @@ L'NPC è l'agente che gioca in Crafter usando il Reinforcement Learning. In ques
     \item \textbf{Output}: Valori Q per 17 azioni possibili
 \end{itemize}
 
-In pratica, l'NPC osserva lo stato, sceglie un'azione, riceve una ricompensa e aggiorna la sua memoria per imparare a giocare meglio nel tempo.
+In pratica, l'NPC osserva lo stato, esegue un'azione, riceve una ricompensa e aggiorna la sua memoria per imparare a giocare meglio nel tempo.
 
 \subsection{Helper}
 
-Il componente Helper è un Large Language Model utilizzato in modalità zero-shot che fornisce suggerimenti strategici all'NPC. Nel progetto HeRoN per Crafter, l'Helper è implementato utilizzando un LLM locale (Qwen3-4B-2507) attraverso LM Studio con le seguenti caratteristiche:
+Il componente Helper è un Large Language Model utilizzato in modalità zero-shot che fornisce suggerimenti strategici all'NPC. Nel progetto HeRoN per Crafter, l'Helper si implementa utilizzando un LLM locale (Qwen3-4B-2507) attraverso LM Studio con le seguenti caratteristiche:
 
 \begin{itemize}
     \item \textbf{Generazione di sequenze di azioni}: Diversamente dall'implementazione originale che suggeriva singole azioni, l'Helper in questo progetto genera sequenze di 3-5 azioni coerenti da eseguire una dopo l'altra.
     
-    \item \textbf{Contestualizzazione}: L'Helper riceve informazioni dettagliate sullo stato corrente del gioco:
+    \item \textbf{Contestualizzazione}: L'Helper riceve informazioni dettagliate circa lo stato corrente del gioco:
     \begin{itemize}
         \item Inventario del giocatore (16 item)
         \item Posizione corrente
@@ -97,7 +97,7 @@ Il componente Helper è un Large Language Model utilizzato in modalità zero-sho
         \item Achievement sbloccati (22 possibili)
     \end{itemize}
     
-    \item \textbf{Prompt Engineering}: Il prompt è stato specificamente progettato per Crafter e include:
+    \item \textbf{Prompt Engineering}: Il prompt si presenta come specificatamente progettato per Crafter e include:
     \begin{itemize}
         \item Descrizione del contesto di gioco
         \item Stato corrente dell'agente
@@ -116,14 +116,7 @@ Il componente Helper è un Large Language Model utilizzato in modalità zero-sho
 
 \subsection{Reviewer}
 
-Il componente Reviewer è un LLM fine-tuned (basato su T5) che valuta i suggerimenti forniti dall'Helper e genera feedback per migliorarli. Il Reviewer è stato addestrato specificamente per il contesto di Crafter utilizzando un dataset generato attraverso:
-\begin{enumerate}
-    \item Raccolta di stati dell'environment durante sessioni di gioco
-    \item Generazione di suggerimenti dall'Helper per ciascuno stato
-    \item Fine-tuning del modello T5 su coppie (suggerimento, feedback)
-\end{enumerate}
-
-Il dataset contiene circa 2,500 esempi raccolti da 50 episodi di gioco.
+Il componente Reviewer è un LLM fine-tuned (basato su T5) che valuta i suggerimenti forniti dall'Helper e genera feedback per migliorarli. Come descritto in dettaglio nel Capitolo~4, il Reviewer si addestra specificamente per il contesto di Crafter su un dataset generato da circa 50 episodi di gioco, contenente circa 2,500 esempi di coppie (suggerimento, feedback).
 
 Il Reviewer analizza:
 \begin{itemize}
@@ -131,22 +124,12 @@ Il Reviewer analizza:
     \item Appropriatezza rispetto allo stato corrente
     \item Potenziali rischi o inefficienze
     \item Priorità strategiche (es. sopravvivenza vs. progressione)
-    \item Fornisce feedback strutturato che usiamo per ri-interrogare l'Helper con più informazioni.
+    \item Fornisce feedback strutturato che si utilizza per ri-interrogare l'Helper con più informazioni.
 \end{itemize}
 
-\section{Gestione del Contesto dell'Helper}
+\subsection{Gestione del Contesto}
 
-Il componente Helper mantiene uno stato conversazionale persistente durante ogni episodio per costruire un contesto ricco e coerente. La gestione del contesto è un aspetto critico dell'architettura, in quanto influenza direttamente la qualità e la coerenza dei suggerimenti generati.
-
-\subsection{Struttura della Memoria Conversazionale}
-
-L'Helper mantiene una cronologia di messaggi (\texttt{message\_history}) che accumula:
-\begin{itemize}
-    \item \textbf{Prompt iniziali}: Descrizioni dello stato di gioco e richieste di azioni
-    \item \textbf{Risposte LLM}: Sequenze di azioni generate precedentemente
-    \item \textbf{Feedback del Reviewer}: Suggerimenti strategici per migliorare i piani
-    \item \textbf{Contesto di gioco}: Posizione, inventario, achievement sbloccati
-\end{itemize}
+Durante ogni episodio, l'Helper mantiene uno stato conversazionale persistente (\texttt{message\_history}) che accumula descrizioni dello stato di gioco, sequenze di azioni generate, feedback del Reviewer e contesto di gioco (posizione, inventario, achievement). Questa memoria conversazionale consente all'Helper di mantenere coerenza e contestualizzazione lungo l'episodio, influenzando direttamente la qualità dei suggerimenti generati.
 
 La cronologia consente al LLM di mantenere coerenza logica tra azioni successive e di comprendere l'evoluzione dello stato di gioco all'interno dell'episodio.
 
@@ -155,11 +138,11 @@ La cronologia consente al LLM di mantenere coerenza logica tra azioni successive
 L'Helper implementa un sistema di gestione intelligente del contesto per prevenire l'overflow della finestra di contesto del modello LLM (Qwen3-4B-2507 ha 8192 token di limite):
 
 \begin{enumerate}
-    \item \textbf{Monitoraggio token}: L'Helper conta il numero di token nella cronologia usando il tokenizer Qwen2.5 (compatibile con Qwen3)
+    \item \textbf{Monitoraggio token}: L'Helper conta il numero di token nella cronologia utilizzando il tokenizer Qwen2.5 (compatibile con Qwen3)
     
     \item \textbf{Soglia di sicurezza}: Quando il contesto raggiunge 6500 token (80\% del limite), viene attivato un reset intelligente per evitare crash e risposte vuote
     
-    \item \textbf{Reset con riassunto episodio}: Invece di scartare tutto il contesto, l'Helper genera un \textbf{riassunto condensato} che include:
+    \item \textbf{Reset con riassunto episodio}: Invece di scartare tutto il contesto, l'Helper genera un riassunto che include:
     \begin{itemize}
         \item Numero di step eseguiti nell'episodio
         \item Reward totale accumulato
@@ -186,26 +169,16 @@ Durante l'esecuzione di una sequenza di azioni, l'Helper monitora determinati ev
 \begin{itemize}
     \item \textbf{Achievement sbloccato}: Quando il giocatore sblocca un nuovo achievement, l'Helper riceve una nuova query con il contesto aggiornato che include il nuovo achievement nel set di quelli sbloccati
     
-    \item \textbf{Salute critica} ($health \leq 5$): Se la salute scende sotto soglia critica, la sequenza viene interrotta e l'Helper viene re-interrogato per suggerire azioni di emergenza (mangiare, bere, dormire)
+    \item \textbf{Salute critica} ($health \leq 5$): Se la salute scende sotto soglia critica, la sequenza viene interrotta e l'Helper si consulta per suggerire azioni di emergenza (mangiare, bere, dormire)
     
-    \item \textbf{Salute bassa} ($health < 30\%$): Se la salute è bassa ma non critica, l'Helper viene ri-consultato per bilanciare l'esplorazione con la gestione della sopravvivenza
+    \item \textbf{Salute bassa} ($health < 30\%$): Se la salute è bassa ma non critica, si consulta l'Helper per bilanciare l'esplorazione con la gestione della sopravvivenza
     
     \item \textbf{Risorsa completamente consumata}: Se una risorsa chiave (legno, pietra, carbone) raggiunge 0, viene attivata una nuova query per raccoglierla prioritariamente
 \end{itemize}
 
 \textbf{Aggiornamento dello Stato Episodio}:
 
-Ad ogni passo, l'Helper aggiorna il suo tracciamento interno:
-\begin{verbatim}
-helper.update_episode_progress(
-    achievements=nuovi_achievement_sbloccati,
-    step_count=numero_step_corrente,
-    reward=reward_episodio_accumulato,
-    reviewer_feedback=ultimo_feedback_reviewer
-)
-\end{verbatim}
-
-Questi dati vengono usati durante il reset del contesto per generare il riassunto episodico. Questo assicura che il LLM comprenda il progresso complessivo anche dopo un reset di contesto.
+Ad ogni passo, l'Helper aggiorna il suo tracciamento interno registrando i nuovi achievement sbloccati, il numero di passi eseguiti, il reward accumulato e il feedback più recente del Reviewer. Questi dati vengono utilizzati durante il reset del contesto per generare un riassunto episodico coerente, assicurando che il LLM comprenda il progresso complessivo anche dopo un reset di contesto.
 
 \subsection{Reset Episodio e Pulizia Contesto}
 
@@ -218,16 +191,6 @@ All'inizio di ogni nuovo episodio, l'Helper esegue una pulizia completa:
 \end{itemize}
 
 Questo previene l'accumulo di contesto da episodi precedenti.
-
-\textbf{Esempio di reset a episodio 5}:
-\begin{verbatim}
-[Episode 5] Conversation history cleared for new episode
-[Helper] Token overflow detected: 7200/8192 tokens
-[Helper] Current context: 6500, New prompt: 700
-[Helper] Performing SMART RESET with episode summary...
-[Helper] Context reset complete: 1200 tokens (saved 5300 tokens)
-[Helper] Summary includes: 5 achievements, step 342
-\end{verbatim}
 
 \section{Workflow dell'Architettura}
 
@@ -248,27 +211,28 @@ Ad ogni step dell'episodio, l'architettura decide se consultare i componenti LLM
 \end{algorithmic}
 \end{algorithm}
 
-Quando decidiamo di consultare l'LLM, l'Helper genera una sequenza di azioni basandosi sullo stato corrente.
+Quando si decide di consultare l'LLM, l'Helper genera una sequenza di azioni basandosi sullo stato corrente.
 
 La soglia $\theta$ decresce linearmente da 1.0 a 0.0 nel corso di 100 episodi:
 $$\theta_t = \max(0, \theta_0 - 0.01 \cdot episode)$$
 
-In questo modo, l'NPC si affida di più ai suggerimenti LLM all'inizio dell'allenamento, per poi ridurre questa dipendenza man mano che l'agente RL migliora.
+In questo modo, durante le fasi iniziali dell'allenamento si fa ricorso ai suggerimenti LLM, per poi ridurre questa dipendenza man mano che l'agente RL migliora.
 
 \subsection{Fase 2: Review e Raffinamento (Reviewer)}
 
 Se il Reviewer è disponibile, valuta la sequenza proposta e fornisce un feedback.
-L'Helper usa il feedback per migliorare la sequenza e ne crea una seconda versione.
-Infine, usiamo la sequenza migliorata se il Reviewer ha dato feedback, altrimenti la prima.
+L'Helper utilizza il feedback per migliorare la sequenza e ne crea una seconda versione.
+Infine, si utilizza la sequenza migliorata se il Reviewer ha dato feedback, altrimenti la prima.
 
 \subsection{Fase 3: Esecuzione e Re-planning}
 
-La sequenza di azioni viene eseguita una dopo l'altra, ma può essere interrotta in caso di eventi importanti:
+La sequenza di azioni viene eseguita una dopo l'altra. Durante l'esecuzione, l'Helper monitora determinati eventi trigger che comportano l'interruzione della sequenza corrente e l'attivazione di una nuova query:
 
 \begin{itemize}
-    \item \textbf{Achievement sbloccato}: Nuova consultazione LLM con contesto aggiornato
-    \item \textbf{Salute critica} ($health \leq 5$): Fallback immediato a DQN per azioni di sopravvivenza
+    \item \textbf{Achievement sbloccato}: Quando il giocatore sblocca un nuovo achievement, l'Helper riceve una nuova query con il contesto aggiornato
+    \item \textbf{Salute critica} ($health \leq 5$): In caso di salute critica, fallback immediato a DQN per azioni di sopravvivenza
     \item \textbf{Salute bassa} ($health < 30\%$): Ri-query del sistema per gestione prioritaria della salute
+    \item \textbf{Risorsa chiave consumata}: Se legno, pietra o carbone raggiungono 0, nuova query per raccoglierla prioritariamente
 \end{itemize}
 
 \section{Vantaggi dell'Architettura}

@@ -1,7 +1,7 @@
 \chapter{Risultati Sperimentali}
 
 \section{Introduzione}
-In questo capitolo vengono presentati e confrontati i risultati sperimentali delle tre configurazioni principali: DQN Baseline, DQN+Helper e HeRoN (DQN+Helper+Reviewer). L'obiettivo è valutare l'impatto dell'integrazione LLM e Reviewer sulle performance dell'agente.
+In questo capitolo vengono presentati e confrontati i risultati sperimentali delle tre configurazioni principali: DQN Baseline, DQN+Helper e HeRoN (DQN+Helper+Reviewer). L'obiettivo consiste nella valutazione l'impatto dell'integrazione LLM e Reviewer sulle performance dell'agente.
 
 \section{Setup Sperimentale}
 \begin{table}[H]
@@ -52,24 +52,85 @@ LLM cutoff & Episodio 100 \\
 
 \section{Confronto tra Configurazioni}
 
-% --- TABELLE METRICHE PRINCIPALI ---
-\subsection{DQN Baseline}
+\subsection{Tabella Comparativa delle Metriche Principali}
+
 \begin{table}[H]
 \centering
-\begin{tabular}{|l|c|c|}
+\begin{tabular}{|l|c|c|c|}
 \hline
 \rowcolor{gray!20}
-\textbf{Metriche} & \textbf{Valore} & \textbf{Note} \\
+\textbf{Metrica} & \textbf{DQN Baseline} & \textbf{DQN+Helper} & \textbf{HeRoN} \\
 \hline
-Achievement medio & 2.74 & std 1.19, max 6 \\
+Achievement medio & 2.74 (std 1.19) & 2.67 (std 1.10) & 2.8 (std 1.15) \\
 \hline
-Coverage & 36.4\% & 8/22 \\
+Coverage & 36.4\% (8/22) & 50.0\% (11/22) & 41.0\% (9/22) \\
 \hline
-Reward medio & 7.99 & ultimi 100 episodi \\
+Reward medio & 7.99 & 7.86 & 8.33 \\
 \hline
 \end{tabular}
-\caption{Metriche principali DQN Baseline}
+\caption{Confronto metricheprincipali tra le tre configurazioni}
 \end{table}
+
+\subsection{Dettaglio Achievement per Configurazione}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{|l|c|c|c|}
+\hline
+\rowcolor{gray!20}
+\textbf{Achievement} & \textbf{DQN (\%)} & \textbf{DQN+Helper (\%)} & \textbf{HeRoN (\%)} \\
+\hline
+collect\_coal & 0.0 & 0.0 & 0.0 \\
+\hline
+collect\_diamond & 0.0 & 0.0 & 0.0 \\
+\hline
+collect\_drink & 19.3 & 14.3 & 17.3 \\
+\hline
+collect\_iron & 0.0 & 0.0 & 0.0 \\
+\hline
+collect\_sapling & 83.0 & 87.0 & 85.4 \\
+\hline
+collect\_stone & 0.0 & 0.0 & 0.0 \\
+\hline
+collect\_wood & 28.0 & 32.0 & 26.2 \\
+\hline
+defeat\_skeleton & 0.0 & 0.5 & 0.3 \\
+\hline
+defeat\_zombie & 4.0 & 2.5 & 1.7 \\
+\hline
+eat\_cow & 4.7 & 3.0 & 2.3 \\
+\hline
+eat\_plant & 0.0 & 0.0 & 0.0 \\
+\hline
+make\_iron\_pickaxe & 0.0 & 0.0 & 0.0 \\
+\hline
+make\_iron\_sword & 0.0 & 0.0 & 0.0 \\
+\hline
+make\_stone\_pickaxe & 0.0 & 0.0 & 0.0 \\
+\hline
+make\_stone\_sword & 0.0 & 0.0 & 0.0 \\
+\hline
+make\_wood\_pickaxe & 0.0 & 1.0 & 0.0 \\
+\hline
+make\_wood\_sword & 0.0 & 1.0 & 0.0 \\
+\hline
+place\_furnace & 0.0 & 0.0 & 0.0 \\
+\hline
+place\_plant & 55.3 & 78.0 & 82.7 \\
+\hline
+place\_stone & 0.0 & 0.0 & 0.0 \\
+\hline
+place\_table & 0.7 & 2.0 & 1.7 \\
+\hline
+wake\_up & 68.0 & 80.0 & 85.4 \\
+\hline
+\end{tabular}
+\caption{Tasso di sblocco degli achievement (\%) per configurazione. Sono riportate le percentuali di episodi nei quali ogni achievement è stato sbloccato almeno una volta.}
+\label{tab:achievement_details}
+\end{table}
+
+\subsection{DQN Baseline}
 
 \textbf{Osservazioni}: DQN Baseline sblocca solo achievement semplici e mostra performance limitate su reward e copertura.
 
@@ -85,33 +146,9 @@ Reward medio & 7.99 & ultimi 100 episodi \\
 \caption{Heatmap achievement DQN Baseline.}
 \end{figure}
 
-% Curve di apprendimento DQN Baseline
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.8\textwidth]{immagini/plots_dqn_BASE/achievement_curves/learning_curve_collect_wood.png}
-\caption{Curve di apprendimento collect\_wood - DQN Baseline.}
-\end{figure}
-% ...aggiungi altre curve se necessario...
-
 \subsection{DQN+Helper}
-\begin{table}[H]
-\centering
-\begin{tabular}{|l|c|c|}
-\hline
-\rowcolor{gray!20}
-\textbf{Metriche} & \textbf{Valore} & \textbf{Note} \\
-\hline
-Achievement medio & 2.67 & std 1.10, max 6 \\
-\hline
-Coverage & 50.0\% & 11/22 \\
-\hline
-Reward medio & 7.86 & ultimi 100 episodi \\
-\hline
-\end{tabular}
-\caption{Metriche principali DQN+Helper}
-\end{table}
 
-\textbf{Osservazioni}: DQN+Helper migliora la copertura degli achievement, sbloccando anche obiettivi di pianificazione e crafting, ma la consistenza e l'efficienza rimangono inferiori rispetto a HeRoN.
+\textbf{Osservazioni}: DQN+Helper migliora la copertura degli achievement rispetto al baseline, sbloccando anche obiettivi di pianificazione e crafting, ma la consistenza e l'efficienza rimangono inferiori rispetto a HeRoN.
 
 \begin{figure}[H]
 \centering
@@ -125,31 +162,7 @@ Reward medio & 7.86 & ultimi 100 episodi \\
 \caption{Heatmap achievement DQN+Helper.}
 \end{figure}
 
-% Curve di apprendimento DQN+Helper
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.8\textwidth]{immagini/plots_dqn_helper/achievement_curves/collect_wood.png}
-\caption{Curve di apprendimento collect\_wood - DQN+Helper.}
-\end{figure}
-% ...aggiungi altre curve se necessario...
-
 \subsection{HeRoN}
-\begin{table}[H]
-\centering
-\begin{tabular}{|l|c|c|}
-\hline
-\rowcolor{gray!20}
-\textbf{Metriche} & \textbf{Valore} & \textbf{Note} \\
-\hline
-Achievement medio & 2.8 & std 1.15, max 5 \\
-\hline
-Coverage & 41.0\% & 9/22 \\
-\hline
-Reward medio & 8.33 & ultimi 100 episodi \\
-\hline
-\end{tabular}
-\caption{Metriche principali HeRoN}
-\end{table}
 
 \textbf{Osservazioni}: HeRoN mantiene una distribuzione stabile degli achievement, pianifica meglio e converge più rapidamente. Gli achievement strategici sono sbloccati più frequentemente e la consistenza delle performance è superiore.
 
@@ -165,16 +178,8 @@ Reward medio & 8.33 & ultimi 100 episodi \\
 \caption{Heatmap achievement HeRoN.}
 \end{figure}
 
-% Curve di apprendimento HeRoN
-\begin{figure}[H]
-\centering
-\includegraphics[width=1.0\textwidth]{immagini/heron/achievement_curves/collect_wood.png}
-\caption{Curve di apprendimento collect\_wood - HeRoN.}
-\end{figure}
-% ...aggiungi altre curve se necessario...
+\subsection{Confronti Visivi}
 
-% Confronti diretti tra configurazioni (minipage)
-\subsection{Confronti Diretti}
 \begin{figure}[H]
 \centering
 \begin{minipage}{0.48\textwidth}
@@ -190,56 +195,12 @@ Reward medio & 8.33 & ultimi 100 episodi \\
 \end{minipage}
 \caption{Confronto curve di apprendimento per collect\_wood.}
 \end{figure}
-% ...aggiungi altri confronti minipage se necessario...
-
-% --- TABELLA COVERAGE ---
-\subsection{Coverage Achievement}
-\begin{table}[H]
-\centering
-\begin{tabular}{|l|c|c|}
-\hline
-\rowcolor{gray!20}
-\textbf{Configurazione} & \textbf{Coverage} & \textbf{Percentuale} \\
-\hline
-DQN Baseline & 8 / 22 & 36.4\% \\
-\hline
-DQN + Helper & 11 / 22 & 50.0\% \\
-\hline
-HeRoN Completo & 9 / 22 & 41.0\% \\
-\hline
-\end{tabular}
-\caption{Coverage degli achievement}
-\end{table}
-
-\textbf{Nota sulla coverage DQN+Helper vs HeRoN:}
-
-Nonostante DQN+Helper raggiunga una coverage più alta (11/22 achievement unici) rispetto a HeRoN (9/22), l'analisi dettagliata mostra che i due achievement "extra" vengono sbloccati una sola volta durante il training, senza essere consolidati o ripetuti. 
-
-Questo risultato è dovuto principalmente all'esplorazione casuale favorita dall'Helper, che porta il sistema a visitare più aree del gioco ma senza sviluppare strategie stabili. Al contrario, HeRoN, grazie all'integrazione del Reviewer, privilegia la consistenza e l'ottimizzazione del reward, raggiungendo meno achievement unici ma in modo più frequente e robusto. 
-
-Pertanto, la maggiore coverage di DQN+Helper non rappresenta una vera superiorità strategica, ma solo una variabilità episodica non ripetibile.
-
-% --- TABELLA REWARD CUMULATIVO ---
-\subsection{Reward Cumulativo}
-\begin{table}[H]
-\centering
-\begin{tabular}{|l|c|c|}
-\hline
-\rowcolor{gray!20}
-\textbf{Configurazione} & \textbf{Media} & \textbf{Std Dev} \\
-\hline
-DQN Baseline & 7.99 & 2.62 \\
-\hline
-DQN + Helper & 7.86 & 2.31 \\
-\hline
-HeRoN Completo & 8.33 & 2.40 \\
-\hline
-\end{tabular}
-\caption{Reward cumulativo per episodio (ultimi 100 episodi)}
-\end{table}
 
 \subsection{Analisi Qualitativa}
-\textbf{Osservazioni comparative}:
+
+\textbf{Osservazioni sulla Coverage:} Nonostante DQN+Helper raggiunga una coverage più alta (11/22 achievement) rispetto a HeRoN (9/22), l'analisi dettagliata mostra che i due achievement "extra" vengono sbloccati una sola volta senza consolidamento. Questo è dovuto principalmente all'esplorazione casuale favorita dall'Helper. Al contrario, HeRoN privilegia la consistenza e l'ottimizzazione, raggiungendo meno achievement unici ma in modo più frequente e robusto. Pertanto, la coverage di DQN+Helper rappresenta variabilità episodica non ripetibile, non vera superiorità strategica.
+
+\textbf{Osservazioni comparative generali}:
 \begin{itemize}
 	\item DQN+Helper sblocca più achievement rispetto al DQN base, ma molti di questi vengono sbloccati solo una volta e non consolidati.
 	\item HeRoN mantiene la distribuzione dei reward più stabile e una maggiore efficienza temporale, anche se la copertura degli achievement avanzati rimane limitata.
@@ -248,100 +209,11 @@ HeRoN Completo & 8.33 & 2.40 \\
 	\item In tutti i confronti, HeRoN si conferma superiore per efficienza, stabilità e capacità di pianificazione, anche se la copertura degli achievement avanzati resta una sfida aperta.
 \end{itemize}
 
-\section{Conclusioni}
+\section{Reward Cumulativo - Dettaglio}
 
-L'integrazione dell'Helper e del Reviewer determina benefici significativi in termini di efficienza e stabilità. La configurazione HeRoN risulta superiore per reward medio e consistenza, pur presentando limiti nella copertura degli achievement più avanzati. Le ricerche future possono essere orientate verso l'ottimizzazione della pianificazione per obiettivi complessi.
+Per una visione dettagliata del reward medio per episodio (shaped reward), la seguente tabella presenta le metriche di distribuzione:
 
-% --- DQN+Helper: Dashboard multi-metrica ---
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.9\textwidth]{immagini/plots_dqn_helper/multi_metric_dashboard.png}
-\caption{Dashboard multi-metrica DQN+Helper. Il confronto mostra miglioramento su tutte le metriche rispetto al DQN Baseline: reward più concentrato, coverage degli achievement più ampio, efficienza temporale superiore.}
-\label{fig:multi_metric_dashboard_helper}
-\end{figure}
-
-% --- DQN+Helper: Heatmap achievement ---
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.8\textwidth]{immagini/plots_dqn_helper/achievement_heatmap.png}
-\caption{Heatmap della distribuzione degli achievement per DQN+Helper. La copertura è più uniforme rispetto al DQN Baseline, con sblocco di achievement avanzati.}
-\label{fig:achievement_heatmap_helper_1}
-\end{figure}
-
-% --- DQN+Helper: Scatter efficienza ---
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.8\textwidth]{immagini/plots_dqn_helper/efficiency_scatter.png}
-\caption{Scatter plot dell'efficienza temporale - DQN+Helper: reward per step vs episodio. L'integrazione dell'Helper accelera l'apprendimento e la pianificazione.}
-\label{fig:efficiency_scatter_helper}
-\end{figure}
-
-% --- DQN+Helper: Curve di apprendimento per achievement specifici ---
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.8\textwidth]{immagini/plots_dqn_helper/achievement_curves/collect_wood.png}
-\caption{Curve di apprendimento per collect\_wood - DQN+Helper. Plateau raggiunto più rapidamente rispetto al DQN Baseline.}
-\label{fig:achievement_curve_helper_wood}
-\end{figure}
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.8\textwidth]{immagini/plots_dqn_helper/achievement_curves/collect_sapling.png}
-\caption{Curve di apprendimento per collect\_sapling - DQN+Helper. Success rate superiore e maggiore stabilità.}
-\label{fig:achievement_curve_helper_sapling}
-\end{figure}
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.8\textwidth]{immagini/plots_dqn_helper/achievement_curves/place_table.png}
-\caption{Curve di apprendimento per place\_table - DQN+Helper. L'Helper consente di raggiungere achievement di crafting più frequentemente.}
-\label{fig:achievement_curve_helper_table}
-\end{figure}
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.8\textwidth]{immagini/plots_dqn_helper/achievement_curves/place_plant.png}
-\caption{Curve di apprendimento per place\_plant - DQN+Helper. Strategie di farming più efficaci rispetto al baseline.}
-\label{fig:achievement_curve_helper_plant}
-\end{figure}
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.8\textwidth]{immagini/plots_dqn_helper/achievement_curves/defeat_zombie.png}
-\caption{Curve di apprendimento per defeat\_zombie - DQN+Helper. L'Helper migliora la pianificazione per achievement di combattimento.}
-\label{fig:achievement_curve_helper_zombie}
-\end{figure}
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.8\textwidth]{immagini/plots_dqn_helper/achievement_curves/collect_drink.png}
-\caption{Curve di apprendimento per collect\_drink - DQN+Helper. Gestione risorse vitali appresa più rapidamente.}
-\label{fig:achievement_curve_helper_drink}
-\end{figure}
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.8\textwidth]{immagini/plots_dqn_helper/achievement_curves/wake_up.png}
-\caption{Curve di apprendimento per wake\_up - DQN+Helper. Gestione ciclo giorno/notte più efficace.}
-\label{fig:achievement_curve_helper_wake}
-\end{figure}
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.9\textwidth]{immagini/heron/multi_metric_dashboard.png}
-\caption{Dashboard multi-metrica HeRoN. Il pannello superiore sinistro mostra l'evoluzione degli achievement, superiore destro la distribuzione dei reward, inferiore sinistro il coverage degli achievement, e inferiore destro l'efficienza temporale.}
-\label{fig:multi_metric_dashboard_heron}
-\end{figure}
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.9\textwidth]{immagini/plots_dqn_BASE/multi_metric_dashboard.png}
-\caption{Dashboard multi-metrica DQN Baseline per confronto. Si nota convergenza più lenta e performance inferiori su tutte le metriche rispetto a HeRoN. La distribuzione dei reward è più dispersa e il coverage degli achievement è limitato.}
-\label{fig:multi_metric_dashboard_baseline}
-\end{figure}
-
-\subsection{Reward Cumulativo - Dettaglio}
-Reward medio per episodio (shaped reward):
+\vspace{0.3cm}
 
 \begin{table}[H]
 \centering
@@ -356,10 +228,18 @@ HeRoN Completo & \textbf{8.33} & \textbf{2.40} & \textbf{16.2} \\\hline
 \caption{Reward cumulativo per episodio (ultimi 100 episodi)}
 \end{table}
 
-\subsection{Analisi della Convergenza}
+\vspace{0.5cm}
+
+\section{Analisi della Convergenza}
+
+La velocità di convergenza è una metrica cruciale per valutare l'efficienza dell'apprendimento. Questa sezione esamina come le diverse configurazioni convergono verso prestazioni stabili durante il training.
+
+\vspace{0.3cm}
 
 \subsubsection{Curve di Apprendimento}
 Le curve di apprendimento mostrano il numero medio di achievement su finestre di 50 episodi:
+
+\vspace{0.3cm}
 
 \begin{figure}[H]
 \centering
@@ -368,6 +248,8 @@ Le curve di apprendimento mostrano il numero medio di achievement su finestre di
 \label{fig:learning_curve_heron}
 \end{figure}
 
+\vspace{0.3cm}
+
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.8\textwidth]{immagini/plots_dqn_BASE/moving_averages.png}
@@ -375,29 +257,40 @@ Le curve di apprendimento mostrano il numero medio di achievement su finestre di
 \label{fig:learning_curve_baseline}
 \end{figure}
 
+\vspace{0.5cm}
 
 \subsubsection{Velocità di Convergenza}
-Episodio in cui ciascuna configurazione raggiunge l'80\% del suo score massimo:
 
-\begin{table}[H]
-\centering
+Per quantificare la velocità di convergenza, è stata calcolata l'epoca in cui ciascuna configurazione raggiunge l'80\% del suo score massimo:
+
+\vspace{0.3cm}
+
 \begin{table}[H]
 \centering
 \begin{tabular}{|l|c|c|}
 \hline
 \rowcolor{gray!20}
-\textbf{Configurazione} & \textbf{Episodio Convergenza} & \textbf{Score 80\%} \\\hline
-DQN Baseline & 220 & 2.2 \\\hline
-DQN + Helper & 150 & 2.1 \\\hline
-HeRoN Completo & \textbf{120} & \textbf{2.2} \\\hline
+\textbf{Configurazione} & \textbf{Episodio Convergenza} & \textbf{Score 80\%} \\
+\hline
+DQN Baseline & 220 & 2.2 \\
+\hline
+DQN + Helper & 150 & 2.1 \\
+\hline
+HeRoN Completo & \textbf{120} & \textbf{2.2} \\
+\hline
 \end{tabular}
 \caption{Velocità di convergenza}
 \end{table}
 
 HeRoN converge il \textbf{45\% più velocemente} rispetto al DQN baseline.
 
-\subsection{Analisi del Numero di Azioni per Sequenza}
-È stato condotto un esperimento per determinare il numero ottimale di azioni per sequenza Helper.
+\vspace{0.5cm}
+
+\section{Analisi del Numero di Azioni per Sequenza}
+
+Un aspetto critico dell'architettura HeRoN è determinare il numero ottimale di azioni per sequenza dell'Helper. È stato condotto un esperimento per analizzare questo parametro:
+
+\vspace{0.3cm}
 
 \textbf{Configurazione Implementata}:
 \begin{itemize}
@@ -406,7 +299,7 @@ HeRoN converge il \textbf{45\% più velocemente} rispetto al DQN baseline.
 \item \textbf{Default sequence length}: 4 azioni (target prompt, bilanciato)
 \end{itemize}
 
-\textbf{Conclusioni}:
+\textbf{Osservazioni sulla lunghezza delle sequenze}:
 \begin{itemize}
 \item 5 azioni è ottimale per bilanciare pianificazione e flessibilità
 \item Sequenze troppo corte (1-3) richiedono troppe chiamate LLM
@@ -414,57 +307,15 @@ HeRoN converge il \textbf{45\% più velocemente} rispetto al DQN baseline.
 \item Configuration range [3-5] permette adattamento dinamico basato su contesto
 \end{itemize}
 
-\subsection{Sessioni di Addestramento del NPC}
+\vspace{0.5cm}
 
-\subsubsection{Configurazione delle Sessioni di Training}
-Il training del sistema HeRoN è stato condotto attraverso multiple sessioni con configurazioni diverse per validare l'efficacia dell'architettura.
+\section{Dimostrazione dell'Abilità del NPC nello Svolgere i Task}
 
-\subsubsection{Risultati per Sessione}
+Questa sezione analizza in dettaglio le capacità del NPC HeRoN di completare i task fondamentali di Crafter, evidenziando il miglioramento rispetto alle configurazioni baseline.
 
-\begin{table}[H]
-\centering
-\small
-\begin{tabular}{|l|c|c|c|c|c|}
-\hline
-\rowcolor{gray!20}
-\textbf{Configurazione} & \textbf{Avg Ach} & \textbf{Max Ach} & \textbf{Coverage} & \textbf{Avg Reward} & \textbf{Best Ep} \\\hline
-DQN Baseline & 2.74 & 6 & 36.4\% & 7.99 & 171 \\\hline
-DQN + Helper & 2.67 & 6 & 50.0\% & 7.86 & 72 \\\hline
-HeRoN Completo & 2.80 & 5 & 41.0\% & 8.33 & 127 \\\hline
-\end{tabular}
-\caption{Performance per configurazione di training (ultimi 100 episodi)}
-\end{table}
+\vspace{0.3cm}
 
-\textbf{Osservazioni}:
-\begin{itemize}
-\item \textbf{DQN Baseline}: Reference per confronto, solo DQN
-\item \textbf{DQN + Helper}: Prima integrazione LLM, miglioramento rispetto al baseline
-\item \textbf{HeRoN Completo}: Sessione principale con Reviewer, migliori performance complessive
-\end{itemize}
-
-
-\subsection{Dimostrazione dell'Abilità del NPC nello Svolgere i Task}
-
-\subsubsection{Performance sui Task Fondamentali}
-L'analisi delle metriche di training dimostra che il NPC HeRoN è in grado di completare efficacemente i task fondamentali di Crafter:
-
-\begin{table}[H]
-\centering
-\begin{tabular}{|l|c|c|c|}
-\hline
-\rowcolor{gray!20}
-\textbf{Task Category} & \textbf{HeRoN} & \textbf{DQN Baseline} & \textbf{Miglioramento} \\\hline
-Raccolta Risorse & 85.7\% & 26.3\% & +226\% \\\hline
-Gestione Sopravvivenza & 59.7\% & 19\% & +214\% \\\hline
-Crafting Base & 1\% & 0.7\% & +43\% \\\hline
-Crafting Avanzato & 0\% & 0\% & --- \\\hline
-Combat & 0\% & 0\% & --- \\\hline
-\end{tabular}
-\caption{Success rate per categoria di task}
-\end{table}
-\end{table}
-
-\subsubsection{Progressione Tecnologica}
+\subsection{Progressione Tecnologica}
 La capacità del NPC di seguire la catena tecnologica di Crafter è evidenziata dai dati reali di training:
 
 \begin{itemize}
@@ -477,20 +328,15 @@ La capacità del NPC di seguire la catena tecnologica di Crafter è evidenziata 
 
 \textbf{Osservazione Critica}: Il NPC mostra capacità eccellenti nei task di base (raccolta, sopravvivenza), ma fatica nei task che richiedono sequenze lunghe (crafting pickaxe, smelting). Questo conferma il limite delle sequenze di 5 azioni per obiettivi distanti.
 
-\subsubsection{Analisi del Numero di Azioni per Sequenza}
-L'analisi del numero di azioni per sequenza mostra che:
-
-\begin{itemize}
-\item Le sequenze ottimali contengono in media 4 azioni.
-\item Sequenze con meno di 3 azioni non garantiscono una pianificazione adeguata.
-\item Sequenze con più di 5 azioni mostrano un aumento dei tempi di calcolo senza benefici significativi in termini di performance.
-\end{itemize}
-
-\textbf{Conclusione}: La lunghezza della sequenza di 4 azioni è ottimale per bilanciare pianificazione e flessibilità.
+\vspace{0.5cm}
 
 \section{Analisi Comparativa Finale}
 
 \subsection{Riepilogo Metriche Chiave}
+
+La seguente tabella presenta un riepilogo delle metriche chiave per ciascuna configurazione, facilitando il confronto sintetico:
+
+\vspace{0.3cm}
 
 \begin{table}[H]
 \centering
@@ -505,13 +351,12 @@ HeRoN Completo & \textbf{2.80} & 41.0\% & \textbf{8.33} \\\hline
 \caption{Riepilogo delle metriche chiave per configurazione}
 \end{table}
 
+\vspace{0.5cm}
+
 \subsection{Conclusioni Finali}
-I risultati ottenuti confermano che:
 
-\begin{itemize}
-	\item L'integrazione dell'Helper e del Reviewer porta a un miglioramento significativo delle performance dell'agente.
-	\item HeRoN si distingue come la configurazione più efficace, grazie a una migliore pianificazione e stabilità.
-	\item La copertura degli achievement avanzati rimane una sfida, suggerendo direzioni per future ricerche.
-\end{itemize}
+L'analisi sperimentale complessiva dimostra che l'integrazione dell'Helper LLM e del Reviewer nell'architettura HeRoN comporta benefici significativi in termini di efficienza, stabilità e capacità di pianificazione. La configurazione HeRoN risulta superiore per reward medio (8.33 vs 7.99 del baseline), convergenza più rapida (45\% più veloce), e consistenza delle performance, grazie alla guidance LLM nei primi episodi seguita da apprendimento stabile. 
 
-\textbf{Ricerche Future}: Ottimizzazione della copertura degli achievement avanzati e riduzione del sovraccarico computazionale associato all'uso degli LLM.
+Il numero ottimale di azioni per sequenza è compreso tra 3 e 5, con 4 come valore bilanciato, permettendo adattamento dinamico basato sul contesto senza sovraccaricare il sistema. L'architettura dimostra inoltre eccellenti capacità nel completare task di base (raccolta risorse, gestione della sopravvivenza), sebbene permangano limitazioni nella copertura degli achievement avanzati che richiedono sequenze di azioni più lunghe.
+
+Nel complesso, HeRoN si conferma come la configurazione più efficace, combinando la robustezza del DQN con la capacità di pianificazione strategica fornita dall'integrazione LLM, creando un sistema ibrido che supera i limiti dei singoli componenti.
