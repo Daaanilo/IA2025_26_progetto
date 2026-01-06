@@ -4,7 +4,7 @@ from datasets import Dataset
 from transformers import TrainingArguments, Trainer, T5Tokenizer, T5ForConditionalGeneration
 import os
 
-# Load JSONL dataset from Crafter dataset generation (F05)
+# Load JSONL dataset from Crafter dataset generation 
 DATASET_PATH = os.path.join(os.path.dirname(__file__), 'game_scenarios_dataset_crafter.jsonl')
 
 print(f"Loading dataset from {DATASET_PATH}...")
@@ -26,11 +26,11 @@ processed_data = {
 dataset = Dataset.from_dict(processed_data)
 print(f"Dataset prepared with {len(dataset)} samples")
 
-# Device auto-detection: CUDA > CPU (no MPS support as per HeRoN architecture)
+# Device auto-detection: CUDA > CPU 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
-# Load T5 model for Reviewer fine-tuning (F06)
+# Load T5 model for Reviewer fine-tuning 
 tokenizer = T5Tokenizer.from_pretrained("google/flan-t5-base")
 model = T5ForConditionalGeneration.from_pretrained("google/flan-t5-base").to(device)
 print(f"✓ Model loaded: google/flan-t5-base")
@@ -51,7 +51,7 @@ train_test_split = tokenizer_dataset.train_test_split(test_size=0.2)
 train_dataset = train_test_split['train']
 test_dataset = train_test_split['test']
 
-# Training configuration (F06 - Reviewer Fine-tuning)
+# Training configuration 
 OUTPUT_DIR = "reviewer_training_output"
 LOGGING_DIR = os.path.join(OUTPUT_DIR, "logs")
 REVIEWER_MODEL_PATH = "reviewer_retrained"  # Final model output
@@ -61,7 +61,7 @@ training_args = TrainingArguments(
     eval_strategy='epoch',
     per_device_train_batch_size=8,
     per_device_eval_batch_size=8,
-    num_train_epochs=5,  # 5 epochs as per copilot-instructions
+    num_train_epochs=5,  
     learning_rate=5e-5,
     weight_decay=0.01,
     save_total_limit=3,
@@ -89,7 +89,7 @@ trainer = Trainer(
 print("\nStarting training...")
 trainer.train()
 
-# Save final model to reviewer_retrained/ (used by InstructorAgent in F08)
+# Save final model to reviewer_retrained
 print(f"\nSaving fine-tuned Reviewer to {REVIEWER_MODEL_PATH}/...")
 model.save_pretrained(REVIEWER_MODEL_PATH)
 tokenizer.save_pretrained(REVIEWER_MODEL_PATH)

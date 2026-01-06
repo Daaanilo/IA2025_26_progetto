@@ -1,27 +1,23 @@
 """
-Utilities for reward shaping in the Crafter environment.
-
-Includes:
-- CrafterRewardShaper: Centralized reward shaping logic.
+Roba per dare premi extra all'agente (Reward Shaping).
 """
 
 import numpy as np
 
 
 # ============================================================================
-# Reward Shaping for Sparse Crafter Rewards
+# Reward Shaping
 # ============================================================================
 
 class CrafterRewardShaper:
     """
-    Augments sparse Crafter rewards with intrinsic bonuses for learning signal.
-    ALIGNED FOR BOTH HeRoN AND BASELINE DQN for fair comparison.
-
-    Bonuses:
-    - Resource collection: +0.1 per unit collected (cumulative)
-    - Health management: +0.02 if health/food/drink > 5 (static presence)
-    - Tool crafting: +0.3 per tool/weapon crafted
-    - Death penalty: -1.0 (to encourage survival)
+    Dà dei bonus extra all'agente per aiutarlo a imparare, visto che Crafter è tirchio.
+    
+    Bonus:
+    - Raccogliere risorse: +0.1
+    - Stare bene (salute/cibo/acqua > 5): +0.02
+    - Costruire attrezzi: +0.3
+    - Morire: -1.0 (male!)
     """
     def __init__(self):
         self.bonus_tracker = {
@@ -33,15 +29,7 @@ class CrafterRewardShaper:
 
     def calculate_shaped_reward(self, native_reward, info, previous_info):
         """
-        Calculate total shaped reward = native + intrinsic bonuses.
-
-        Args:
-            native_reward: Sparse reward from Crafter (+1 for achievement, 0 otherwise)
-            info: Current info dict (inventory, achievements, etc)
-            previous_info: Previous info dict for state change detection
-
-        Returns:
-            tuple: (shaped_reward, bonus_components_dict)
+        Calcola il reward totale = reward del gioco + bonus nostri.
         """
         shaped_reward = native_reward
         bonuses = {
@@ -54,26 +42,26 @@ class CrafterRewardShaper:
         if previous_info is None:
             return shaped_reward, bonuses
 
-        # ===== DEATH PENALTY (-1.0) =====
+        # ===== MORTE (-1.0) =====
         curr_health = info.get('inventory', {}).get('health', 10)
         prev_health = previous_info.get('inventory', {}).get('health', 10)
         if curr_health == 0 and prev_health > 0:
             bonuses['death_penalty'] = -1.0
 
-        # ===== 1. Resource Collection Bonus (+0.1 per unit) =====
+        # ===== 1. Risorse (+0.1) =====
         bonuses['resource_collection'] = self._calculate_resource_bonus(info, previous_info)
 
-        # ===== 2. Health Management Bonus (+0.02 per stat) =====
+        # ===== 2. Salute (+0.02) =====
         bonuses['health_management'] = self._calculate_health_bonus(info)
 
-        # ===== 3. Tool Crafting Bonus (+0.3) =====
+        # ===== 3. Crafting (+0.3) =====
         bonuses['tool_usage'] = self._calculate_tool_bonus(info, previous_info)
 
-        # Sum all bonuses
+        # Somma tutto
         total_bonus = sum(bonuses.values())
         shaped_reward += total_bonus
 
-        # Track for statistics
+        # Traccia statistiche
         for key in bonuses:
             self.bonus_tracker[key].append(bonuses[key])
 

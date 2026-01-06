@@ -6,18 +6,14 @@ import crafter
 
 class CrafterEnv:
     """
-    Wrapper per l'environment Crafter che estrae feature semantiche da info dict
-    e le converte in vettore numerico compatibile con DQN.
+    Wrapper per Crafter che tira fuori feature semantiche (43 in totale)
+    da dare in pasto alla DQN.
     
-    Feature vector (43 dims) - Official Crafter Specification:
-    - Inventario (16 dims): health, food, drink, energy, sapling, wood, stone, coal, iron, diamond,
-                            wood_pickaxe, stone_pickaxe, iron_pickaxe,
-                            wood_sword, stone_sword, iron_sword
-    - Posizione giocatore (2 dims): x, y
-    - Status (3 dims): discount (alive/dead), sleeping, daylight
-    - Achievements (22 dims): one-hot encoding per ogni achievement
-    
-    Totale: 16 + 2 + 3 + 22 = 43 dims
+    Cosa c'è dentro (43 dims):
+    - 16 Inventario (cibo, materiali, attrezzi...)
+    - 2 Posizione (x, y)
+    - 3 Status (vivo/morto, dorme, luce del giorno)
+    - 22 Achievements (one-hot per sapere cosa hai sbloccato)
     """
     
     def __init__(self, 
@@ -28,28 +24,18 @@ class CrafterEnv:
                  length=10000, 
                  seed=None):
         """
-        Inizializza l'environment Crafter con wrapper semantico.
-        
-        Args:
-            area: dimensioni del mondo Crafter (64x64 default)
-            view: dimensioni della vista locale (9x9 default)
-            size: dimensioni render (64x64 default)
-            reward: se True usa rewards, altrimenti no
-            length: lunghezza episodio in steps (10000 default)
-            seed: seed per RNG
+        Setup dell'ambiente Crafter con il wrapper.
+        Parametri standard di Crafter (area, view, size, reward, ecc).
         """
-        # Usa crafter.Env() direttamente invece di gym.make()
         self.env = crafter.Env(area=area, view=view, size=size, reward=reward, length=length, seed=seed)
         
-        # Store per accesso a funzionalità interne (per feature extraction avanzata)
+
         self._env = self.env
         
-        # Crafter ha 17 azioni discrete
+    
         self.action_space = spaces.Discrete(17)
-        # Observation space è immagine RGB
         self.observation_space = spaces.Box(low=0, high=255, shape=(64, 64, 3), dtype=np.uint8)
-        
-        # Action names mapping (OFFICIAL CRAFTER ORDER)
+
         self.action_names = [
             'noop',              # 0
             'move_left',         # 1
@@ -70,16 +56,15 @@ class CrafterEnv:
             'make_iron_sword'    # 16
         ]
         
-        self.state_size = 43  # 16 inventory + 2 position + 3 status + 22 achievements
+        self.state_size = 43
         self.action_size = 17
         self._last_info = None
         
     def reset(self):
         """
-        Reset environment e ritorna stato iniziale come vettore numerico + info dict.
+        Reset e ritorna lo stato iniziale (vettore + info).
         """
         obs = self.env.reset()
-        # Dummy step per ottenere info dict
         self._last_info = self._get_dummy_info()
         state = self._extract_state()
         self.state_size = len(state)
@@ -87,7 +72,7 @@ class CrafterEnv:
     
     def step(self, action):
         """
-        Esegui azione e ritorna (state, reward, done, info).
+        Fa un passo e ritorna (state, reward, done, info).
         """
         obs, reward, done, info = self.env.step(action)
         self._last_info = info
@@ -95,16 +80,15 @@ class CrafterEnv:
         return state, reward, done, info
     
     def _get_dummy_info(self):
-        """Ritorna un info dict dummy con tutti i campi necessari."""
-        obs, reward, done, info = self.env.step(0)  # noop action (now at index 0)
+        """Prende un info dict facendo una mossa a vuoto."""
+        obs, reward, done, info = self.env.step(0)  
         if done:
             self.env.reset()
         return info
     
     def _extract_state(self):
         """
-        Estrai feature semantiche da info dict e stato interno.
-        Ritorna vettore numpy (43 dims).
+        Trasforma l'info dict in un vettore numpy da 43 float.
         """
         info = self._last_info
         if info is None:
@@ -112,7 +96,6 @@ class CrafterEnv:
         
         state_parts = []
         
-        # === Inventario (16 dims) - Official Crafter Items ===
         inventory = info.get('inventory', {})
         inventory_keys = [
             'health', 'food', 'drink', 'energy', 'sapling',
@@ -120,32 +103,29 @@ class CrafterEnv:
             'wood_pickaxe', 'stone_pickaxe', 'iron_pickaxe',
             'wood_sword', 'stone_sword', 'iron_sword'
         ]
-        
-        # Alcuni items potrebbero non essere in inventory, usa default 0
+
+
         for key in inventory_keys:
             state_parts.append(float(inventory.get(key, 0)))
         
-        # === Posizione giocatore (2 dims) ===
+
         player_pos = info.get('player_pos', np.array([32, 32]))
-        # Normalizza a [0, 1]
         state_parts.append(float(player_pos[0]) / 64.0)
         state_parts.append(float(player_pos[1]) / 64.0)
         
-        # === Status del giocatore (3 dims) ===
-        # Discount: 1.0 se vivo, 0.0 se morto
+   
         discount = info.get('discount', 1.0)
         state_parts.append(float(discount))
         
-        # Sleeping status
+        
         sleeping = float(self._env._player.sleeping) if hasattr(self._env, '_player') else 0.0
         state_parts.append(sleeping)
         
-        # Daylight (0-1)
+       
         daylight = float(self._env._world.daylight) if hasattr(self._env, '_world') else 0.5
         state_parts.append(daylight)
         
-        # === Achievements (22 dims) - Official Crafter Achievements ===
-        # One-hot: 1.0 se achievement sbloccato (count >= 1), 0.0 altrimenti
+       
         achievements = info.get('achievements', {})
         achievement_keys = [
             'collect_coal', 'collect_diamond', 'collect_drink', 'collect_iron',
@@ -176,23 +156,22 @@ class CrafterEnv:
     
     def get_valid_actions(self):
         """
-        In Crafter, tutte le azioni sono sempre valide.
-        Ritorna lista [0, 1, ..., 16].
+        In Crafter puoi sempre fare tutto.
         """
         return list(range(self.action_size))
     
     def render(self, mode='human'):
-        """Renderizza l'environment."""
+        """Disegna a schermo."""
         return self.env.render(mode=mode)
     
     def close(self):
-        """Chiudi l'environment."""
+        """Chiude tutto."""
         self.env.close()
 
 
 class CrafterEnvRecorded(CrafterEnv):
     """
-    Estensione di CrafterEnv con Recorder per salvare video/statistiche.
+    Versione che salva video e stats.
     """
     
     def __init__(self, 
@@ -204,12 +183,9 @@ class CrafterEnvRecorded(CrafterEnv):
                  seed=None,
                  record_dir=None):
         """
-        Inizializza CrafterEnv con Recorder opzionale.
-        
-        Args:
-            record_dir: directory per salvare stats/video (es. './logdir/experiment_0')
+        Se gli passi record_dir salva la roba lì.
         """
-        # Inizializza base environment
+       
         env_name = 'CrafterReward-v1' if reward else 'CrafterNoReward-v1'
         base_env = crafter.Env(area=area, view=view, size=size, reward=reward, length=length, seed=seed)
         
@@ -225,8 +201,7 @@ class CrafterEnvRecorded(CrafterEnv):
             self.env = base_env
             
         self._env = self.env
-        
-        # Inizializza resto come CrafterEnv
+
         self.action_space = spaces.Discrete(17)
         self.observation_space = spaces.Box(low=0, high=255, shape=(64, 64, 3), dtype=np.uint8)
         

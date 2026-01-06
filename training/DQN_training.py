@@ -19,16 +19,12 @@ ACHIEVEMENT_ID_TO_NAME = {v: k for k, v in ACHIEVEMENT_NAME_TO_ID.items()}
 
 def export_achievement_statistics_json(evaluation_system, output_file="crafter_achievement_statistics.json"):
     """
-    Export comprehensive per-achievement statistics to JSON file.
-    Includes episode-achievement matrix, cumulative trajectories, and per-achievement stats.
-    
-    Args:
-        evaluation_system: EvaluationSystem instance with achievement tracking
-        output_file: Path to save JSON file
+    Salva le statistiche degli achievement in un JSON bello grosso.
+    Serve per vedere chi ha sbloccato cosa e quando.
     """
     achievement_stats = evaluation_system.get_achievement_statistics()
     
-    # Convert numpy arrays to lists for JSON serialization
+    # Converto numpy in liste altrimenti json esplode
     def convert_to_serializable(obj):
         if isinstance(obj, np.ndarray):
             return obj.tolist()
@@ -45,7 +41,7 @@ def export_achievement_statistics_json(evaluation_system, output_file="crafter_a
     
     serializable_stats = convert_to_serializable(achievement_stats)
     
-    # Add achievement name mapping
+    # Aggiungo mappa nomi
     serializable_stats['achievement_id_to_name'] = ACHIEVEMENT_ID_TO_NAME
     
     with open(output_file, 'w') as f:
@@ -56,13 +52,7 @@ def export_achievement_statistics_json(evaluation_system, output_file="crafter_a
 
 def train_dqn_baseline(episodes=300, batch_size=64, episode_length=1000, load_model_path=None):
     """
-    Train pure DQN agent on Crafter environment.
-    
-    Args:
-        episodes: Number of training episodes
-        batch_size: DQN replay buffer batch size
-        episode_length: Steps per episode
-        load_model_path: Optional path to pre-trained model
+    Addestra una DQN classica su Crafter.
     """
     
     print("[Baseline DQN] Initializing Crafter environment...")
@@ -70,24 +60,24 @@ def train_dqn_baseline(episodes=300, batch_size=64, episode_length=1000, load_mo
     
     print(f"[Baseline DQN] State size: {env.state_size}, Action size: {env.action_size}")
     
-    # Initialize DQN agent
+    # Inizializza l'agente
     agent = DQNAgent(env.state_size, env.action_size, epsilon=1.0, load_model_path=load_model_path)
     print(f"[Baseline DQN] DQN Agent initialized (epsilon={agent.epsilon:.4f})")
     
-    # Initialize evaluation system
+    # Sistema di valutazione
     evaluation_system = EvaluationSystem()
     
-    # Initialize Reward Shaper
+    # Reward Shaper per aiutare l'agente
     reward_shaper = CrafterRewardShaper()
     
-    # Metrics tracking
+    # Tracking delle metriche
     rewards_per_episode = []
     native_rewards_per_episode = []
     shaped_bonus_per_episode = []
     achievements_per_episode = []
     moves_per_episode = []
     
-    # Best model tracking
+    # Per salvare il modello migliore
     best_achievement_count = 0
     best_episode = 0
     
@@ -103,25 +93,25 @@ def train_dqn_baseline(episodes=300, batch_size=64, episode_length=1000, load_mo
         episode_shaped_bonus = 0
         episode_achievements = 0
         episode_moves = 0
-        # Track achievements by name for proper ID mapping
+        # Tengo traccia degli achievement per mapparli
         previous_achievements_set = set(k for k, v in info.get('achievements', {}).items() if v >= 1)
-        previous_info = info.copy()  # Per reward shaping avanzato
+        previous_info = info.copy()  # Per reward shaping
         reward_shaper.reset_episode()
         
         for step in range(episode_length):
-            # DQN selects action (no LLM)
+            # La DQN sceglie l'azione
             action = agent.act(state, env)
             
-            # Execute action in environment
+            # Esegue l'azione
             next_state, native_reward, done, info = env.step(action)
             next_state = np.reshape(next_state, [1, env.state_size])
             
-            # Track achievements unlocked this step
+            # Achievement sbloccati in questo step
             current_achievements_set = set(k for k, v in info.get('achievements', {}).items() if v >= 1)
             newly_unlocked_names = current_achievements_set - previous_achievements_set
             achievements_this_step = len(newly_unlocked_names)
             
-            # Add achievement IDs to evaluation system
+            # Aggiunge ID al sistema di valutazione
             if newly_unlocked_names:
                 newly_unlocked_ids = {ACHIEVEMENT_NAME_TO_ID[name] for name in newly_unlocked_names 
                                      if name in ACHIEVEMENT_NAME_TO_ID}
@@ -129,20 +119,20 @@ def train_dqn_baseline(episodes=300, batch_size=64, episode_length=1000, load_mo
             
             previous_achievements_set = current_achievements_set
             
-            # Use centralized reward shaper
+            # Calcola reward shapato
             shaped_reward, bonus_components = reward_shaper.calculate_shaped_reward(
                 native_reward, info, previous_info
             )
             shaped_bonus = sum(bonus_components.values())
             
-            # Remember experience
+            # Salva in memoria
             agent.remember(state, action, shaped_reward, next_state, done)
             
-            # Train DQN when sufficient memory samples available
+            # Allena la rete se ha abbastanza dati
             if len(agent.memory) > batch_size:
                 agent.replay(batch_size, env)
             
-            # Update metrics
+            # Aggiorna metriche
             episode_reward += shaped_reward
             episode_native_reward += native_reward
             episode_shaped_bonus += shaped_bonus
@@ -155,17 +145,17 @@ def train_dqn_baseline(episodes=300, batch_size=64, episode_length=1000, load_mo
             if done:
                 break
         
-        # Record episode metrics
+        # Salva metriche episodio
         rewards_per_episode.append(episode_reward)
         native_rewards_per_episode.append(episode_native_reward)
         shaped_bonus_per_episode.append(episode_shaped_bonus)
         achievements_per_episode.append(episode_achievements)
         moves_per_episode.append(episode_moves)
         
-        # No LLM in baseline DQN, so valid_actions_percentage is N/A
-        valid_actions_percentage = 0.0  # Not applicable for pure DQN
+        # Niente LLM qui
+        valid_actions_percentage = 0.0
         
-        # Add to evaluation system
+        # Aggiunge a evaluation system
         evaluation_system.add_episode(
             episode=episode,
             shaped_reward=episode_reward,
@@ -173,12 +163,12 @@ def train_dqn_baseline(episodes=300, batch_size=64, episode_length=1000, load_mo
             shaped_bonus=episode_shaped_bonus,
             achievements_unlocked=episode_achievements,
             moves=episode_moves,
-            helper_calls=0,  # No LLM in baseline
-            hallucinations=0,  # No LLM in baseline
+            helper_calls=0,
+            hallucinations=0,
             valid_actions_percentage=valid_actions_percentage
         )
         
-        # Save best model checkpoint
+        # Salva checkpoint se è il migliore
         if episode_achievements > best_achievement_count:
             best_achievement_count = episode_achievements
             best_episode = episode
@@ -188,10 +178,10 @@ def train_dqn_baseline(episodes=300, batch_size=64, episode_length=1000, load_mo
             agent.save(str(checkpoint_path))
             print(f"[Baseline DQN] ✓ New best model saved: {episode_achievements} achievements (episode {episode})")
         
-        # Epsilon decay lineare per episodio (come da documentazione: 1.0 -> 0.05 in 300 episodi)
+        # Epsilon decay (lineare su 300 ep)
         agent.decay_epsilon_linear(episode, total_episodes=episodes)
 
-        # Progress logging
+        # Log
         if (episode + 1) % 5 == 0:
             avg_reward = np.mean(rewards_per_episode[-10:])
             avg_achievements = np.mean(achievements_per_episode[-10:])
@@ -205,7 +195,7 @@ def train_dqn_baseline(episodes=300, batch_size=64, episode_length=1000, load_mo
     # Finalize evaluation
     evaluation_system.finalize()
     
-    # Save final model
+    # Salva il modello finale
     print("[Baseline DQN] Saving final model...")
     models_dir = Path(__file__).parent / 'DQN_nuovo_training' / 'models'
     models_dir.mkdir(parents=True, exist_ok=True)
@@ -217,31 +207,31 @@ def train_dqn_baseline(episodes=300, batch_size=64, episode_length=1000, load_mo
     best_checkpoint = checkpoint_dir / f"nuovo_dqn_best_ep{best_episode}_ach{best_achievement_count}"
     print(f"[Baseline DQN] ✓ Best model saved: {best_checkpoint}.*")
     
-    # Export metrics
+    # Esporta metriche
     print("[Baseline DQN] Exporting metrics...")
     output_dir = Path(__file__).parent / 'DQN_nuovo_training'
     output_dir.mkdir(parents=True, exist_ok=True)
     jsonl_path = output_dir / "nuovo_crafter_dqn_metrics.jsonl"
     evaluation_system.export_to_jsonl(str(jsonl_path))
     
-    # Export achievement statistics JSON (required for curve generation)
+    # Esporta statistiche achievement (serve per i grafici)
     print("[Baseline DQN] Exporting per-achievement statistics...")
     achievement_stats_path = output_dir / "nuovo_crafter_dqn_achievement_statistics.json"
     export_achievement_statistics_json(evaluation_system, str(achievement_stats_path))
     
-    # Generate plots
+    # Genera i grafici
     print("[Baseline DQN] Generating plots...")
     plot_dir = output_dir / "plots"
     plot_dir.mkdir(exist_ok=True)
     generate_all_plots(evaluation_system, output_dir=str(plot_dir))
     
-    # Generate achievement learning curves (using HeRoN's plotter)
+    # Curve di apprendimento degli achievement
     print("[Baseline DQN] Generating achievement learning curves...")
     curves_dir = plot_dir / "achievement_curves"
     curves_dir.mkdir(exist_ok=True)
     
     try:
-        # Use AchievementLearningCurvePlotter (same as HeRoN)
+        # Uso AchievementLearningCurvePlotter (lo stesso di HeRoN)
         plotter = AchievementLearningCurvePlotter(str(achievement_stats_path))
         plotter.plot_all_achievements(
             output_dir=str(curves_dir),
@@ -254,7 +244,7 @@ def train_dqn_baseline(episodes=300, batch_size=64, episode_length=1000, load_mo
         print(f"[Baseline DQN] ⚠ Warning: Could not generate achievement curves: {e}")
         print("[Baseline DQN]   This is normal if no achievements were unlocked during training.")
     
-    # Print evaluation report
+    # Report finale
     print("\n[Baseline DQN] Final Evaluation Report:")
     try:
         evaluation_system.print_summary_report()
@@ -262,7 +252,7 @@ def train_dqn_baseline(episodes=300, batch_size=64, episode_length=1000, load_mo
         print(f"[Baseline DQN] ⚠ Note: Could not generate full summary report ({e})")
         print("[Baseline DQN]   All metrics have been saved to JSON and JSONL files.")
     
-    # Export evaluation summary
+    # Esporta riassunto valutazione
     evaluation_json = output_dir / "nuovo_crafter_dqn_evaluation.json"
     evaluation_system.export_summary_json(str(evaluation_json))
     
@@ -280,7 +270,7 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     
-    # Run baseline training
+    # Via col training
     eval_system = train_dqn_baseline(
         episodes=args.episodes,
         batch_size=args.batch_size,

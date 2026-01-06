@@ -130,7 +130,7 @@ generation_kwards = {
     "temperature": 0.4,
     "top_k": 50,
     "top_p": 0.8,
-    "max_new_tokens": 128,  # Limit output length
+    "max_new_tokens": 128,  
 }
 
 

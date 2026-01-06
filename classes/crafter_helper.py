@@ -1,11 +1,12 @@
 """
-F04: Crafter Helper - Zero-shot LLM for generating action sequences
-This module handles:
-1. State description for Crafter environment
-2. Prompt engineering for action sequence generation
-3. LLM integration with LM Studio
-4. Action sequence parsing and validation
-5. State change detection for re-planning
+Crafter Helper - Un LLM Zero-shot che suggerisce sequenze di azioni.
+
+Cosa fa:
+1. Spiega la situazione a parole.
+2. Crea prompt per farsi dare azioni.
+3. Parla con LM Studio.
+4. Controlla che le azioni siano valide.
+5. Decide se cambiare piano al volo.
 """
 
 import re
@@ -16,9 +17,9 @@ from transformers import AutoTokenizer
 
 
 class CrafterHelper:
-    """Zero-shot LLM helper for generating 3-5 action sequences in Crafter."""
+    """Helper che usa un LLM per generare sequenze di 3-5 azioni in Crafter."""
     
-    # Action mapping (OFFICIAL CRAFTER ORDER)
+    # Mappa azioni (ordine ufficiale di Crafter)
     ACTION_NAMES = {
         0: 'noop',
         1: 'move_left', 2: 'move_right', 3: 'move_up', 4: 'move_down',
@@ -30,93 +31,77 @@ class CrafterHelper:
     
     ACTION_ID_MAP = {v: k for k, v in ACTION_NAMES.items()}
     
-    # Re-planning thresholds
-    REPLAN_THRESHOLD_HP = 0.3  # Re-plan if health drops below 30% (was 20%)
-    REPLAN_THRESHOLD_HP_CRITICAL = 5  # Re-plan immediately if health <= 5
-    REPLAN_THRESHOLD_ACHIEVEMENT = True  # Re-plan on achievement unlock
-    REPLAN_THRESHOLD_INVENTORY_CHANGE = True  # Re-plan on significant inventory change
+    # Re-planning
+    REPLAN_THRESHOLD_HP = 0.3  # Se HP < 30%
+    REPLAN_THRESHOLD_HP_CRITICAL = 5  # Se HP <= 5 
+    REPLAN_THRESHOLD_ACHIEVEMENT = True  
+    REPLAN_THRESHOLD_INVENTORY_CHANGE = True  
     
     def __init__(self, server_host="http://127.0.0.1:1234", model_name="qwen/qwen3-4b-2507",
                  min_sequence_length=3, max_sequence_length=5, default_sequence_length=4):
         """
-        Initialize Crafter Helper with LM Studio connection.
-        
-        Args:
-            server_host: LM Studio API host
-            model_name: LLM model name (default: qwen/qwen3-4b-2507)
-            min_sequence_length: Minimum actions per sequence (default: 3)
-            max_sequence_length: Maximum actions per sequence (default: 5)
-            default_sequence_length: Target sequence length for prompts (default: 4)
+        Si connette a LM Studio.
         """
         self.server_host = server_host
         self.model_name = model_name
         
-        # Sequence generation parameters (configurable for F07 analysis)
+        
         self.min_sequence_length = min_sequence_length
         self.max_sequence_length = max_sequence_length
         self.default_sequence_length = default_sequence_length
         
-        # Validate configuration
+        
         assert 1 <= min_sequence_length <= max_sequence_length <= 15, \
             f"Invalid sequence bounds: min={min_sequence_length}, max={max_sequence_length}"
         assert min_sequence_length <= default_sequence_length <= max_sequence_length, \
             f"Default {default_sequence_length} must be within [{min_sequence_length}, {max_sequence_length}]"
         
-        # Statistics
+       
         self.sequence_count = 0
         self.hallucination_count = 0
-        # LLM safety limits (CRITICAL: prevent context overflow)
-        # Updated for Qwen3-4B-2507 with 8192 context window (was 4096)
-        self.max_messages_history = 12  # Increased from 8 - supports longer conversations
-        self.llm_timeout_seconds = 60   # Increased from 40 for post-reset responses
-        # Conversation history - MUST be cleared between episodes
+        
+       
+        self.max_messages_history = 12  
+        self.llm_timeout_seconds = 60
+      
         self._message_history = []
         
-        # Token-aware context management (NEW: smart overflow prevention)
+       
         try:
-            # Use Qwen2.5 tokenizer (compatible with Qwen3 family)
+   
             self.tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen2.5-7B-Instruct")
-            self.max_context_tokens = 8192  # Qwen3-4B-2507 theoretical limit
-            self.safe_context_threshold = 6500  # Safety margin (~80% of max)
+            self.max_context_tokens = 8192  
+            self.safe_context_threshold = 6500  
             self.token_counting_enabled = True
-            print(f"[Helper] Token counting enabled - max: {self.max_context_tokens}, threshold: {self.safe_context_threshold}")
+            print(f"[Helper] Token counting attivato - max: {self.max_context_tokens}, threshold: {self.safe_context_threshold}")
         except Exception as e:
-            print(f"[Helper WARNING] Failed to load tokenizer: {e}")
-            print("[Helper] Falling back to message-count based context management")
+            print(f"[Helper WARNING] Tokenizer non caricato: {e}")
+            print("[Helper] Uso il conteggio messaggi classico")
             self.tokenizer = None
             self.token_counting_enabled = False
         
-        # Episode progress tracking for smart context reset
+        
         self._episode_achievements = []
         self._recent_reviewer_feedback = None
         self._episode_step_count = 0
         self._episode_reward = 0.0
         
-        # Sequence history tracking (prevent repetitive loops)
-        self._recent_sequences = []  # Store last 5 sequences
+        
+        self._recent_sequences = []
         self._max_sequence_history = 5
     
     def describe_crafter_state(self, state, info, previous_info=None):
         """
-        Convert 43-dim Crafter state vector + info dict to human-readable description.
-        
-        Args:
-            state: 43-dim numpy array from CrafterEnv (16 inventory + 2 pos + 3 status + 22 achievements)
-            info: info dict from env.step() containing inventory, achievements, player_pos
-            previous_info: optional previous info dict for change detection
-        
-        Returns:
-            str: Human-readable game state description
+        Traduce lo stato numerico in una descrizione testuale per l'LLM.
         """
-        # Extract components from state vector
-        # State structure: [inventory(16), pos(2), status(3), achievements(22)]
+        
         
         inventory = info.get('inventory', {})
         achievements = info.get('achievements', {})
         player_pos = info.get('player_pos', [32, 32])
         discount = info.get('discount', 1.0)
         
-        # Inventory summary (include only non-zero items)
+        
         inventory_items = []
         for key in ['health', 'food', 'drink', 'energy', 'sapling',
                     'wood', 'stone', 'coal', 'iron', 'diamond',
@@ -128,17 +113,16 @@ class CrafterHelper:
         
         inventory_str = ", ".join(inventory_items) if inventory_items else "empty"
         
-        # Achievements unlocked
+        
         unlocked = [k for k, v in achievements.items() if v >= 1]
         achievements_str = ", ".join(unlocked) if unlocked else "none yet"
         
-        # Determine current priority/goal based on achievements and inventory
+       
         current_goal = self._determine_current_goal(inventory, achievements, unlocked)
         
-        # Status
+        
         alive = "alive" if discount > 0 else "dead"
         
-        # Available actions (all 17 are always valid in Crafter)
         available_actions = ", ".join([
             "[move_up], [move_down], [move_left], [move_right], [do], [sleep]",
             "[place_stone], [place_table], [place_furnace], [place_plant]",
@@ -159,8 +143,7 @@ class CrafterHelper:
         return description
     
     def _determine_current_goal(self, inventory, achievements, unlocked):
-        """Determine the next logical goal based on current state."""
-        # PRIORITY 1: Survival - check health/food/drink first
+        """Capisce qual è la prossima mossa logica."""
         health = inventory.get('health', 10)
         food = inventory.get('food', 10)
         drink = inventory.get('drink', 10)
@@ -174,7 +157,6 @@ class CrafterHelper:
         elif drink <= 2:
             return "Low hydration - collect and drink water"
         
-        # PRIORITY 2: Achievement progression
         if 'collect_wood' not in unlocked:
             return "Collect wood (primary resource)"
         elif 'collect_stone' not in unlocked:
@@ -212,64 +194,47 @@ class CrafterHelper:
     
     def generate_action_sequence(self, state, info, previous_info=None, override_prompt=None):
         """
-        Generate 3-5 action sequence using LLM.
-        
-        Args:
-            state: 43-dim numpy array from CrafterEnv
-            info: info dict from env.step()
-            previous_info: optional previous info for change context
-            override_prompt: optional custom prompt (for Reviewer refinement workflow)
-        
-        Returns:
-            tuple: (action_sequence: List[int], llm_response: str)
-            If LLM fails, returns (None, error_message)
+        Chiede all'LLM una sequenza di 3-5 azioni.
+        Ritorna (lista_azioni, risposta_raw).
         """
         game_description = self.describe_crafter_state(state, info, previous_info)
 
-        # Craft prompt for action sequence (or use override for Reviewer refinement)
+    
         if override_prompt:
             prompt = override_prompt
         else:
             prompt = self._build_sequence_prompt(game_description)
 
-        # CRITICAL: Token-aware context management to prevent 8192 token overflow
+      
         if self.token_counting_enabled:
-            # Count current context tokens
+            
             current_context = "\n\n".join(self._message_history)
             current_tokens = self._count_tokens(current_context)
             new_prompt_tokens = self._count_tokens(prompt)
             total_tokens = current_tokens + new_prompt_tokens
             
-            # Check if we would exceed safe threshold
+            
             if total_tokens > self.safe_context_threshold:
-                print(f"[Helper] Token overflow detected: {total_tokens}/{self.max_context_tokens} tokens")
-                print(f"[Helper] Current context: {current_tokens}, New prompt: {new_prompt_tokens}")
-                print(f"[Helper] Performing SMART RESET with episode summary...")
-                
-                # Generate condensed summary and reset conversation
+                print(f"[Helper] Token overflow: {total_tokens}/{self.max_context_tokens}")
+                print(f"[Helper] Resetto contesto con riassunto episodio...")
+            
                 episode_summary = self._generate_episode_summary(game_description)
                 self._message_history = [episode_summary]
                 
-                # Re-count after reset
                 summary_tokens = self._count_tokens(episode_summary)
-                print(f"[Helper] Context reset complete: {summary_tokens} tokens (saved {current_tokens - summary_tokens} tokens)")
-                print(f"[Helper] Summary includes: {len(self._episode_achievements)} achievements, step {self._episode_step_count}")
+                print(f"[Helper] Reset completato: {summary_tokens} token (risparmiati {current_tokens - summary_tokens})")
             else:
-                # Normal append
                 self._message_history.append(prompt)
         else:
-            # Fallback: Message-count based sliding window (legacy behavior)
             self._message_history.append(prompt)
             if len(self._message_history) > self.max_messages_history:
                 self._message_history = self._message_history[-self.max_messages_history:]
-                print(f"[Helper] Context trimmed to {len(self._message_history)} messages (token counting disabled)")
+                print(f"[Helper] Contesto tagliato a {len(self._message_history)} messaggi")
 
         try:
             start_time = time.time()
             with lms.Client() as client:
                 model = client.llm.model(self.model_name)
-                # lmstudio-python non espone max_tokens direttamente su respond();
-                # ci affidiamo quindi a timeout lato client per evitare blocchi.
                 llm_response = model.respond("\n\n".join(self._message_history))
                 elapsed = time.time() - start_time
                 if elapsed > self.llm_timeout_seconds:
@@ -277,38 +242,32 @@ class CrafterHelper:
 
                 llm_response = str(llm_response)
 
-                # Clean thinking tags and excessive formatting
                 llm_response = re.sub(r"<think>.*?</think>", "", llm_response, flags=re.DOTALL).strip()
                 
-                # Truncate verbose responses (common after context reset)
-                # Keep only first 500 chars to avoid parsing markdown/explanations
                 if len(llm_response) > 500:
-                    print(f"[Helper] WARNING: Verbose response ({len(llm_response)} chars) - truncating to first 500")
+                    print(f"[Helper] WARNING: Risposta troppo lunga ({len(llm_response)} chars) - taglio a 500")
                     llm_response = llm_response[:500]
 
                 print(f"[Helper] LLM Response:\n{llm_response}\n")
 
-                # Parse action sequence
                 action_sequence = self.parse_action_sequence(llm_response)
 
                 if action_sequence:
                     self.sequence_count += 1
                     
-                    # Track sequence to detect repetition
                     seq_str = str(action_sequence)
                     self._recent_sequences.append(seq_str)
                     if len(self._recent_sequences) > self._max_sequence_history:
                         self._recent_sequences.pop(0)
-                    
-                    # Detect if we're stuck in a loop
+        
                     if len(self._recent_sequences) >= 3:
                         if self._recent_sequences[-1] == self._recent_sequences[-2] == self._recent_sequences[-3]:
-                            print(f"[Helper] WARNING: Repetitive sequence detected - same actions 3 times in a row!")
+                            print(f"[Helper] WARNING: Loop rilevato - stesse azioni per 3 volte!")
                     
                     return action_sequence, llm_response
                 else:
                     self.hallucination_count += 1
-                    print("[Helper] Failed to parse valid action sequence - hallucination detected")
+                    print("[Helper] Parsing fallito - allucinazione rilevata")
                     return None, llm_response
 
         except TimeoutError as e:
@@ -319,8 +278,7 @@ class CrafterHelper:
             return None, str(e)
     
     def _build_sequence_prompt(self, game_description):
-        """Build LLM prompt requesting action sequence."""
-        # List of ONLY the 17 official valid actions
+        """Costruisce il prompt per l'LLM."""
         official_actions = [
             "move_up", "move_down", "move_left", "move_right",
             "do", "sleep",
@@ -332,15 +290,13 @@ class CrafterHelper:
         
         actions_list = ", ".join(official_actions)
         
-        # Add variety reminder if we have conversation history (prevent loops)
         variety_reminder = ""
         if len(self._message_history) > 3:
-            # Check for repetitive sequences
             if len(self._recent_sequences) >= 3 and self._recent_sequences[-1] == self._recent_sequences[-2]:
-                variety_reminder = "\n⚠️ CRITICAL: Last sequences were IDENTICAL! Try COMPLETELY DIFFERENT actions!\n" \
+                variety_reminder = "\nCRITICAL: Last sequences were IDENTICAL! Try COMPLETELY DIFFERENT actions!\n" \
                                  "Example alternatives: [do], [place_table], [make_wood_pickaxe], [sleep]\n"
             else:
-                variety_reminder = "\n⚠️ IMPORTANT: Try DIFFERENT actions if previous sequences didn't unlock achievements!\n"
+                variety_reminder = "\nIMPORTANT: Try DIFFERENT actions if previous sequences didn't unlock achievements!\n"
         
         prompt = (
             "You are a Crafter AI. GOALS: 1) Survive 2) Unlock achievements 3) Be efficient.\n\n"
@@ -349,9 +305,9 @@ class CrafterHelper:
             f"VALID ACTIONS: {actions_list}\n\n"
             
             "MISTAKES TO AVOID:\n"
-            "❌ collect_wood/gather/mine → use [do]\n"
-            "❌ place_rock → use [place_stone]\n"
-            "❌ NEVER use placeholders: 'action1', 'action2', etc. → use REAL actions\n\n"
+            "collect_wood/gather/mine → use [do]\n"
+            "place_rock → use [place_stone]\n"
+            "NEVER use placeholders: 'action1', 'action2', etc. → use REAL actions\n\n"
             
             f"CURRENT STATE:\n{game_description}\n\n"
             
@@ -373,15 +329,15 @@ class CrafterHelper:
             f"{actions_list}\n\n"
             
             "EXAMPLES:\n"
-            "✅ GOOD:\n"
+            "GOOD:\n"
             "[move_right], [do], [move_left], [noop]\n"
             "Collect wood safely.\n\n"
             
-            "✅ GOOD:\n"
+            "GOOD:\n"
             "[place_table], [make_wood_pickaxe], [sleep], [noop]\n"
             "Craft pickaxe then rest.\n\n"
             
-            "❌ BAD (NEVER DO THIS):\n"
+            "BAD (NEVER DO THIS):\n"
             "[action1], [action2], [action3]  ← WRONG! These are placeholders!\n"
             "[do_something], [gather_wood]  ← WRONG! Not in the 17 valid actions!\n"
             "(move_left), (do)  ← WRONG! Use square brackets [ ], not parentheses!\n"
@@ -393,20 +349,12 @@ class CrafterHelper:
     
     def parse_action_sequence(self, llm_response, max_length=None):
         """
-        Parse bracketed actions from LLM response.
-        Takes ONLY the first line containing bracketed actions to avoid multi-sequence parsing.
-        
-        Args:
-            llm_response: String response from LLM
-            max_length: Maximum sequence length (default: use self.max_sequence_length)
-        
-        Returns:
-            List[int]: Action IDs, or None if parsing fails
+        Estrae le azioni tra parentesi quadre dalla risposta.
+        Prende SOLO la prima riga valida.
         """
         if max_length is None:
             max_length = self.max_sequence_length
         
-        # Split response into lines and find first line with brackets
         lines = llm_response.split('\n')
         first_action_line = None
         for line in lines:
@@ -415,14 +363,13 @@ class CrafterHelper:
                 break
         
         if not first_action_line:
-            print("[Parser] No bracketed actions found")
+            print("[Parser] Nessuna azione tra parentesi trovata")
             return None
         
-        # Extract all bracketed text from FIRST line only
         matches = re.findall(r'\[(.*?)\]', first_action_line)
         
         if not matches:
-            print("[Parser] No valid actions in first bracket line")
+            print("[Parser] Parentesi vuote o malformate")
             return None
         
         action_sequence = []
@@ -433,31 +380,29 @@ class CrafterHelper:
             if action_id is not None:
                 action_sequence.append(action_id)
             else:
-                # Try fuzzy matching for common typos
                 action_id = self._fuzzy_match_action(action_str)
                 if action_id is not None:
                     action_sequence.append(action_id)
                 else:
-                    print(f"[Parser] Unknown action: '{action_str}' - skipping")
+                    print(f"[Parser] Azione sconosciuta: '{action_str}' - salto")
         
-        # Validate sequence length
         if len(action_sequence) < self.min_sequence_length:
-            print(f"[Parser] Sequence too short ({len(action_sequence)} < {self.min_sequence_length})")
+            print(f"[Parser] Sequenza troppo corta ({len(action_sequence)} < {self.min_sequence_length})")
             return None
         
         return action_sequence
     
     def _fuzzy_match_action(self, action_str):
-        """Handle common typos or variations in action names."""
+        """Corregge errori di battitura comuni."""
         typo_map = {
             'move up': 'move_up',
             'move down': 'move_down',
             'move left': 'move_left',
             'move right': 'move_right',
-            'place_rock': 'place_stone',  # Common mistake
+            'place_rock': 'place_stone',
             'place wood': 'place_stone',
-            'pickaxe': 'make_wood_pickaxe',  # Abbreviated
-            'sword': 'make_wood_sword',  # Abbreviated
+            'pickaxe': 'make_wood_pickaxe',
+            'sword': 'make_wood_sword',
             'wood pickaxe': 'make_wood_pickaxe',
             'stone pickaxe': 'make_stone_pickaxe',
             'iron pickaxe': 'make_iron_pickaxe',
@@ -474,23 +419,11 @@ class CrafterHelper:
     
     def should_replan(self, state, info, previous_info, action_sequence):
         """
-        Determine if the current action sequence should be abandoned and re-planned.
-        
-        Strategy B: Use DQN for missing actions when LLM sequence is interrupted.
-        
-        Args:
-            state: current state
-            info: current info dict
-            previous_info: previous info dict
-            action_sequence: remaining actions in sequence
-        
-        Returns:
-            bool: True if should re-plan and get new sequence
+        Decide se buttare via il piano corrente e rifarlo.
         """
         if previous_info is None:
             return False
         
-        # Check for achievement unlocks
         if self.REPLAN_THRESHOLD_ACHIEVEMENT:
             prev_achievements = set(
                 k for k, v in previous_info.get('achievements', {}).items() if v >= 1
@@ -499,43 +432,37 @@ class CrafterHelper:
                 k for k, v in info.get('achievements', {}).items() if v >= 1
             )
             if curr_achievements > prev_achievements:
-                print(f"[Replan] Achievement unlocked: {curr_achievements - prev_achievements}")
+                print(f"[Replan] Achievement sbloccato: {curr_achievements - prev_achievements}")
                 return True
         
-        # Check for critical health (if applicable in Crafter)
         curr_health = info.get('inventory', {}).get('health', 10)
         prev_health = previous_info.get('inventory', {}).get('health', 10)
         
-        # Immediate re-plan if health is critically low
         if curr_health <= self.REPLAN_THRESHOLD_HP_CRITICAL:
-            print(f"[Replan] CRITICAL HEALTH: {curr_health} - immediate survival action needed!")
+            print(f"[Replan] SALUTE CRITICA: {curr_health} - serve agire subito!")
             return True
         
-        # Re-plan if health drops below threshold
-        if curr_health < self.REPLAN_THRESHOLD_HP * 20:  # Assuming max health ~20
-            print(f"[Replan] Low health: {curr_health}")
+        if curr_health < self.REPLAN_THRESHOLD_HP * 20:
+            print(f"[Replan] Salute bassa: {curr_health}")
             return True
         
-        # Re-plan if health is decreasing rapidly
         if curr_health < prev_health - 2:
-            print(f"[Replan] Rapid health loss: {prev_health} → {curr_health}")
+            print(f"[Replan] Danno subito rapido: {prev_health} → {curr_health}")
             return True
         
-        # Check for significant inventory changes
         if self.REPLAN_THRESHOLD_INVENTORY_CHANGE:
-            # Check if resources changed unexpectedly (death, unexpected use)
             for resource in ['wood', 'stone', 'iron', 'coal', 'diamond']:
                 prev_count = previous_info.get('inventory', {}).get(resource, 0)
                 curr_count = info.get('inventory', {}).get(resource, 0)
-                # If resource decreased unexpectedly (not by plan), re-plan
+                
                 if prev_count > 0 and curr_count == 0:
-                    print(f"[Replan] Resource depleted: {resource}")
+                    print(f"[Replan] Risorsa esaurita: {resource}")
                     return True
         
         return False
     
     def get_statistics(self):
-        """Return helper statistics."""
+        """Statistiche dell'helper."""
         return {
             'sequences_generated': self.sequence_count,
             'hallucinations': self.hallucination_count,
@@ -543,25 +470,17 @@ class CrafterHelper:
         }
     
     def reset_conversation(self):
-        """Clear conversation history - call at episode start to prevent context overflow."""
+        """Pulisce la memoria per iniziare un nuovo episodio."""
         self._message_history = []
-        # Reset episode tracking
         self._episode_achievements = []
         self._recent_reviewer_feedback = None
         self._episode_step_count = 0
         self._episode_reward = 0.0
-        # Reset sequence history
         self._recent_sequences = []
-        # Note: Logging handled by caller for better episode context
     
     def update_episode_progress(self, achievements=None, step_count=0, reward=0.0, reviewer_feedback=None):
-        """Update episode progress tracking for smart context summarization.
-        
-        Args:
-            achievements: List of achievement names unlocked this episode
-            step_count: Current step number in episode
-            reward: Total shaped reward accumulated this episode
-            reviewer_feedback: Most recent reviewer feedback string (if any)
+        """
+        Tiene traccia dei progressi per fare riassunti intelligenti.
         """
         if achievements:
             self._episode_achievements = achievements
@@ -571,14 +490,7 @@ class CrafterHelper:
             self._recent_reviewer_feedback = reviewer_feedback
     
     def _count_tokens(self, text):
-        """Count tokens in text using Qwen tokenizer.
-        
-        Args:
-            text: String to count tokens in
-        
-        Returns:
-            int: Token count, or 0 if tokenizer unavailable
-        """
+        """Conta i token usando il tokenizer di Qwen."""
         if not self.token_counting_enabled or self.tokenizer is None:
             return 0
         
@@ -586,34 +498,22 @@ class CrafterHelper:
             tokens = self.tokenizer.encode(text)
             return len(tokens)
         except Exception as e:
-            print(f"[Helper] Token counting error: {e}")
+            print(f"[Helper] Errore conteggio token: {e}")
             return 0
     
     def _generate_episode_summary(self, current_state_description):
-        """Generate condensed episode summary when context overflow is imminent.
-        
-        This replaces full conversation history with a compact state summary,
-        preserving critical information for strategic decision-making.
-        
-        CRITICAL: Summary must maintain prompt structure to avoid verbose LLM responses.
-        
-        Args:
-            current_state_description: Current game state description string
-        
-        Returns:
-            str: Condensed summary prompt (maintains task format)
         """
-        # Build compact summary with critical information
+        Crea un riassunto compatto dell'episodio quando stiamo finendo la memoria.
+        Sostituisce tutta la chat history.
+        """
         achievement_summary = ", ".join(self._episode_achievements[-10:]) if self._episode_achievements else "none"
         
-        # Build concise summary that maintains prompt structure
         summary_parts = [
             "[CONTEXT RESET - Episode Summary]",
             f"Step {self._episode_step_count} | Reward: {self._episode_reward:.1f} | Achievements: {len(self._episode_achievements)}",
             f"Unlocked: {achievement_summary}",
         ]
         
-        # Include recent Reviewer feedback if available (max 100 chars)
         if self._recent_reviewer_feedback:
             feedback_short = self._recent_reviewer_feedback[:100] + "..." if len(self._recent_reviewer_feedback) > 100 else self._recent_reviewer_feedback
             summary_parts.append(f"Reviewer: {feedback_short}")
@@ -635,18 +535,10 @@ class CrafterHelper:
         return "\n".join(summary_parts)
 
 
-# Strategy B Fallback: Use DQN for remaining sequence actions after LLM interruption
 class SequenceExecutor:
-    """Executes action sequences with fallback to DQN."""
+    """Esegue le sequenze, ma se finiscono usa la DQN."""
     
     def __init__(self, agent, env):
-        """
-        Initialize executor.
-        
-        Args:
-            agent: DQNAgent instance
-            env: CrafterEnv instance
-        """
         self.agent = agent
         self.env = env
         self.current_sequence = []
@@ -654,44 +546,28 @@ class SequenceExecutor:
     
     def execute_action(self, state, info, previous_info=None):
         """
-        Execute next action from sequence, or get new sequence, or use DQN fallback.
-        
-        Args:
-            state: current state (43-dim array)
-            info: current info dict
-            previous_info: previous info dict
-        
-        Returns:
-            int: Next action to execute
+        Esegue la prossima azione della sequenza.
+        Se finita, chiede all'LLM (o usa DQN se non implementato qui).
         """
-        # If no current sequence, get new one from LLM
         if not self.current_sequence:
             return self._get_next_action_from_llm(state, info, previous_info)
         
-        # If current sequence has actions remaining
         if self.current_sequence_index < len(self.current_sequence):
             action = self.current_sequence[self.current_sequence_index]
             self.current_sequence_index += 1
             return action
         
-        # Sequence exhausted, get new one
         self.current_sequence = []
         self.current_sequence_index = 0
         return self._get_next_action_from_llm(state, info, previous_info)
     
     def _get_next_action_from_llm(self, state, info, previous_info):
-        """Request new action sequence from Helper."""
-        # This will be implemented in the training loop
-        # For now, fallback to DQN
+        """Chiede nuova sequenza (per ora fallback su DQN)."""
         return self.agent.act(state, self.env)
     
     def interrupt_sequence(self, action_id=None):
         """
-        Interrupt current sequence (Strategy B: Use DQN for remaining actions).
-        If no action_id provided, will use DQN for next action.
-        
-        Args:
-            action_id: optional action ID to execute instead
+        Interrompe la sequenza corrente (es. pericolo).
         """
         self.current_sequence = []
         self.current_sequence_index = 0

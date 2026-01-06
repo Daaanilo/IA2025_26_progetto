@@ -1,12 +1,11 @@
 """
-F10: Sistema di Valutazione - Report Generator
+Generatore di Report di Valutazione.
 
-Synthesizes evaluation metrics into comprehensive markdown/text reports.
-Generates:
-- Summary tables (HeRoN vs baselines)
-- Correlation analysis (helper_calls vs achievements)
-- Per-configuration statistics
-- Actionable recommendations based on convergence/efficiency patterns
+Crea report in markdown con:
+- Tabelle riassuntive
+- Analisi correlazioni
+- Statistiche per configurazione
+- Consigli basati sui dati
 """
 
 import json
@@ -17,7 +16,7 @@ from evaluation_system import EvaluationSystem, BaselineComparator
 
 
 class ReportGenerator:
-    """Generate comprehensive evaluation reports."""
+    """Genera report completi."""
     
     def __init__(self, output_dir: str = "./evaluation_reports"):
         self.output_dir = Path(output_dir)
@@ -25,19 +24,19 @@ class ReportGenerator:
         self.configurations: Dict[str, Dict] = {}
     
     def load_configuration(self, name: str, json_path: str):
-        """Load evaluation results from JSON file."""
+        """Carica risultati da JSON."""
         with open(json_path, 'r') as f:
             self.configurations[name] = json.load(f)
         print(f"[ReportGenerator] Loaded configuration: {name}")
     
     def load_csv_metrics(self, name: str, csv_path: str) -> pd.DataFrame:
-        """Load raw metrics from CSV file."""
+        """Carica metriche da CSV."""
         return pd.read_csv(csv_path)
     
     def generate_summary_report(self, eval_system: EvaluationSystem, 
                                config_name: str,
                                output_file: Optional[str] = None) -> str:
-        """Generate summary report for single configuration."""
+        """Genera report per singola configurazione."""
         
         if output_file is None:
             output_file = f"{self.output_dir}/{config_name}_summary_report.md"
@@ -47,7 +46,7 @@ class ReportGenerator:
         efficiency = eval_system.get_efficiency_statistics()
         convergence = eval_system.get_convergence_report()
         
-        report = f"""# F10 Evaluation Report: {config_name}
+        report = f"""# Evaluation Report: {config_name}
 
 ## Executive Summary
 
@@ -183,12 +182,12 @@ class ReportGenerator:
     
     def generate_comparison_report(self, configs: Dict[str, Dict], 
                                   output_file: Optional[str] = None) -> str:
-        """Generate comparison report across multiple configurations."""
+        """Genera report di confronto tra più configurazioni."""
         
         if output_file is None:
             output_file = f"{self.output_dir}/comparison_report.md"
         
-        report = """# F10 Comparison Report: HeRoN vs Baselines
+        report = """# Comparison Report: HeRoN vs Baselines
 
 ## Configuration Overview
 
@@ -342,7 +341,7 @@ class ReportGenerator:
         report += "\n3. **Scalability**: Consider adjusting episode budget based on convergence patterns\n"
         
         report += "\n4. **Next Steps**:\n"
-        report += "   - Implement Reviewer fine-tuning (F06) for better LLM feedback quality\n"
+        report += "   - Implement Reviewer fine-tuning for better LLM feedback quality\n"
         report += "   - Analyze per-achievement unlock patterns for bottleneck identification\n"
         report += "   - Run multiple seeds for statistical significance testing\n"
         
@@ -394,19 +393,7 @@ class ReportGenerator:
 def generate_full_evaluation_report(eval_configs: Dict[str, str], 
                                    output_dir: str = "./evaluation_reports"):
     """
-    Convenience function: generate all reports from configuration JSON files.
-    
-    Args:
-        eval_configs: Dict mapping config_name -> path/to/json
-        output_dir: Output directory for all reports
-    
-    Example:
-        configs = {
-            'heron_crafter': 'heron_crafter_evaluation.json',
-            'baseline_crafter_dqn': 'baseline_crafter_dqn_evaluation.json',
-            'baseline_crafter_helper': 'baseline_crafter_helper_evaluation.json'
-        }
-        generate_full_evaluation_report(configs)
+    Funzione comoda: genera tutti i report dai file JSON.
     """
     
     generator = ReportGenerator(output_dir=output_dir)

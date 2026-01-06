@@ -5,7 +5,7 @@ import sys
 import json
 from pathlib import Path
 
-# Add parent directory to path for imports
+# Parent directory
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import lmstudio as lms
@@ -20,7 +20,7 @@ from evaluation.evaluation_system import EvaluationSystem
 from training.reward_shaper import CrafterRewardShaper
 from evaluation.evaluation_plots import AdvancedPlotter, generate_all_plots
 
-# Achievement name-to-ID mapping for Crafter's 22 achievements
+# Achievement name-to-ID mapping
 ACHIEVEMENT_NAME_TO_ID = {
     'collect_coal': 0,
     'collect_diamond': 1,
@@ -46,15 +46,15 @@ ACHIEVEMENT_NAME_TO_ID = {
     'wake_up': 21
 }
 
-# Reverse mapping for plotting labels
+# Reverse mapping
 ACHIEVEMENT_ID_TO_NAME = {v: k for k, v in ACHIEVEMENT_NAME_TO_ID.items()}
 
-# Device selection: CUDA (NVIDIA) or CPU only (NO MPS - Crafter incompatible)
+# Device setup
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"[Config] Using device: {device}")
 print(f"[Config] NOTE: MPS (Apple Silicon) not supported by Crafter environment")
 
-# Reviewer model configuration (PPO fine-tuned model)
+# Modello Reviewer (quello finetunato con PPO)
 REVIEWER_MODEL_PATH = "reviewer_retrained_ppo"
 REVIEWER_TOKENIZER_PATH = "reviewer_retrained_ppo"
 
@@ -78,16 +78,11 @@ except Exception as e:
 
 def train_dqn_crafter(episodes=100, batch_size=64, episode_length=1000, threshold_episodes=100):
     """
-    Train DQNAgent in Crafter environment with Helper and Reviewer integration.
-    
-    Args:
-        episodes: Number of training episodes
-        batch_size: DQN replay batch size
-        episode_length: Steps per episode (reduced from 10000 for faster testing)
-        threshold_episodes: Episodes after which to stop using LLM (disable threshold decay)
+    Allena HeRoN: DQN + Helper + Reviewer.
+    Tutti e tre insieme appassionatamente.
     """
     
-    # Initialize environment and agents
+    # Inizializza tutto
     print("\n[Init] Initializing Crafter environment...")
     env = CrafterEnv(area=(64, 64), view=(9, 9), size=(64, 64), reward=True, 
                      length=episode_length, seed=None)
@@ -95,21 +90,21 @@ def train_dqn_crafter(episodes=100, batch_size=64, episode_length=1000, threshol
     print(f"[Init] State size: {env.state_size}, Action size: {env.action_size}")
     print(f"[Init] Using device: {device}")
     
-    # Initialize DQN Agent with consistent device
+    # DQN Agent
     print("[Init] Initializing DQN Agent...")
     agent = DQNAgent(env.state_size, env.action_size, load_model_path=None)
     
-    # Verify agent device matches global device
+    # Check device
     print(f"[Init] DQN Agent device: {agent.device}")
     if agent.device != device:
         print(f"[WARNING] Device mismatch: Agent={agent.device}, Global={device}")
         print(f"[WARNING] This may cause issues with Reviewer interaction")
     
-    # Initialize CrafterHelper (LLM)
+    # Helper (LLM)
     print("[Init] Initializing CrafterHelper...")
     helper = CrafterHelper(model_name="qwen/qwen3-4b-2507")
     
-    # Initialize Reviewer (fine-tuned model)
+    # Reviewer
     print("[Init] Initializing InstructorAgent (Reviewer)...")
     if model_reviewer is not None and tokenizer_reviewer is not None:
         instructor = InstructorAgent(model_reviewer, tokenizer_reviewer, device)
@@ -119,13 +114,13 @@ def train_dqn_crafter(episodes=100, batch_size=64, episode_length=1000, threshol
         use_reviewer = False
         print("[Init] WARNING: Reviewer not available - training without refinement")
     
-    # Initialize Sequence Executor for action sequence management
+    # Executor
     executor = SequenceExecutor(agent, env)
     
-    # Initialize Reward Shaper
+    # Reward Shaper
     reward_shaper = CrafterRewardShaper()
     
-    # Metrics tracking
+    # Metriche
     rewards_per_episode = []
     achievements_per_episode = []
     moves_per_episode = []
@@ -135,16 +130,16 @@ def train_dqn_crafter(episodes=100, batch_size=64, episode_length=1000, threshol
     native_rewards_per_episode = []
     shaped_bonus_per_episode = []
     
-    # Performance tracking for checkpointing
+    # Tracking
     best_achievement_count = 0
     best_episode = -1
     
-    # Initialize Evaluation System
+    # Evaluation System
     evaluation_system = EvaluationSystem(num_achievements=22)
     
-    # Threshold decay per EPISODE (not per step)
+    # Decay soglia
     threshold = 1.0
-    threshold_decay_per_episode = 0.01  # Decays from 1.0 to 0.0 over 100 episodes
+    threshold_decay_per_episode = 0.01  # Scende da 1.0 a 0.0 in 100 ep
     
     print(f"\n[Training] Starting training for {episodes} episodes...")
     print(f"[Training] Threshold decay: {threshold_decay_per_episode} per episode (stops at episode {threshold_episodes})")
@@ -153,7 +148,7 @@ def train_dqn_crafter(episodes=100, batch_size=64, episode_length=1000, threshol
     
     # ===== EPISODE LOOP =====
     for e in range(episodes):
-        state, initial_info = env.reset()  # Unpack tuple (state, info)
+        state, initial_info = env.reset()
         state = np.reshape(state, [1, env.state_size])
         done = False
         total_reward = 0
@@ -164,15 +159,15 @@ def train_dqn_crafter(episodes=100, batch_size=64, episode_length=1000, threshol
         episode_helper_calls = 0
         episode_hallucinations = 0
         
-        previous_info = initial_info  # Use info from reset
+        previous_info = initial_info
         reward_shaper.reset_episode()
-        executor.current_sequence = []  # Reset sequence for new episode
+        executor.current_sequence = []
         executor.current_sequence_index = 0
         
-        # Track achievements unlocked this episode (for Helper's episode summary)
+        # Lista achievement episodio
         episode_achievements_list = []
         
-        # CRITICAL: Clear LLM conversation history ONLY at episode start
+        # Pulisce conversazione a inizio episodio
         helper.reset_conversation()
         print(f"[Episode {e}] Conversation history cleared for new episode")
         
@@ -180,16 +175,14 @@ def train_dqn_crafter(episodes=100, batch_size=64, episode_length=1000, threshol
         while not done and moves < episode_length:
             p = np.random.rand()
             
-            # Decide: LLM or DQN
-            # Threshold logic: p < threshold means use LLM
-            # threshold=1.0 → always LLM, threshold=0.0 → never LLM
+            # Decide: LLM o DQN
             use_llm = (p < threshold) and (e < threshold_episodes)
             
             if use_llm:
-                # ===== LLM WORKFLOW: Helper → Reviewer → Helper =====
+                # ===== WORKFLOW COMPLETO: Helper -> Reviewer -> Helper =====
                 episode_helper_calls += 1
                 
-                # Update Helper's episode progress for smart context summarization
+                # Aggiorna progressi Helper
                 helper.update_episode_progress(
                     achievements=episode_achievements_list,
                     step_count=moves,
@@ -197,10 +190,10 @@ def train_dqn_crafter(episodes=100, batch_size=64, episode_length=1000, threshol
                 )
                 
                 try:
-                    # Get current game state and info
+                    # Stato corrente
                     current_info = env._last_info if hasattr(env, '_last_info') else {}
                     
-                    # Check if we should re-plan current sequence (Strategy B)
+                    # Controllo se serve ripianificare
                     should_replan = (
                         executor.current_sequence and 
                         previous_info is not None and
@@ -211,7 +204,7 @@ def train_dqn_crafter(episodes=100, batch_size=64, episode_length=1000, threshol
                         print(f"\n[Episode {e}, Step {moves}] Re-planning triggered - interrupting sequence")
                         executor.interrupt_sequence()
                     
-                    # If sequence exhausted or interrupted, get new one
+                    # Se serve nuova sequenza
                     if not executor.current_sequence or executor.current_sequence_index >= len(executor.current_sequence):
                         print(f"\n[Episode {e}, Step {moves}] Helper generating new sequence...")
                         action_sequence, helper_response = helper.generate_action_sequence(
@@ -219,22 +212,22 @@ def train_dqn_crafter(episodes=100, batch_size=64, episode_length=1000, threshol
                         )
                         
                         if action_sequence is None:
-                            # Hallucination: LLM failed to generate valid sequence
+                            # Allucinazione
                             episode_hallucinations += 1
                             print(f"[Helper] Hallucination detected - falling back to DQN")
                             action = agent.act(state, env)
                         else:
-                            # 2. Reviewer refines suggestion (if available)
+                            # 2. Il Reviewer corregge (se c'è)
                             if use_reviewer and instructor is not None:
                                 print(f"[Reviewer] Refining Helper suggestion...")
                                 game_description = helper.describe_crafter_state(state, current_info, previous_info)
                                 reviewer_feedback = instructor.generate_suggestion(game_description, helper_response)
                                 print(f"[Reviewer] Feedback: {reviewer_feedback}\n")
                                 
-                                # Store feedback for potential episode summary (if context reset occurs)
+                                # Salva feedback
                                 helper.update_episode_progress(reviewer_feedback=reviewer_feedback)
                                 
-                                # 3. Helper reprompts WITHIN ITS CONVERSATION CONTEXT (FIX #3)
+                                # 3. Helper riprova usando il feedback
                                 refined_prompt = (
                                     f"REVIEWER FEEDBACK: {reviewer_feedback}\n\n"
                                     f"CRITICAL: Refine your action sequence to address the feedback above.\n"
@@ -252,7 +245,7 @@ def train_dqn_crafter(episodes=100, batch_size=64, episode_length=1000, threshol
                                 )
                                 
                                 try:
-                                    # Use Helper's generate_action_sequence to preserve conversation context
+                                    # Usa generate_action_sequence dell'helper per mantenere il contesto
                                     action_sequence, refined_response = helper.generate_action_sequence(
                                         state, current_info, previous_info, override_prompt=refined_prompt
                                     )
@@ -262,27 +255,24 @@ def train_dqn_crafter(episodes=100, batch_size=64, episode_length=1000, threshol
                                         episode_hallucinations += 1
                                         action = agent.act(state, env)
                                     else:
-                                        # Store sequence in executor
+                                        # Nuova sequenza raffinata
                                         executor.current_sequence = action_sequence
                                         executor.current_sequence_index = 0
                                         action = executor.current_sequence[executor.current_sequence_index]
                                         executor.current_sequence_index += 1
-                                        
-                                        # NOTE: Conversation reset removed - let periodic reset handle it
-                                        # This preserves context for better learning from Reviewer feedback
                                         
                                 except Exception as e:
                                     print(f"[Helper] Error during refinement: {e}")
                                     episode_hallucinations += 1
                                     action = agent.act(state, env)
                             else:
-                                # Store sequence and get first action
+                                # Senza reviewer, usa quella dell'helper
                                 executor.current_sequence = action_sequence
                                 executor.current_sequence_index = 0
                                 action = executor.current_sequence[executor.current_sequence_index]
                                 executor.current_sequence_index += 1
                     else:
-                        # Continue with current sequence
+                        # Continua sequenza corrente
                         action = executor.current_sequence[executor.current_sequence_index]
                         executor.current_sequence_index += 1
                 
@@ -292,10 +282,10 @@ def train_dqn_crafter(episodes=100, batch_size=64, episode_length=1000, threshol
                     action = agent.act(state, env)
             
             else:
-                # ===== DQN DIRECT OR FALLBACK =====
+                # ===== DQN DIRETTA =====
                 action = agent.act(state, env)
             
-            # ===== EXECUTE ACTION =====
+            # ===== ESEGUE AZIONE =====
             next_state, native_reward, done, info = env.step(action)
             next_state = np.reshape(next_state, [1, env.state_size])
             
@@ -306,9 +296,9 @@ def train_dqn_crafter(episodes=100, batch_size=64, episode_length=1000, threshol
             
             total_native_reward += native_reward
             total_shaped_reward += shaped_reward
-            total_reward += shaped_reward  # DQN trains on shaped reward
+            total_reward += shaped_reward
             
-            # ===== UPDATE ACHIEVEMENTS COUNT =====
+            # ===== ACHIEVEMENTS =====
             if previous_info is not None:
                 curr_achievements = set(
                     k for k, v in info.get('achievements', {}).items() if v >= 1
@@ -319,29 +309,29 @@ def train_dqn_crafter(episodes=100, batch_size=64, episode_length=1000, threshol
                 newly_unlocked_names = curr_achievements - prev_achievements
                 episode_achievements += len(newly_unlocked_names)
                 
-                # Track achievement names for Helper's episode summary
+                # Traccia nomi
                 if newly_unlocked_names:
                     episode_achievements_list.extend(newly_unlocked_names)
                 
-                # Map achievement names to IDs and track in evaluation system
+                # Aggiunge a evaluation
                 if newly_unlocked_names:
                     newly_unlocked_ids = {ACHIEVEMENT_NAME_TO_ID[name] for name in newly_unlocked_names 
                                          if name in ACHIEVEMENT_NAME_TO_ID}
                     evaluation_system.add_episode_achievements(e, newly_unlocked_ids, moves)
             
-            # ===== STORE EXPERIENCE =====
+            # ===== SALVA ESPERIENZA =====
             agent.remember(state, action, shaped_reward, next_state, done)
             
             # ===== REPLAY =====
             if len(agent.memory) > batch_size:
                 agent.replay(batch_size, env)
             
-            # ===== UPDATE STATE =====
+            # ===== NEXT STEP =====
             state = next_state
             previous_info = info
             moves += 1
         
-        # ===== EPISODE END =====
+        # ===== FINE EPISODIO =====
         shaped_bonus = total_shaped_reward - total_native_reward
         
         rewards_per_episode.append(total_shaped_reward)
@@ -352,9 +342,7 @@ def train_dqn_crafter(episodes=100, batch_size=64, episode_length=1000, threshol
         helper_calls.append(episode_helper_calls)
         hallucinations.append(episode_hallucinations)
         
-        # Calculate valid actions percentage
-        # Formula: (Valid Actions / Total Actions Generated) * 100%
-        # Where: Valid Actions = Total Helper Calls - Hallucinations
+        # Valid actions %
         if episode_helper_calls > 0:
             valid_actions = episode_helper_calls - episode_hallucinations
             valid_actions_percentage = (valid_actions / episode_helper_calls) * 100.0
@@ -363,7 +351,7 @@ def train_dqn_crafter(episodes=100, batch_size=64, episode_length=1000, threshol
         
         print(f"  Valid Actions Percentage: {valid_actions_percentage:.2f}% ({episode_helper_calls - episode_hallucinations}/{episode_helper_calls})")
         
-        # Add to F10 EvaluationSystem
+        # Aggiungi a evaluation system
         evaluation_system.add_episode(
             episode=e,
             shaped_reward=total_shaped_reward,
@@ -376,7 +364,7 @@ def train_dqn_crafter(episodes=100, batch_size=64, episode_length=1000, threshol
             valid_actions_percentage=valid_actions_percentage
         )
         
-        # F09: Performance-based checkpointing
+        # Salva checkpoint record
         if episode_achievements > best_achievement_count:
             best_achievement_count = episode_achievements
             best_episode = e
@@ -386,7 +374,7 @@ def train_dqn_crafter(episodes=100, batch_size=64, episode_length=1000, threshol
             agent.save(str(checkpoint_path))
             print(f"\n[Checkpoint] New best model saved: {checkpoint_path}.*")
         
-        # F09: Periodic checkpoints every 10 episodes
+        # Checkpoint periodici
         if (e + 1) % 10 == 0:
             checkpoint_dir = Path(__file__).parent / 'heron_output' / 'checkpoints'
             checkpoint_dir.mkdir(parents=True, exist_ok=True)
@@ -404,7 +392,7 @@ def train_dqn_crafter(episodes=100, batch_size=64, episode_length=1000, threshol
         print(f"  Epsilon: {agent.epsilon:.4f}, Threshold: {threshold:.4f}")
         print(f"  Helper Stats: {helper.get_statistics()}")
         
-        # Decay threshold PER EPISODE (not per step) - FIX #1
+        # Decay soglia
         if e < threshold_episodes:
             print(f"  Current Threshold Used: {threshold:.4f}")
             threshold = max(0, threshold - threshold_decay_per_episode)
@@ -412,10 +400,10 @@ def train_dqn_crafter(episodes=100, batch_size=64, episode_length=1000, threshol
         else:
             print(f"  Threshold Decay Disabled (episode >= {threshold_episodes})")
 
-        # Epsilon decay lineare per episodio (come da documentazione: 1.0 -> 0.05 in 300 episodi)
+        # Epsilon decay
         agent.decay_epsilon_linear(e, total_episodes=episodes)
     
-    # ===== TRAINING COMPLETE =====
+    # ===== TRAINING COMPLETATO =====
     print(f"\n[Training] Complete!")
     print(f"[Training] Average Shaped Reward: {np.mean(rewards_per_episode):.2f}")
     print(f"[Training] Average Native Reward: {np.mean(native_rewards_per_episode):.2f}")
@@ -427,10 +415,10 @@ def train_dqn_crafter(episodes=100, batch_size=64, episode_length=1000, threshol
     print(f"[Training] Reward Shaping Stats: {reward_shaper.get_statistics()}")
     print(f"[Training] Best Model: Episode {best_episode}, Achievements: {best_achievement_count}")
     
-    # Finalize evaluation
+    # Finalizza valutazione
     evaluation_system.finalize()
     
-    # Save final model
+    # Salva modello finale
     print("\n[HeRoN] Saving final model...")
     models_dir = Path(__file__).parent / 'heron_output' / 'models'
     models_dir.mkdir(parents=True, exist_ok=True)
@@ -442,29 +430,29 @@ def train_dqn_crafter(episodes=100, batch_size=64, episode_length=1000, threshol
     best_checkpoint = checkpoint_dir / f"heron_best_ep{best_episode}_ach{best_achievement_count}"
     print(f"[HeRoN] ✓ Best model saved: {best_checkpoint}.*")
     
-    # Export metrics
+    # Esporta metriche
     print("[HeRoN] Exporting metrics...")
     output_dir = Path(__file__).parent / 'heron_output'
     output_dir.mkdir(parents=True, exist_ok=True)
     jsonl_path = output_dir / "heron_crafter_metrics.jsonl"
     evaluation_system.export_to_jsonl(str(jsonl_path))
     
-    # Export per-achievement statistics to JSON
+    # Esporta statistiche achievement
     print("[HeRoN] Exporting per-achievement statistics...")
     achievement_stats_path = output_dir / "heron_achievement_statistics.json"
     export_achievement_statistics_json(evaluation_system, str(achievement_stats_path))
     
-    # Generate plots
+    # Genera grafici
     print("[HeRoN] Generating plots...")
     plot_dir = output_dir / "plots"
     plot_dir.mkdir(exist_ok=True)
     generate_all_plots(evaluation_system, output_dir=str(plot_dir), title_prefix="HeRoN")
     
-    # Print evaluation report
+    # Report finale
     print("\n[HeRoN] Final Evaluation Report:")
     evaluation_system.print_summary_report()
     
-    # Export evaluation summary
+    # Esporta riassunto
     evaluation_json = output_dir / "heron_evaluation.json"
     evaluation_system.export_summary_json(str(evaluation_json))
     print(f"[HeRoN] ✓ Evaluation summary saved: {evaluation_json}")
@@ -485,16 +473,11 @@ def train_dqn_crafter(episodes=100, batch_size=64, episode_length=1000, threshol
 
 def export_achievement_statistics_json(evaluation_system, output_file="heron_crafter_achievement_statistics.json"):
     """
-    Export comprehensive per-achievement statistics to JSON file.
-    Includes episode-achievement matrix, cumulative trajectories, and per-achievement stats.
-    
-    Args:
-        evaluation_system: EvaluationSystem instance with achievement tracking
-        output_file: Path to save JSON file
+    Esporta statistiche sugli achievement in JSON.
     """
     achievement_stats = evaluation_system.get_achievement_statistics()
     
-    # Convert numpy arrays to lists for JSON serialization
+    # Converte per JSON
     def convert_to_serializable(obj):
         if isinstance(obj, np.ndarray):
             return obj.tolist()
@@ -511,7 +494,7 @@ def export_achievement_statistics_json(evaluation_system, output_file="heron_cra
     
     serializable_stats = convert_to_serializable(achievement_stats)
     
-    # Add achievement name mapping
+    # Mapping nomi
     serializable_stats['achievement_id_to_name'] = ACHIEVEMENT_ID_TO_NAME
     
     with open(output_file, 'w') as f:
@@ -526,17 +509,17 @@ def export_achievement_statistics_json(evaluation_system, output_file="heron_cra
 
 if __name__ == "__main__":
     print("="*80)
-    print("HeRoN F08: Crafter Environment Integration")
+    print("HeRoN: Crafter Environment Integration")
     print("Three-Agent System: DQNAgent + CrafterHelper + InstructorAgent")
     print("="*80)
     
-    # Train
+    # Via al training
     (rewards, native_rewards, shaped_bonus, achievements, moves,
      helper_calls, hallucinations, helper_stats, reward_shaper_stats, eval_system) = train_dqn_crafter(
-        episodes=300,  # 300 episodi come da documentazione
-        batch_size=64,  # 64 come da documentazione
-        episode_length=1000,  # 1000 steps per episodio come da documentazione
-        threshold_episodes=100  # LLM attivo per primi 100 episodi come da documentazione
+        episodes=300,  # 300 episodi standard
+        batch_size=64,  # batch size standard
+        episode_length=1000,  # steps per episodio
+        threshold_episodes=100  # LLM attivo per i primi 100 episodi
     )
     
     print("\n" + "="*80)

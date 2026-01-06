@@ -1,13 +1,12 @@
 """
-F10: Sistema di Valutazione - Core Evaluation System
+Sistema di Valutazione.
 
-Comprehensive evaluation framework for HeRoN Crafter training:
-- Aggregates per-episode metrics into learning curves
-- Computes per-achievement unlock statistics
-- Calculates efficiency ratios (reward/move, reward/helper_call)
-- Detects convergence patterns and learning trends
-- Provides statistical summaries (mean, std, min, max, moving averages)
-- Enables baseline comparisons
+Cosa fa:
+- Tiene traccia di metriche per episodio
+- Statistiche achievement
+- Efficienza
+- Trend e convergenza
+- Report finali
 """
 
 import numpy as np
@@ -19,7 +18,7 @@ import json
 
 
 # ============================================================================
-# Crafter Achievement Mapping (Official 22 Achievements)
+# Mapping Achievement Crafter
 # ============================================================================
 
 ACHIEVEMENT_NAME_TO_ID = {
@@ -52,7 +51,7 @@ ACHIEVEMENT_ID_TO_NAME = {v: k for k, v in ACHIEVEMENT_NAME_TO_ID.items()}
 
 @dataclass
 class EpisodeMetrics:
-    """Per-episode metrics snapshot."""
+    """Snapshot delle metriche dell'episodio."""
     episode: int
     shaped_reward: float
     native_reward: float
@@ -63,56 +62,50 @@ class EpisodeMetrics:
     hallucinations: int
     hallucination_rate: float
     
-    # Optional extended metrics (populated by EvaluationSystem)
+    # Metriche estese (calcolate dopo)
     reward_per_move: Optional[float] = None
     reward_per_helper_call: Optional[float] = None
     achievements_per_move: Optional[float] = None
-    valid_actions_percentage: Optional[float] = None  # Percentuale di azioni valide
+    valid_actions_percentage: Optional[float] = None
 
 
 @dataclass
 class EpisodeAchievementData:
-    """Achievement unlock details for an episode."""
+    """Dettagli sblocco achievement per episodio."""
     episode: int
-    achievements_unlocked: set  # Set of achievement IDs unlocked
+    achievements_unlocked: set
     achievements_count: int
     new_total_achievements: int
 
 
 class AchievementTracker:
-    """Tracks per-achievement unlock statistics across training."""
+    """Tiene traccia di chi sblocca cosa e quando."""
     
     def __init__(self, num_achievements: int = 22):
         self.num_achievements = num_achievements
-        self.unlock_episodes = [[] for _ in range(num_achievements)]  # Episodes when each achievement unlocked
-        self.first_unlock_episode = [None] * num_achievements  # First episode each was unlocked
-        self.first_unlock_move = [None] * num_achievements  # First move when unlocked
-        self.unlock_count = [0] * num_achievements  # Total times each was unlocked
+        self.unlock_episodes = [[] for _ in range(num_achievements)]
+        self.first_unlock_episode = [None] * num_achievements
+        self.first_unlock_move = [None] * num_achievements
+        self.unlock_count = [0] * num_achievements
         self.total_unlocks = 0
         self.unique_achievements_unlocked = set()
-        self.unique_achievement_names = set()  # NEW: Track achievement names
-        self.episode_achievement_matrix = []  # List of [num_achievements] arrays per episode
-        self.current_episode_count = -1  # Track current episode for matrix building
-        self.achievements_per_episode = []  # NEW: Track which achievements were unlocked per episode
+        self.unique_achievement_names = set()
+        self.episode_achievement_matrix = []
+        self.current_episode_count = -1
+        self.achievements_per_episode = []
     
     def track_episode(self, episode: int, achievements_unlocked: set, current_move: int = None):
-        """Record achievement unlocks for an episode.
-        
-        Args:
-            episode: Episode number
-            achievements_unlocked: Set of achievement IDs unlocked in this step
-            current_move: Current step/move count within episode (optional)
-        """
-        # Initialize episode achievement array if new episode
+        """Salva gli achievement sbloccati in un episodio."""
+        # Se è un nuovo episodio, prepara le strutture dati
         if episode > self.current_episode_count:
-            # Fill missing episodes with zeros
+            # Riempie i buchi con zeri
             while len(self.episode_achievement_matrix) <= episode:
                 self.episode_achievement_matrix.append([0] * self.num_achievements)
             while len(self.achievements_per_episode) <= episode:
                 self.achievements_per_episode.append(set())
             self.current_episode_count = episode
         
-        # Track achievements for this episode
+        # Traccia achievement
         for ach_id in achievements_unlocked:
             if 0 <= ach_id < self.num_achievements:
                 self.unlock_episodes[ach_id].append(episode)
@@ -120,12 +113,12 @@ class AchievementTracker:
                 self.total_unlocks += 1
                 self.unique_achievements_unlocked.add(ach_id)
                 
-                # Track achievement name
+                # Nome achievement
                 ach_name = ACHIEVEMENT_ID_TO_NAME.get(ach_id, f"unknown_{ach_id}")
                 self.unique_achievement_names.add(ach_name)
                 self.achievements_per_episode[episode].add(ach_name)
                 
-                # Increment episode achievement matrix
+                # Matrice
                 self.episode_achievement_matrix[episode][ach_id] += 1
                 
                 if self.first_unlock_episode[ach_id] is None:
@@ -134,31 +127,30 @@ class AchievementTracker:
                         self.first_unlock_move[ach_id] = current_move
     
     def get_statistics(self) -> Dict:
-        """Return achievement-level statistics."""
+        """Ritorna tutte le statistiche sugli achievement."""
         total_possible = self.num_achievements
         unique_unlocked = len(self.unique_achievements_unlocked)
         
-        # Achievement distribution
+        # Distribuzione
         unlocked_counts = [c for c in self.unlock_count if c > 0]
         
-        # Calculate cumulative unlock matrix (for plotting)
+        # Matrice cumulativa per i grafici
         cumulative_matrix = self._compute_cumulative_matrix()
         
-        # Compute per-achievement statistics across episodes
+        # Stats per episodio
         per_ach_stats = self._compute_per_achievement_episode_stats(cumulative_matrix)
         
-        # Get list of unlocked achievement names (sorted)
+        # Liste nomi
         unlocked_names = sorted(list(self.unique_achievement_names))
         
-        # Get list of never unlocked achievement names
         never_unlocked_ids = [i for i in range(self.num_achievements) if self.unlock_count[i] == 0]
         never_unlocked_names = sorted([ACHIEVEMENT_ID_TO_NAME.get(i, f"unknown_{i}") for i in never_unlocked_ids])
         
         return {
             'total_possible_achievements': total_possible,
             'unique_achievements_unlocked': unique_unlocked,
-            'unique_achievement_names': unlocked_names,  # NEW: List of unlocked names
-            'never_unlocked_names': never_unlocked_names,  # NEW: List of never unlocked names
+            'unique_achievement_names': unlocked_names,
+            'never_unlocked_names': never_unlocked_names,
             'unlock_ratio': unique_unlocked / total_possible if total_possible > 0 else 0,
             'total_unlock_instances': self.total_unlocks,
             'avg_unlocks_per_achievement': np.mean(unlocked_counts) if unlocked_counts else 0,
@@ -166,29 +158,29 @@ class AchievementTracker:
             'min_unlocks_per_achievement': min(c for c in self.unlock_count if c > 0) if unlocked_counts else 0,
             'never_unlocked': total_possible - unique_unlocked,
             'per_achievement_stats': self._get_per_achievement_stats(),
-            'episode_achievement_matrix': self.episode_achievement_matrix,  # Raw matrix
-            'cumulative_achievement_matrix': cumulative_matrix,  # Cumulative for plotting
-            'per_achievement_episode_stats': per_ach_stats,  # Min/max/mean per achievement
-            'achievements_per_episode': [sorted(list(achs)) for achs in self.achievements_per_episode]  # NEW: Per-episode achievements
+            'episode_achievement_matrix': self.episode_achievement_matrix,
+            'cumulative_achievement_matrix': cumulative_matrix,
+            'per_achievement_episode_stats': per_ach_stats,
+            'achievements_per_episode': [sorted(list(achs)) for achs in self.achievements_per_episode]
         }
     
     def _get_per_achievement_stats(self) -> List[Dict]:
-        """Detailed stats per achievement."""
+        """Stats dettagliate per ogni achievement."""
         stats = []
         for ach_id in range(self.num_achievements):
             ach_name = ACHIEVEMENT_ID_TO_NAME.get(ach_id, f"unknown_{ach_id}")
             stats.append({
                 'achievement_id': ach_id,
-                'achievement_name': ach_name,  # NEW: Human-readable name
+                'achievement_name': ach_name,
                 'unlock_count': self.unlock_count[ach_id],
                 'first_unlock_episode': self.first_unlock_episode[ach_id],
                 'first_unlock_move': self.first_unlock_move[ach_id],
-                'unlocked': self.unlock_count[ach_id] > 0  # NEW: Boolean flag
+                'unlocked': self.unlock_count[ach_id] > 0
             })
         return stats
     
     def _compute_cumulative_matrix(self) -> List[List[int]]:
-        """Compute cumulative achievement matrix for plotting progression."""
+        """Calcola la matrice cumulativa per vedere la progressione."""
         if not self.episode_achievement_matrix:
             return []
         
@@ -203,7 +195,7 @@ class AchievementTracker:
         return cumulative
     
     def _compute_per_achievement_episode_stats(self, cumulative_matrix: List[List[int]]) -> List[Dict]:
-        """Compute min/max/mean unlock counts per achievement across episodes for shaded plotting."""
+        """Min/Max/Mean unlock counts per shading nei grafici."""
         if not cumulative_matrix:
             return []
         
@@ -211,7 +203,6 @@ class AchievementTracker:
         num_episodes = len(cumulative_matrix)
         
         for ach_id in range(self.num_achievements):
-            # Extract this achievement's trajectory across episodes
             trajectory = [cumulative_matrix[ep][ach_id] for ep in range(num_episodes)]
             
             stats.append({
@@ -226,23 +217,22 @@ class AchievementTracker:
 
 
 class EfficiencyAnalyzer:
-    """Analyzes learning efficiency metrics."""
+    """Analizza quanto è efficiente l'agente."""
     
     def __init__(self, metrics_list: List[EpisodeMetrics]):
         self.metrics = metrics_list
         self._compute_efficiency_metrics()
     
     def _compute_efficiency_metrics(self):
-        """Calculate reward/move, reward/helper_call, achievements/move ratios."""
+        """Calcola ratio tipo reward/mossa."""
         for metric in self.metrics:
-            # Avoid division by zero
             metric.reward_per_move = metric.shaped_reward / metric.moves if metric.moves > 0 else 0
             metric.reward_per_helper_call = (metric.shaped_reward / metric.helper_calls 
                                            if metric.helper_calls > 0 else metric.shaped_reward)
             metric.achievements_per_move = metric.achievements_unlocked / metric.moves if metric.moves > 0 else 0
     
     def get_efficiency_statistics(self) -> Dict:
-        """Compute efficiency summaries."""
+        """Ritorna sommario efficienza."""
         reward_per_move = [m.reward_per_move for m in self.metrics if m.reward_per_move is not None]
         reward_per_helper = [m.reward_per_helper_call for m in self.metrics if m.reward_per_helper_call is not None]
         ach_per_move = [m.achievements_per_move for m in self.metrics if m.achievements_per_move is not None]
@@ -270,7 +260,7 @@ class EfficiencyAnalyzer:
 
 
 class ConvergenceDetector:
-    """Detects learning convergence and trend patterns."""
+    """Controlla se l'agente ha smesso di imparare (convergenza)."""
     
     def __init__(self, metrics_list: List[EpisodeMetrics], window_size: int = 10):
         self.metrics = metrics_list
@@ -278,14 +268,7 @@ class ConvergenceDetector:
     
     def detect_convergence(self, metric_name: str = 'shaped_reward', threshold: float = 0.05) -> Dict:
         """
-        Detect if metric has converged using moving average stability.
-        
-        Args:
-            metric_name: 'shaped_reward', 'native_reward', 'achievements_unlocked', etc.
-            threshold: Convergence if moving std < threshold
-        
-        Returns:
-            Dict with convergence status, episode, and moving statistics
+        Controlla se la deviazione standard mobile è bassa.
         """
         if len(self.metrics) < self.window_size:
             return {'converged': False, 'episode': None, 'reason': 'insufficient_data'}
@@ -294,7 +277,6 @@ class ConvergenceDetector:
         moving_mean = self._moving_average(values, self.window_size)
         moving_std = self._moving_std(values, self.window_size)
         
-        # Find convergence point
         converged_episode = None
         for i in range(self.window_size, len(moving_std)):
             if moving_std[i] < threshold:
@@ -311,7 +293,7 @@ class ConvergenceDetector:
         }
     
     def get_trend(self, metric_name: str = 'shaped_reward', window_size: int = None) -> Dict:
-        """Compute trend (improving/stable/declining) over last N episodes."""
+        """Capisce se sta migliorando, peggiorando o è stabile."""
         if window_size is None:
             window_size = self.window_size
         
@@ -320,7 +302,6 @@ class ConvergenceDetector:
         
         values = [getattr(m, metric_name) for m in self.metrics]
         
-        # Compare recent vs earlier windows
         first_half = np.mean(values[:len(values)//2])
         second_half = np.mean(values[len(values)//2:])
         
@@ -343,14 +324,14 @@ class ConvergenceDetector:
     
     @staticmethod
     def _moving_average(values: List[float], window: int) -> List[float]:
-        """Compute moving average."""
+        """Media mobile."""
         if len(values) < window:
             return values
         return [np.mean(values[max(0, i-window):i+1]) for i in range(len(values))]
     
     @staticmethod
     def _moving_std(values: List[float], window: int) -> List[float]:
-        """Compute moving standard deviation."""
+        """Deviazione standard mobile."""
         if len(values) < window:
             return [np.std(values[:i+1]) for i in range(len(values))]
         return [np.std(values[max(0, i-window):i+1]) for i in range(len(values))]
@@ -358,8 +339,7 @@ class ConvergenceDetector:
 
 class EvaluationSystem:
     """
-    Comprehensive evaluation framework orchestrating metrics aggregation, 
-    per-achievement analysis, efficiency computation, and convergence detection.
+    Framework principale che gestisce tutto: metriche, achievement, efficienza.
     """
     
     def __init__(self, num_achievements: int = 22):
@@ -372,19 +352,7 @@ class EvaluationSystem:
     def add_episode(self, episode: int, shaped_reward: float, native_reward: float, 
                     shaped_bonus: float, achievements_unlocked: int, moves: int,
                     helper_calls: int, hallucinations: int, valid_actions_percentage: float = 0.0):
-        """Add metrics from a completed training episode.
-        
-        Args:
-            episode: Episode number
-            shaped_reward: Shaped reward for episode
-            native_reward: Native/sparse reward for episode
-            shaped_bonus: Reward shaping bonus
-            achievements_unlocked: Number of achievements unlocked
-            moves: Number of moves/steps taken
-            helper_calls: Number of times LLM Helper was called
-            hallucinations: Number of hallucinated/invalid actions
-            valid_actions_percentage: Percentuale di azioni valide = (helper_calls - hallucinations) / helper_calls * 100%
-        """
+        """Aggiunge metriche di un episodio completato."""
         hallucination_rate = hallucinations / max(1, helper_calls)
         
         metric = EpisodeMetrics(
@@ -403,17 +371,11 @@ class EvaluationSystem:
         self.metrics_list.append(metric)
     
     def add_episode_achievements(self, episode: int, achievements_unlocked: set, current_move: int = None):
-        """Add detailed achievement unlock information.
-        
-        Args:
-            episode: Episode number
-            achievements_unlocked: Set of achievement IDs unlocked
-            current_move: Current move/step count within episode (optional)
-        """
+        """Aggiunge dettagli sugli achievement sbloccati."""
         self.achievement_tracker.track_episode(episode, achievements_unlocked, current_move)
     
     def finalize(self):
-        """Compute all statistics after training completes."""
+        """Calcola tutto alla fine."""
         if not self.metrics_list:
             raise ValueError("No metrics added. Cannot finalize.")
         
@@ -421,7 +383,7 @@ class EvaluationSystem:
         self.convergence_detector = ConvergenceDetector(self.metrics_list)
     
     def get_summary_statistics(self) -> Dict:
-        """Get comprehensive summary statistics."""
+        """Ritorna statistiche riassuntive."""
         if not self.metrics_list:
             return {}
         
@@ -433,15 +395,11 @@ class EvaluationSystem:
         hallucinations_list = [m.hallucinations for m in self.metrics_list]
         hallucination_rates = [m.hallucination_rate for m in self.metrics_list]
         
-        # Calculate valid actions percentage using formula:
-        # Percentuale di azioni valide = (Numero di azioni valide / Numero totale di azioni generate) × 100%
-        # Valid actions = helper_calls - hallucinations
         total_helper_calls = sum(helper_calls)
         total_hallucinations = sum(hallucinations_list)
         valid_actions_total = total_helper_calls - total_hallucinations
         valid_actions_percentage = (valid_actions_total / total_helper_calls * 100) if total_helper_calls > 0 else 0.0
         
-        # Per-episode valid actions percentages
         valid_actions_per_episode = []
         for m in self.metrics_list:
             if m.helper_calls > 0:
@@ -507,17 +465,17 @@ class EvaluationSystem:
         }
     
     def get_achievement_statistics(self) -> Dict:
-        """Get per-achievement unlock statistics."""
+        """Ritorna statistiche achievement."""
         return self.achievement_tracker.get_statistics()
     
     def get_efficiency_statistics(self) -> Dict:
-        """Get efficiency ratio statistics."""
+        """Ritorna statistiche efficienza."""
         if not self.efficiency_analyzer:
             raise ValueError("Must call finalize() first")
         return self.efficiency_analyzer.get_efficiency_statistics()
     
     def get_convergence_report(self) -> Dict:
-        """Get convergence analysis across key metrics."""
+        """Ritorna report convergenza."""
         if not self.convergence_detector:
             raise ValueError("Must call finalize() first")
         
@@ -530,12 +488,12 @@ class EvaluationSystem:
         }
     
     def export_metrics_dataframe(self) -> pd.DataFrame:
-        """Export all metrics as pandas DataFrame for external analysis."""
+        """Esporta tutto in Pandas DataFrame."""
         data = [asdict(m) for m in self.metrics_list]
         return pd.DataFrame(data)
     
     def export_to_jsonl(self, filepath: str):
-        """Export metrics to JSONL file (one JSON object per line)."""
+        """Esporta in JSONL (una riga per episodio)."""
         with open(filepath, 'w', encoding='utf-8') as f:
             for metric in self.metrics_list:
                 record = asdict(metric)
@@ -543,7 +501,7 @@ class EvaluationSystem:
         print(f"[EvaluationSystem] Exported metrics to {filepath}")
     
     def export_summary_json(self, filepath: str):
-        """Export summary statistics to JSON file."""
+        """Esporta sommario in JSON."""
         summary = {
             'summary_statistics': self.get_summary_statistics(),
             'achievement_statistics': self.get_achievement_statistics(),
@@ -556,7 +514,7 @@ class EvaluationSystem:
         print(f"[EvaluationSystem] Exported summary to {filepath}")
     
     def print_summary_report(self):
-        """Print human-readable summary report."""
+        """Stampa report leggibile."""
         summary = self.get_summary_statistics()
         achievements = self.get_achievement_statistics()
         efficiency = self.get_efficiency_statistics()
@@ -623,13 +581,13 @@ class EvaluationSystem:
 
 
 class BaselineComparator:
-    """Compare evaluation results across different configurations."""
+    """Confronta diverse configurazioni."""
     
     def __init__(self):
         self.configurations: Dict[str, Dict] = {}
     
     def add_configuration(self, name: str, summary: Dict, achievements: Dict, efficiency: Dict):
-        """Add evaluation results from a configuration."""
+        """Aggiunge risultati di una config."""
         self.configurations[name] = {
             'summary': summary,
             'achievements': achievements,
@@ -637,7 +595,7 @@ class BaselineComparator:
         }
     
     def generate_comparison_table(self) -> pd.DataFrame:
-        """Generate comparison table across configurations."""
+        """Genera tabella comparativa."""
         rows = []
         
         for config_name, data in self.configurations.items():
@@ -658,7 +616,7 @@ class BaselineComparator:
         return pd.DataFrame(rows)
     
     def print_comparison(self):
-        """Print human-readable comparison."""
+        """Stampa confronto."""
         df = self.generate_comparison_table()
         print("\n" + "="*120)
         print("BASELINE COMPARISON TABLE")
@@ -667,7 +625,7 @@ class BaselineComparator:
         print("="*120 + "\n")
     
     def export_comparison_jsonl(self, filepath: str):
-        """Export comparison to JSONL."""
+        """Esporta in JSONL."""
         df = self.generate_comparison_table()
         with open(filepath, 'w', encoding='utf-8') as f:
             for _, row in df.iterrows():
