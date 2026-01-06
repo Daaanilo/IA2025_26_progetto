@@ -76,7 +76,7 @@ except Exception as e:
 # Main Training Loop
 # ============================================================================
 
-def train_dqn_crafter(episodes=100, batch_size=32, episode_length=1000, threshold_episodes=600):
+def train_dqn_crafter(episodes=100, batch_size=64, episode_length=1000, threshold_episodes=100):
     """
     Train DQNAgent in Crafter environment with Helper and Reviewer integration.
     
@@ -411,6 +411,9 @@ def train_dqn_crafter(episodes=100, batch_size=32, episode_length=1000, threshol
             print(f"  Next Episode Threshold: {threshold:.4f}")
         else:
             print(f"  Threshold Decay Disabled (episode >= {threshold_episodes})")
+
+        # Epsilon decay lineare per episodio (come da documentazione: 1.0 -> 0.05 in 300 episodi)
+        agent.decay_epsilon_linear(e, total_episodes=episodes)
     
     # ===== TRAINING COMPLETE =====
     print(f"\n[Training] Complete!")
@@ -528,12 +531,12 @@ if __name__ == "__main__":
     print("="*80)
     
     # Train
-    (rewards, native_rewards, shaped_bonus, achievements, moves, 
+    (rewards, native_rewards, shaped_bonus, achievements, moves,
      helper_calls, hallucinations, helper_stats, reward_shaper_stats, eval_system) = train_dqn_crafter(
-        episodes=300,  # Start with 50 for testing, increase for full training
-        batch_size=32,
-        episode_length=1000,  # Reduced from 1000 for testing
-        threshold_episodes=600
+        episodes=300,  # 300 episodi come da documentazione
+        batch_size=64,  # 64 come da documentazione
+        episode_length=1000,  # 1000 steps per episodio come da documentazione
+        threshold_episodes=100  # LLM attivo per primi 100 episodi come da documentazione
     )
     
     print("\n" + "="*80)

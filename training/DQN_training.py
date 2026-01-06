@@ -54,7 +54,7 @@ def export_achievement_statistics_json(evaluation_system, output_file="crafter_a
     print(f"[Export] Saved achievement statistics to: {output_file}")
 
 
-def train_dqn_baseline(episodes=300, batch_size=32, episode_length=1000, load_model_path=None):
+def train_dqn_baseline(episodes=300, batch_size=64, episode_length=1000, load_model_path=None):
     """
     Train pure DQN agent on Crafter environment.
     
@@ -188,6 +188,9 @@ def train_dqn_baseline(episodes=300, batch_size=32, episode_length=1000, load_mo
             agent.save(str(checkpoint_path))
             print(f"[Baseline DQN] ✓ New best model saved: {episode_achievements} achievements (episode {episode})")
         
+        # Epsilon decay lineare per episodio (come da documentazione: 1.0 -> 0.05 in 300 episodi)
+        agent.decay_epsilon_linear(episode, total_episodes=episodes)
+
         # Progress logging
         if (episode + 1) % 5 == 0:
             avg_reward = np.mean(rewards_per_episode[-10:])
@@ -271,7 +274,7 @@ if __name__ == "__main__":
     
     parser = argparse.ArgumentParser(description="Train DQN baseline on Crafter environment")
     parser.add_argument("--episodes", type=int, default=300, help="Number of training episodes")
-    parser.add_argument("--batch-size", type=int, default=32, help="DQN batch size")
+    parser.add_argument("--batch-size", type=int, default=64, help="DQN batch size")
     parser.add_argument("--episode-length", type=int, default=1000, help="Steps per episode")
     parser.add_argument("--load-model", type=str, default=None, help="Path to pre-trained model")
     

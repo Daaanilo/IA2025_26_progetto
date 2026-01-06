@@ -28,7 +28,7 @@ class DQNNetwork(nn.Module):
 
 
 class DQNAgent:
-    def __init__(self, state_size, action_size, load_model_path=None, learning_rate=0.0003, epsilon=1.0):
+    def __init__(self, state_size, action_size, load_model_path=None, learning_rate=0.0001, epsilon=1.0):
         self.state_size = state_size
         self.action_size = action_size
         
@@ -41,8 +41,8 @@ class DQNAgent:
         self.gamma = 0.99  # Era 0.95 - discount maggiore per rewards sparse
         self.epsilon = epsilon
         self.epsilon_min = 0.05  # Era 0.01 - più esplorazione
-        self.epsilon_decay = 0.998  # Era 0.995 - decay più lento
-        self.learning_rate = learning_rate  # Ridotto da 0.001 a 0.0003
+        self.epsilon_decay_episodes = 300  # Decay lineare su 300 episodi (come da documentazione)
+        self.learning_rate = learning_rate  # 0.0001 come da documentazione
         
         # DOUBLE DQN: Target network separata
         self.target_update_freq = 100  # Update target network ogni N steps
@@ -128,17 +128,35 @@ class DQNAgent:
                 act_values = self.model(state_tensor).cpu().numpy()[0]
             
             if len(valid_actions) < self.action_size:
-                masked_q_values = np.full_like(act_values, -np.inf)  
-                masked_q_values[valid_actions] = act_values[valid_actions] 
+                masked_q_values = np.full_like(act_values, -np.inf)
+                masked_q_values[valid_actions] = act_values[valid_actions]
                 action = np.argmax(masked_q_values)
             else:
                 action = np.argmax(act_values)
-        
-        # Decay epsilon after each action (not just in replay)
-        if self.epsilon > self.epsilon_min:
-            self.epsilon *= self.epsilon_decay
-        
+
+        # NOTE: Epsilon decay ora avviene per episodio (metodo decay_epsilon_linear)
+        # non più per step, come da documentazione
+
         return action
+
+    def decay_epsilon_linear(self, episode, total_episodes=None):
+        """
+        Decay lineare di epsilon su N episodi (come da documentazione).
+        Formula: epsilon = max(epsilon_min, 1.0 - (episode / total_episodes) * (1.0 - epsilon_min))
+
+        Args:
+            episode: Numero episodio corrente (0-indexed)
+            total_episodes: Numero totale episodi per il decay (default: self.epsilon_decay_episodes)
+        """
+        if total_episodes is None:
+            total_episodes = self.epsilon_decay_episodes
+
+        if episode >= total_episodes:
+            self.epsilon = self.epsilon_min
+        else:
+            # Decay lineare: 1.0 -> 0.05 in total_episodes
+            decay_progress = episode / total_episodes
+            self.epsilon = max(self.epsilon_min, 1.0 - decay_progress * (1.0 - self.epsilon_min))
 
     def replay(self, batch_size, env):
         """OTTIMIZZATO: Prioritized Replay + Double DQN + Gradient Clipping."""
