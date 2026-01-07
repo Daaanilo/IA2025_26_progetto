@@ -54,12 +54,21 @@ print(f"[Config] Using device: {device}")
 print(f"[Config] NOTE: MPS (Apple Silicon) not supported by Crafter environment")
 
 # ============================================================================
+# DQN + Helper Configuration (same as HERON_initial, without Reviewer)
+# ============================================================================
+ASSISTED_STEPS = 100  # LLM attivo solo nei primi 100 step di ogni episodio
+
+# ============================================================================
 # Main Training Loop
 # ============================================================================
 
-def train_dqn_helper(episodes=100, batch_size=32, episode_length=1000, threshold_episodes=600):
+def train_dqn_helper(episodes=300, batch_size=64, episode_length=1000, threshold_episodes=100):
     """
     Allena l'agente DQN aiutato dall'Helper (senza Reviewer).
+    
+    Logica (come HERON_initial):
+    - Se moves < ASSISTED_STEPS e episodio < threshold_episodes: usa LLM
+    - Altrimenti: usa DQN
     """
     
     # Inizializza ambiente
@@ -110,12 +119,15 @@ def train_dqn_helper(episodes=100, batch_size=32, episode_length=1000, threshold
     # Sistema di valutazione
     evaluation_system = EvaluationSystem(num_achievements=22)
     
-    # Decay della soglia per chiamare l'LLM
-    threshold = 1.0
-    threshold_decay_per_episode = 0.01  # Scende da 1.0 a 0.0 in 100 ep
+    print("\n" + "="*80)
+    print("DQN + Helper Configuration (same as HERON_initial, without Reviewer)")
+    print(f"LLM attivo nei primi {ASSISTED_STEPS} step di ogni episodio")
+    print(f"LLM attivo solo per i primi {threshold_episodes} episodi")
+    print("="*80)
     
     print(f"\n[Training] Starting training for {episodes} episodes...")
-    print(f"[Training] Threshold decay: {threshold_decay_per_episode} per episode (stops at episode {threshold_episodes})")
+    print(f"[Training] ASSISTED_STEPS: {ASSISTED_STEPS} (LLM attivo nei primi {ASSISTED_STEPS} step)")
+    print(f"[Training] threshold_episodes: {threshold_episodes} (LLM attivo fino all'episodio {threshold_episodes-1})")
     print(f"[Training] Episode length: {episode_length} steps")
     print(f"[Training] Initial epsilon: {agent.epsilon:.4f}")
     
@@ -146,10 +158,9 @@ def train_dqn_helper(episodes=100, batch_size=32, episode_length=1000, threshold
         
         # ===== STEP LOOP =====
         while not done and moves < episode_length:
-            p = np.random.rand()
             
-            # Decide: LLM o DQN?
-            use_llm = (p < threshold) and (e < threshold_episodes)
+            # ===== DQN + Helper: LLM solo nei primi ASSISTED_STEPS =====
+            use_llm = (moves < ASSISTED_STEPS) and (e < threshold_episodes)
             
             if use_llm:
                 # ===== WORKFLOW LLM: Solo Helper =====
@@ -306,23 +317,19 @@ def train_dqn_helper(episodes=100, batch_size=32, episode_length=1000, threshold
             agent.save(str(checkpoint_path))
             print(f"[Checkpoint] Periodic checkpoint saved: {checkpoint_path}.*")
         
-        print(f"\n[Episode {e}] Done!")
+        print(f"\n[Episode {e}] Done! (DQN + Helper)")
         print(f"  Total Reward (Shaped): {total_shaped_reward:.2f}")
         print(f"  Native Reward: {total_native_reward:.2f}")
         print(f"  Shaped Bonus: {shaped_bonus:.2f}")
         print(f"  Achievements Unlocked: {episode_achievements}")
         print(f"  Moves: {moves}")
         print(f"  Helper Calls: {episode_helper_calls}, Hallucinations: {episode_hallucinations}")
-        print(f"  Epsilon: {agent.epsilon:.4f}, Threshold: {threshold:.4f}")
+        print(f"  Epsilon: {agent.epsilon:.4f}")
+        print(f"  LLM Active: {e < threshold_episodes} (Episode {e} < {threshold_episodes})")
         print(f"  Helper Stats: {helper.get_statistics()}")
         
-        # Decay threshold
-        if e < threshold_episodes:
-            print(f"  Current Threshold Used: {threshold:.4f}")
-            threshold = max(0, threshold - threshold_decay_per_episode)
-            print(f"  Next Episode Threshold: {threshold:.4f}")
-        else:
-            print(f"  Threshold Decay Disabled (episode >= {threshold_episodes})")
+        # Epsilon decay
+        agent.decay_epsilon_linear(e, total_episodes=episodes)
     
     # ===== TRAINING COMPLETATO =====
     print(f"\n[Training] Complete!")
@@ -426,16 +433,17 @@ def export_achievement_statistics_json(evaluation_system, output_file="dqn_helpe
 if __name__ == "__main__":
     import argparse
     
-    parser = argparse.ArgumentParser(description="Train DQN + Helper (No Reviewer) on Crafter")
+    parser = argparse.ArgumentParser(description="Train DQN + Helper (No Reviewer) on Crafter - HERON_initial style")
     parser.add_argument("--episodes", type=int, default=300, help="Number of training episodes")
-    parser.add_argument("--batch-size", type=int, default=32, help="DQN batch size")
+    parser.add_argument("--batch-size", type=int, default=64, help="DQN batch size")
     parser.add_argument("--episode-length", type=int, default=1000, help="Steps per episode")
-    parser.add_argument("--threshold-episodes", type=int, default=600, help="Episodes to stop using LLM")
+    parser.add_argument("--threshold-episodes", type=int, default=100, help="Episodes with LLM active")
     
     args = parser.parse_args()
     
     print("="*80)
-    print("DQN + Helper Training (No Reviewer)")
+    print("DQN + Helper Training (No Reviewer) - HERON_initial Style")
+    print(f"Configuration: LLM active in first {ASSISTED_STEPS} steps of each episode")
     print("Two-Agent System: DQNAgent + CrafterHelper")
     print("="*80)
     

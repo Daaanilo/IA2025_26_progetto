@@ -255,22 +255,4 @@ class DQNAgent:
             f.write(str(self.epsilon))
 
 
-    def replay(self, batch_size, env):
-        minibatch = random.sample(self.memory, batch_size)
-        for state, action, reward, next_state, done in minibatch:
-            target = reward
-            if not done:
-                valid_actions = env.get_valid_actions()
-                q_values_next = self.model.predict(next_state, verbose=0)[0]
-                filtered_q = [q_values_next[i] for i in valid_actions]
-                target = reward + self.gamma * max(filtered_q) if filtered_q else reward
-
-            target_f = self.model.predict(state, verbose=0)
-            target_f[0][action] = target
-            self.model.fit(state, target_f, epochs=1, verbose=0)
-
-        if self.epsilon > self.epsilon_min:
-            self.epsilon *= self.epsilon_decay
-
-
 
