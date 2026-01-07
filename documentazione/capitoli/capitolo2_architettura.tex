@@ -25,65 +25,23 @@ L'architettura DQN baseline apprende esclusivamente tramite interazione diretta 
 \subsection{Diagramma Architettura HeRoN Completa}
 
 
-L'architettura HeRoN rappresenta un'estensione del DQN baseline, con l'aggiunta di due componenti LLM per la guida strategica, e l'utilizzo di un meccanismo di threshold decay che bilancia l'intervento tra LLM e RL.
+L'architettura HeRoN rappresenta un'estensione del DQN baseline, con l'aggiunta di due componenti LLM per la guida strategica e un meccanismo di \textbf{threshold decay} che bilancia l'intervento tra LLM e RL.
 
+\textbf{Meccanismo Threshold Decay}:
 
-\textbf{Meccanismo Chiave - Threshold Decay}:
+Il threshold $\theta$ controlla quando consultare il LLM anziché usare DQN autonomo. Nel progetto sono state implementate tre strategie di attivazione LLM:
 
-Il threshold $\theta$ controlla la probabilità di consultare LLM vs. utilizzare DQN autonomo. Nel progetto sono state implementate tre strategie di attivazione LLM:
+\begin{enumerate}
+    \item \textbf{HeRoN Initial}: LLM attivo solo nei primi 100 step di ogni episodio (finestra temporale fissa)
+    \item \textbf{HeRoN Random}: LLM con probabilità casuale del 50\% ad ogni step (attivazione stocastica)
+    \item \textbf{HeRoN Final}: Threshold decay adattivo $\theta(t) = \max(0, 1.0 - k \times t)$ con $k=0.01$ (probabilità LLM crescente 0\%→100\% durante ogni episodio)
+\end{enumerate}
 
-\textbf{1. HeRoN Initial - Finestra Temporale Fissa:}
-\begin{itemize}
-    \item LLM attivo solo nei primi 100 step di ogni episodio
-    \item Strategia: guidance consistente nella fase esplorativa iniziale
-    \item Vantaggio: prevedibilità e supporto nell'esplorazione early-episode
-\end{itemize}
+Tutte le configurazioni includono un \textbf{cutoff a episodio 100}: dopo i primi 100 episodi, il DQN diventa completamente autonomo.
 
-\textbf{2. HeRoN Random - Attivazione Stocastica:}
-\begin{itemize}
-    \item LLM con probabilità casuale del 50\% ad ogni step (fino a episodio 100)
-    \item Strategia: test di robustezza a pattern irregolari
-    \item Vantaggio: maggiore esplorazione, valutazione resilienza sistema
-\end{itemize}
+Per dettagli implementativi completi (formule, esempi numerici, configurazioni parametri) si rimanda al Capitolo~4.
 
-\textbf{3. HeRoN Final - Threshold Decay Adattivo (k=0.01):}
-\begin{equation}
-\theta(t) = \max(0, 1.0 - k \times t)
-\end{equation}
-
-dove $t$ è il numero di step corrente nell'episodio e $k=0.01$ (costante \texttt{KAPPA} nel codice). 
-
-\textbf{Significato di k}: il parametro $k$ rappresenta il \textbf{tasso di decadimento del threshold}. Specificamente:
-\begin{itemize}
-    \item $k = 0.01$ significa che il threshold si riduce di 0.01 ad ogni step
-    \item Dopo 100 step, il threshold raggiunge 0 (100\% probabilità LLM)
-    \item Valori di $k$ più alti comportano una transizione più rapida verso LLM
-    \item Valori di $k$ più bassi mantengono più a lungo l'esplorazione DQN autonoma
-\end{itemize}
-
-Questo garantisce:
-\begin{itemize}
-    \item \textbf{Step 0}: $\theta = 1.0$ (0\% probabilità LLM, 100\% DQN)
-    \item \textbf{Step 50}: $\theta = 0.5$ (~50\% probabilità LLM)
-    \item \textbf{Step 100+}: $\theta = 0.0$ (100\% probabilità LLM)
-    \item \textbf{Vantaggio}: Il DQN esplora autonomamente all'inizio di ogni episodio, mentre il LLM fornisce guidance strategica crescente man mano che il contesto si arricchisce
-    \item \textbf{Reset}: Il threshold si resetta a 1.0 all'inizio di ogni nuovo episodio
-    \item \textbf{Episode Cutoff}: LLM attivo solo nei primi 100 episodi (\texttt{threshold\_episodes=100}), poi DQN completamente autonomo
-\end{itemize}
-
-La probabilità di consultare il LLM è data da:
-\begin{equation}
- P_{\text{LLM}}(t, e) = \begin{cases}
-1 - \theta(t) = \min(1.0, k \times t) & \text{se } e < 100 \\
-0 & \text{se } e \geq 100
-\end{cases}
-\end{equation}
-
-dove $e$ è il numero dell'episodio corrente.
-
-La strategia adattiva di HeRoN Final è risultata ottimale, bilanciando esplorazione RL e pianificazione LLM in modo contestuale.
-
-\textbf{Flusso Completo (Esempio con LLM Path)}:
+\textbf{Flusso Decisionale Integrato}:
 \begin{enumerate}
     \item Ambiente genera stato → Estrazione dello stato (43-dim)
     \item Threshold check: random(0.73) $>$ threshold(0.65) → \textbf{LLM Path}
@@ -103,35 +61,18 @@ L'architettura HeRoN integra i vantaggi del Reinforcement Learning (apprendiment
 
 L'architettura HeRoN è composta da tre componenti principali che interagiscono in modo coordinato:
 
-\subsection{NPC (Non-Player Character) - Versione Semplificata}
+\subsection{NPC (Non-Player Character)}
 
-L'NPC è l'agente che gioca in Crafter usando il Reinforcement Learning. In questo progetto, l'NPC usa l'algoritmo Deep Q-Network (DQN), che funziona così:
+L'NPC è l'agente che gioca in Crafter usando Reinforcement Learning. In questo progetto, l'NPC implementa l'algoritmo \textbf{Deep Q-Network (DQN)} con le seguenti caratteristiche:
 
 \begin{itemize}
-    \item \textbf{Architettura Rete Neurale} (classe \texttt{DQNNetwork}):
-    \begin{itemize}
-        \item Input Layer: 43 neuroni (dimensione stato)
-        \item Hidden Layer 1: 128 neuroni, attivazione ReLU
-        \item Hidden Layer 2: 128 neuroni, attivazione ReLU
-        \item Hidden Layer 3: 64 neuroni, attivazione ReLU
-        \item Output Layer: 17 neuroni (Q-values, uno per azione)
-    \end{itemize}
-    \item \textbf{Double DQN}: Due reti distinte (policy network e target network aggiornata ogni 100 step)
-    \item \textbf{Prioritized Experience Replay}: Buffer di 5.000 transizioni con priorità basate su TD-error
-    \item \textbf{Parametri di Training}:
-    \begin{itemize}
-        \item $\alpha = 0.6$: esponente prioritizzazione
-        \item $\beta = 0.4 \rightarrow 1.0$: importance sampling weight (incremento +0.001 per step)
-        \item $\gamma = 0.99$: discount factor
-        \item $\epsilon$: decay lineare da 1.0 a 0.05 in 300 episodi
-        \item Learning rate: 0.0001 (Adam optimizer)
-        \item Batch size: 64
-    \end{itemize}
-    \item \textbf{Input}: Vettore di stato a 43 dimensioni
-    \item \textbf{Output}: 17 Q-values (uno per ogni azione disponibile)
+    \item \textbf{Architettura}: Rete neurale feedforward a 3 hidden layers (43-128-128-64-17) per mappare stati a Q-values
+    \item \textbf{Double DQN}: Due reti distinte (policy network e target network) per stabilizzare l'apprendimento
+    \item \textbf{Prioritized Experience Replay}: Campionamento intelligente delle esperienze passate basato su TD-error
+    \item \textbf{Funzionamento}: L'NPC osserva lo stato (43-dim), seleziona un'azione tramite strategia $\epsilon$-greedy, esegue l'azione, riceve reward e aggiorna i pesi della rete neurale
 \end{itemize}
 
-In pratica, l'NPC osserva lo stato, esegue un'azione, riceve una ricompensa e aggiorna la sua memoria per imparare a giocare meglio nel tempo.
+Per dettagli implementativi completi (architettura rete, parametri di training, formule matematiche) si rimanda al Capitolo~4.
 
 \subsection{Helper}
 
@@ -275,16 +216,7 @@ Se il Reviewer è disponibile, valuta la sequenza proposta e fornisce un feedbac
 L'Helper utilizza il feedback per migliorare la sequenza e ne crea una seconda versione.
 Infine, si utilizza la sequenza migliorata se il Reviewer ha dato feedback, altrimenti la prima.
 
-\subsection{Fase 3: Esecuzione e Re-planning}
-
-La sequenza di azioni viene eseguita una dopo l'altra. Durante l'esecuzione, l'Helper monitora determinati eventi trigger che comportano l'interruzione della sequenza corrente e l'attivazione di una nuova query:
-
-\begin{itemize}
-    \item \textbf{Achievement sbloccato}: Quando il giocatore sblocca un nuovo achievement, l'Helper riceve una nuova query con il contesto aggiornato
-    \item \textbf{Salute critica} ($health \leq 5$): In caso di salute critica, fallback immediato a DQN per azioni di sopravvivenza
-    \item \textbf{Salute bassa} ($health < 30\%$): Ri-query del sistema per gestione prioritaria della salute
-    \item \textbf{Risorsa chiave consumata}: Se legno, pietra o carbone raggiungono 0, nuova query per raccoglierla prioritariamente
-\end{itemize}
+Per dettagli implementativi e algoritmi di re-planning si rimanda al Capitolo~4.
 
 \section{Vantaggi dell'Architettura}
 

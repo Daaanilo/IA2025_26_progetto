@@ -10,13 +10,13 @@ Il presente lavoro affronta l'applicazione dell'architettura HeRoN (Helper-Revie
 
 \subsection{Performance Quantitative}
 
-L'architettura HeRoN evidenzia:
+L'analisi comparativa di cinque configurazioni (presentata in dettaglio nel Capitolo~5) evidenzia risultati significativi:
 
 \begin{itemize}
-    \item \textbf{Achievement Score}: 2.8 achievement medi per episodio (vs 2.74 del DQN baseline)
-    \item \textbf{Coverage}: 41\% degli achievement sbloccati almeno una volta (9/22)
-    \item \textbf{Convergenza}: circa 40\% più veloce rispetto al baseline
-    \item \textbf{Significatività statistica}: p-value < 0.01 sui miglioramenti
+    \item \textbf{Vincitore reward}: HeRoN Random con attivazione stocastica ottiene il reward medio più elevato
+    \item \textbf{Vincitore coverage}: DQN Baseline e HeRoN Initial raggiungono parità con coverage massima (50\%, 11/22 achievement), includendo crafting base e combat
+    \item \textbf{Esplorazione accelerata}: La guidance LLM accelera l'esplorazione early-stage, con maggiore accumulo achievement negli episodi iniziali (0-50)
+    \item \textbf{Fallimento critico}: HeRoN Final con threshold decay rapido ($k=0.01$) presenta performance drasticamente inferiori, compromettendo gravemente l'assistenza LLM (achievement medio meno della metà rispetto alle altre configurazioni)
 \end{itemize}
 
 \vspace{0.5cm}
@@ -26,7 +26,7 @@ L'architettura HeRoN evidenzia:
 \begin{itemize}
     \item \textbf{Helper}: Accelera l'apprendimento nelle fasi iniziali fornendo suggerimenti strategici basati su conoscenza generale
     \item \textbf{Reviewer}: Contribuisce al 6.7\% di miglioramento rispetto a Helper solo, mitigando il 68\% degli errori comuni
-    \item \textbf{Reward Shaping}: Cruciale per facilitare l'apprendimento, accelera convergenza del 47\%
+    \item \textbf{Reward Shaping}: Cruciale per facilitare l'apprendimento grazie al segnale più denso
     \item \textbf{Sequenze di 5 azioni}: Configurazione ottimale per bilanciare pianificazione e flessibilità
 \end{itemize}
 
@@ -44,7 +44,7 @@ Nel corso dell'implementazione sono state riscontrate diverse sfide, superate me
     \item Penalty morte (-1.0)
 \end{itemize}
 
-\textbf{Risultato}: Convergenza accelerata del 45\% mantenendo gli ottimi della policy.
+\textbf{Risultato}: Apprendimento più efficace grazie al segnale di reward più denso.
 
 \vspace{0.3cm}
 
@@ -77,9 +77,19 @@ Nel corso dell'implementazione sono state riscontrate diverse sfide, superate me
 
 \textbf{Risultato}: Valid actions aumentate da 87\% a 98\% (+11\%). Error rate complessivo ridotto da 13\% a 2\% (-84.6\%). Hallucination rate medio durante training: 0.02\%.
 
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{../grafici/training/06_hallucination_rate.png}
+\caption{Evoluzione del tasso di hallucination LLM durante il training.}
+\label{fig:hallucination_rate}
+\end{figure}
+
+\noindent
+\textbf{Descrizione:} Il rate medio si attesta intorno al 2\% (media tra tutte le configurazioni), validando l'efficacia del sistema TYPO\_MAP di fuzzy matching e dei meccanismi di fallback. DQN+Helper (arancione) presenta rate leggermente superiore per assenza della correzione del Reviewer, mentre le varianti HeRoN mantengono tassi consistentemente bassi (<3\%). L'andamento stabile nel tempo conferma che il sistema di correzione non degrada con l'esposizione a nuovi stati, mantenendo qualità delle azioni LLM anche in late-stage training. I picchi occasionali corrispondono a stati edge-case dove l'Helper suggerisce azioni contestualmente inappropriate ma sintatticamente valide.
+
 \vspace{0.3cm}
 
-\subsubsection{Sintesi Soluzioni}
+\subsection{Sintesi Soluzioni}
 
 Le sfide sono state affrontate con soluzioni specifiche:
 
@@ -90,7 +100,7 @@ Le sfide sono state affrontate con soluzioni specifiche:
 \rowcolor{gray!20}
 \textbf{Sfida} & \textbf{Soluzione} & \textbf{Impatto} \\
 \hline
-Reward Sparsity & Reward shaping multi-componente & Convergenza più rapida \\
+Reward Sparsity & Reward shaping multi-componente & Apprendimento più efficace \\
 \hline
 Emergency Handling & Re-planning multi-livello & Maggiore sopravvivenza \\
 \hline
@@ -102,7 +112,7 @@ Hallucinations & TYPO\_MAP + fuzzy matching & 98\% azioni valide \\
 
 \vspace{0.3cm}
 
-Queste soluzioni hanno permesso a HeRoN di raggiungere performance superiori (2.8 achievement score) rispetto al baseline (2.74), dimostrando l'efficacia dell'approccio integrato RL-LLM.
+Queste soluzioni hanno permesso a HeRoN di raggiungere performance superiori (2.76 achievement score) rispetto al baseline (2.67), dimostrando l'efficacia dell'approccio integrato RL-LLM.
 
 \vspace{0.5cm}
 
@@ -124,8 +134,6 @@ Nonostante i risultati positivi, il progetto presenta alcune limitazioni:
 
 Il progetto apre diverse direzioni di ricerca futura:
 
-\subsubsection{Miglioramenti Architetturali}
-
 \begin{enumerate}
     \item \textbf{Pianificazione gerarchica}: Helper genera piani ad alto livello con sub-planner per sequenze concrete, abilitando achievement complessi.
     \item \textbf{Threshold adattivo}: Adattamento dinamico basato su performance invece di decay lineare.
@@ -135,7 +143,7 @@ Il progetto apre diverse direzioni di ricerca futura:
 
 \vspace{0.3cm}
 
-\subsubsection{Applicazioni Pratiche}
+\subsection{Applicazioni Pratiche}
 
 L'architettura HeRoN potrebbe essere applicata a:
 
@@ -150,13 +158,14 @@ L'architettura HeRoN potrebbe essere applicata a:
 
 \subsection{Considerazioni Finali}
 
-Il presente lavoro dimostra con successo che l'architettura HeRoN può essere estesa oltre il suo dominio originale (JRPG a turni) a environment più complessi come Crafter. L'integrazione tra Reinforcement Learning e Large Language Model offre vantaggi significativi in termini di:
+Il presente lavoro dimostra che l'architettura HeRoN può essere estesa oltre il suo dominio originale (JRPG a turni) a environment più complessi come Crafter. I risultati evidenziano aspetti chiave dell'integrazione RL-LLM:
 
 \begin{itemize}
-    \item Velocità di apprendimento (convergenza circa 40\% più rapida)
-    \item Performance finale (achievement score leggermente superiore e reward più stabile)
-    \item Capacità di pianificazione strategica
-    \item Adattabilità a nuove situazioni
+    \item \textbf{Successi}: L'attivazione stocastica (HeRoN Random) emerge come strategia vincente per reward grazie al bilanciamento esplorazione-sfruttamento. La finestra temporale fissa (HeRoN Initial) mantiene coverage massima con alta consistenza.
+    \item \textbf{Criticità}: La scelta del meccanismo di attivazione LLM è cruciale - configurazioni con decay troppo rapidi annullano completamente i benefici della guidance LLM, compromettendo sia achievement che reward.
+    \item \textbf{Sorpresa}: Il DQN Baseline puro raggiunge performance comparabili alle configurazioni assistite da LLM in termini di coverage, suggerendo che su Crafter l'apprendimento autonomo RL è già efficace per achievement base. La guidance LLM offre benefici principalmente su reward totale ed esplorazione diversificata.
+    \item \textbf{Efficacia di HeRoN}: L'esperienza su Crafter evidenzia che l'efficacia dipende fortemente da: (1) tuning attento dei parametri di attivazione LLM, (2) quality del reward shaping, (3) robustezza del sistema di fallback per situazioni critiche. Il successo in domini diversi (JRPG vs survival open-world) conferma la generalizzabilità dell'approccio.
+    \item \textbf{Vantaggi osservati}: Velocità di apprendimento migliorata, performance finale leggermente superiore, capacità di pianificazione strategica e adattabilità a nuove situazioni.
 \end{itemize}
 
 Allo stesso tempo, sono emersi sfide importanti relative all'overhead computazionale, alla qualità del dataset per il Reviewer e ai limiti della pianificazione a breve termine. Le direzioni future di ricerca identificate offrono percorsi promettenti per superare queste limitazioni.

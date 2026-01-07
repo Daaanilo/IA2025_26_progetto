@@ -32,14 +32,6 @@ L'agente DQN è stato progettato con una rete neurale feedforward composta da:
     \item \textbf{Output Layer}: 17 neuroni (Q-values, uno per ciascuna azione)
 \end{itemize}
 
-\subsubsection{Implementazione Double DQN}
-Per evitare la sovrastima dei Q-values, sono state implementate due reti distinte:
-\begin{itemize}
-    \item \textbf{Policy Network}: aggiornata ad ogni step, utilizzata per selezionare le azioni
-    \item \textbf{Target Network}: aggiornata periodicamente, utilizzata per calcolare i target Q-values
-\end{itemize}
-Questa distinzione è essenziale per la stabilità dell'apprendimento, come approfondito nella sezione algoritmi RL.
-
 \subsubsection{Algoritmi RL: Double DQN, PER, TD-error, Backpropagation}
 
 L'addestramento dell'agente DQN si basa su alcuni concetti fondamentali dell'apprendimento automatico, che spieghiamo qui in modo semplice:
@@ -189,7 +181,7 @@ Il prompt per l'Helper è stato sottoposto a progettazione iterativa mediante sp
 % --- TABELLA 4.1 CON VERSIONI ESPLICITE ---
 \begin{table}[H]
 \centering
-\begin{tabular}{|p{0.22\textwidth}|p{0.22\textwidth}|p{0.22\textwidth}|p{0.22\textwidth}|}
+\begin{tabular}{|p{0.22\textwidth}|p{0.35\textwidth}|p{0.30\textwidth}|}
 \hline
 \rowcolor{gray!20}
 \textbf{Versione Prompt} & \textbf{Descrizione} & \textbf{Obiettivo} \\
@@ -248,6 +240,18 @@ YOUR TURN: [final instructions] \\
 \end{table}
 
 \subsubsection{Meccanismi di Re-planning}
+
+\textbf{Cos'è il Re-planning?}
+
+Il re-planning è il meccanismo di \textbf{interruzione adattiva della sequenza di azioni} per rispondere a cambiamenti critici dello stato. L'Helper genera una sequenza di 3-5 azioni, ma NON le esegue tutte passivamente. Invece, un sistema di monitoraggio verifica costantemente se accadono eventi importanti:
+
+\begin{itemize}
+    \item Se accade un evento critico, la sequenza viene \textbf{immediatamente interrotta}
+    \item Una nuova query viene inviata all'Helper con il \textbf{contesto aggiornato}
+    \item Una \textbf{nuova sequenza} viene generata e subito eseguita
+\end{itemize}
+
+\textbf{Esempio}: L'agente sta eseguendo [move\_right, do, move\_left, noop] quando sblocca il achievement collect\_wood. Immediatamente: interruzione della sequenza, nuova query all'Helper ("hai appena sbloccato wood collection, cosa fai?"), nuova sequenza generata e in esecuzione.
 
 Sono state implementate logiche per interrompere e ri-pianificare durante l'esecuzione di sequenze LLM (costanti nella classe \texttt{CrafterHelper}):
 
@@ -373,7 +377,6 @@ Il training completo dell'architettura HeRoN segue questo protocollo:
 \begin{itemize}
     \item \textbf{Episodi totali}: 300
     \item \textbf{Max steps per episodio}: 1000
-    \item \textbf{Threshold decay}: 1.0 → 0.0 in 100 episodi
     \item \textbf{LLM cutoff}: Episodio 100 (dopo, solo DQN)
     \item \textbf{Checkpoint}: Salvataggio ogni 50 episodi + best model
 \end{itemize}
@@ -410,26 +413,15 @@ Il valore ottimale è risultato essere 5 azioni, che bilancia:
     \item Overhead computazionale LLM
 \end{itemize}
 
-\section{Valutazione delle Prestazioni}
-
-\subsubsection{Metriche di Valutazione}
-
 \section{Configurazioni di Training}
 
 Sono state implementate cinque configurazioni per valutare diverse strategie di integrazione LLM-RL:
 
-\subsection{DQN Baseline (\texttt{DQN\_training.py})}
+\subsection{DQN Baseline}
 
-\textbf{Strategia}: Pure Reinforcement Learning senza integrazione LLM.
+\textbf{Strategia}: Pure Reinforcement Learning senza integrazione LLM. Usa sempre DQN con epsilon-greedy, senza consultazione LLM, con reward shaping applicato per facilitare apprendimento.
 
-\textbf{Logica di decisione}:
-\begin{itemize}
-    \item Usa sempre DQN con epsilon-greedy
-    \item Nessuna consultazione LLM
-    \item Reward shaping applicato per facilitare apprendimento
-\end{itemize}
-
-\subsection{DQN + Helper (\texttt{dqn\_helper\_training.py})}
+\subsection{DQN + Helper}
 
 \textbf{Strategia}: LLM (solo Helper, senza Reviewer) attivo nei primi 100 step di ogni episodio.
 
@@ -439,15 +431,7 @@ Sono state implementate cinque configurazioni per valutare diverse strategie di 
     \item \texttt{threshold\_episodes = 100}
 \end{itemize}
 
-\textbf{Logica di decisione}:
-\begin{verbatim}
-if moves < ASSISTED_STEPS and episode < threshold_episodes:
-    action = use_helper()  # Genera sequenza LLM
-else:
-    action = agent.act(state, env)  # DQN autonomo
-\end{verbatim}
-
-\subsection{HeRoN Initial (\texttt{HERON\_initial.py})}
+\subsection{HeRoN Initial}
 
 \textbf{Strategia}: LLM (Helper + Reviewer) attivo nei primi 100 step di ogni episodio.
 
@@ -458,20 +442,7 @@ else:
     \item Reviewer: T5 PPO fine-tuned (\texttt{reviewer\_retrained\_ppo})
 \end{itemize}
 
-\textbf{Logica di decisione}: Identica a DQN+Helper, ma con raffinamento Reviewer:
-\begin{verbatim}
-if moves < ASSISTED_STEPS and episode < threshold_episodes:
-    sequence, response = helper.generate_action_sequence(...)
-    if use_reviewer:
-        feedback = reviewer.generate_suggestion(...)
-        # Re-query Helper con feedback Reviewer
-        sequence = helper.generate_action_sequence(
-            ..., override_prompt=feedback_prompt)
-else:
-    action = agent.act(state, env)
-\end{verbatim}
-
-\subsection{HeRoN Random (\texttt{HERON\_random.py})}
+\subsection{HeRoN Random}
 
 \textbf{Strategia}: LLM (Helper + Reviewer) attivo con probabilità casuale 50\% ad ogni step.
 
@@ -482,47 +453,34 @@ else:
     \item Reviewer: T5 PPO fine-tuned (\texttt{reviewer\_retrained\_ppo})
 \end{itemize}
 
-\textbf{Logica di decisione}:
-\begin{verbatim}
-if random() < LLM_PROBABILITY and episode < threshold_episodes:
-    # Workflow Helper + Reviewer
-else:
-    action = agent.act(state, env)
-\end{verbatim}
-
-\subsection{HeRoN Final (\texttt{HERON\_final.py})}
+\subsection{HeRoN Final}
 
 \textbf{Strategia}: LLM (Helper + Reviewer) con probabilità crescente durante ogni episodio (threshold decay per-step).
 
 \textbf{Parametri}:
 \begin{itemize}
-    \item \texttt{KAPPA = 0.01} (decremento threshold per step)
+    \item \texttt{KAPPA = 0.01} (decremento threshold per step, equivalente al parametro $k$ nella formula $\theta(t) = \max(0, 1.0 - k \times t)$)
     \item \texttt{threshold\_episodes = 100}
     \item Reviewer: T5 PPO fine-tuned (\texttt{reviewer\_retrained\_ppo})
 \end{itemize}
 
-\textbf{Logica di decisione}:
-\begin{verbatim}
-# All'inizio di ogni episodio
-threshold = 1.0
+\textbf{Significato di k (KAPPA)}:
 
-# Ad ogni step
-if episode < threshold_episodes:
-    if random() > threshold:  # Probabilita' LLM = 1 - threshold
-        # Workflow Helper + Reviewer
-    else:
-        action = agent.act(state, env)
-    threshold = max(0, threshold - KAPPA)  # Decay per-step
-else:
-    action = agent.act(state, env)  # DQN autonomo
-\end{verbatim}
-
-\textbf{Caratteristiche distintive}:
+Il parametro $k$ rappresenta il \textbf{tasso di decadimento del threshold} per-step. Specificamente:
 \begin{itemize}
-    \item Step 0: threshold = 1.0 $\rightarrow$ 0\% probabilità LLM (DQN esplora)
-    \item Step 50: threshold = 0.5 $\rightarrow$ ~50\% probabilità LLM
-    \item Step 100+: threshold = 0.0 $\rightarrow$ 100\% probabilità LLM (guidance strategica)
-    \item Threshold si resetta a 1.0 all'inizio di ogni nuovo episodio
+    \item $k = 0.01$ significa che il threshold si riduce di 0.01 ad ogni step dell'episodio
+    \item Dopo 100 step, il threshold raggiunge 0 (transizione completa verso LLM al 100\%)
+    \item Quindi, \textbf{il parametro k determina quanto rapidamente l'agente passa dal 100\% DQN (step 0) al 100\% LLM} 
+    \item Valori di $k$ \textbf{più alti} (es. 0.05) comportano una \textbf{transizione più rapida} verso LLM
+    \item Valori di $k$ \textbf{più bassi} (es. 0.005) mantengono \textbf{più a lungo l'esplorazione DQN autonoma}
+\end{itemize}
+
+\textbf{Evoluzione del threshold durante l'episodio}:
+\begin{itemize}
+    \item Step 0: $\theta = 1.0$ (0\% LLM, 100\% DQN)
+    \item Step 50: $\theta = 0.5$ (~50\% LLM, ~50\% DQN)
+    \item Step 100+: $\theta = 0.0$ (100\% LLM, 0\% DQN)
+    \item Il threshold si resetta a 1.0 all'inizio di ogni nuovo episodio
 \end{itemize}
 
 \section{Parametri di Training Comuni}
@@ -580,8 +538,6 @@ Per valutare le prestazioni di HeRoN e delle sue varianti, sono state definite d
     \item \textbf{Success Rate per Achievement}: Percentuale di episodi in cui ciascun achievement è stato sbloccato
     
     \item \textbf{Reward Cumulativo}: Somma dei reward durante l'episodio (shaped e nativo)
-    
-    \item \textbf{Convergenza}: Episodio in cui lo score medio si stabilizza
 \end{enumerate}
 
 \subsubsection{Baseline di Confronto}
@@ -646,8 +602,6 @@ Learning rate & 5e-5 \\
 Weight decay & 0.01 \\
 \hline
 Logging steps & 10 \\
-\hline
-Salvataggio modello & Ogni epoca (save\_strategy='epoch') \\
 \hline
 Metriche best model & eval\_loss \\
 \hline
