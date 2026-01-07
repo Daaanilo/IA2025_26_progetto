@@ -131,10 +131,22 @@ La progettazione del modulo Helper e dei prompt è stata fondamentale per ottene
 \subsubsection{Setup LM Studio}
 LM Studio è stato configurato per servire il modello Qwen3-4B-2507:
 \begin{itemize}
+    \item Server host: http://127.0.0.1:1234
+    \item Modello: qwen/qwen3-4b-2507
     \item Temperatura: 0.7 (bilanciamento tra creatività e coerenza)
     \item Max tokens: 150 (sufficiente per sequenze di 3-5 azioni)
     \item Context window: 8192 tokens (gestione conversazioni lunghe)
     \item Tokenizer: Qwen2.5-7B-Instruct (per conteggio token context-aware)
+    \item Safe threshold: 6500 tokens (per evitare context overflow)
+    \item Max message history: 12 messaggi (gestione memoria conversazionale)
+    \item Timeout LLM: 60 secondi
+\end{itemize}
+
+\textbf{Parametri Sequenze Azioni} (classe \texttt{CrafterHelper}):
+\begin{itemize}
+    \item \texttt{min\_sequence\_length}: 3 azioni (garantisce pianificazione minima)
+    \item \texttt{default\_sequence\_length}: 4 azioni (target prompt, bilanciato)
+    \item \texttt{max\_sequence\_length}: 5 azioni (limite superiore per flessibilità)
 \end{itemize}
 
 \textbf{Selezione del Modello}:
@@ -237,7 +249,14 @@ YOUR TURN: [final instructions] \\
 
 \subsubsection{Meccanismi di Re-planning}
 
-Sono state implementate logiche per interrompere e ri-pianificare:
+Sono state implementate logiche per interrompere e ri-pianificare durante l'esecuzione di sequenze LLM (costanti nella classe \texttt{CrafterHelper}):
+
+\begin{itemize}
+    \item \texttt{REPLAN\_THRESHOLD\_HP = 0.3}: Re-planning se health < 30\% del massimo
+    \item \texttt{REPLAN\_THRESHOLD\_HP\_CRITICAL = 5}: Fallback immediato a DQN se health $\leq$ 5
+    \item \texttt{REPLAN\_THRESHOLD\_ACHIEVEMENT = True}: Re-planning immediato quando achievement sbloccato
+    \item \texttt{REPLAN\_THRESHOLD\_INVENTORY\_CHANGE = True}: Monitoring cambiamenti inventario
+\end{itemize}
 
 L'algoritmo seguente descrive il processo di re-planning durante l'esecuzione, garantendo che l'agente possa adattarsi dinamicamente a cambiamenti critici nello stato.
 
@@ -288,13 +307,15 @@ Per addestrare il Reviewer, è stato necessario generare un dataset di esempi:
 
 \subsubsection{Scelta del Modello Base}
 
-È stato scelto FLAN-T5-base come modello base per il Reviewer:
+È stato scelto FLAN-T5-base come modello base per il Reviewer, successivamente fine-tuned con PPO:
 \begin{itemize}
     \item Dimensioni gestibili (250M parametri)
     \item Buone capacità di text-to-text generation
     \item Fine-tuned su task di instruction-following
     \item Veloce per inference durante il training
-    \item Modello: \texttt{google/flan-t5-base}
+    \item Modello base: \texttt{google/flan-t5-base}
+    \item Modello fine-tuned utilizzato: \texttt{reviewer\_retrained\_ppo}
+    \item Training: Supervised learning + PPO reinforcement learning
 \end{itemize}
 
 \subsubsection{Configurazione Training}
@@ -393,7 +414,161 @@ Il valore ottimale è risultato essere 5 azioni, che bilancia:
 
 \subsubsection{Metriche di Valutazione}
 
-Per valutare le prestazioni di HeRoN, sono state definite diverse metriche:
+\section{Configurazioni di Training}
+
+Sono state implementate cinque configurazioni per valutare diverse strategie di integrazione LLM-RL:
+
+\subsection{DQN Baseline (\texttt{DQN\_training.py})}
+
+\textbf{Strategia}: Pure Reinforcement Learning senza integrazione LLM.
+
+\textbf{Logica di decisione}:
+\begin{itemize}
+    \item Usa sempre DQN con epsilon-greedy
+    \item Nessuna consultazione LLM
+    \item Reward shaping applicato per facilitare apprendimento
+\end{itemize}
+
+\subsection{DQN + Helper (\texttt{dqn\_helper\_training.py})}
+
+\textbf{Strategia}: LLM (solo Helper, senza Reviewer) attivo nei primi 100 step di ogni episodio.
+
+\textbf{Parametri}:
+\begin{itemize}
+    \item \texttt{ASSISTED\_STEPS = 100}
+    \item \texttt{threshold\_episodes = 100}
+\end{itemize}
+
+\textbf{Logica di decisione}:
+\begin{verbatim}
+if moves < ASSISTED_STEPS and episode < threshold_episodes:
+    action = use_helper()  # Genera sequenza LLM
+else:
+    action = agent.act(state, env)  # DQN autonomo
+\end{verbatim}
+
+\subsection{HeRoN Initial (\texttt{HERON\_initial.py})}
+
+\textbf{Strategia}: LLM (Helper + Reviewer) attivo nei primi 100 step di ogni episodio.
+
+\textbf{Parametri}:
+\begin{itemize}
+    \item \texttt{ASSISTED\_STEPS = 100}
+    \item \texttt{threshold\_episodes = 100}
+    \item Reviewer: T5 PPO fine-tuned (\texttt{reviewer\_retrained\_ppo})
+\end{itemize}
+
+\textbf{Logica di decisione}: Identica a DQN+Helper, ma con raffinamento Reviewer:
+\begin{verbatim}
+if moves < ASSISTED_STEPS and episode < threshold_episodes:
+    sequence, response = helper.generate_action_sequence(...)
+    if use_reviewer:
+        feedback = reviewer.generate_suggestion(...)
+        # Re-query Helper con feedback Reviewer
+        sequence = helper.generate_action_sequence(
+            ..., override_prompt=feedback_prompt)
+else:
+    action = agent.act(state, env)
+\end{verbatim}
+
+\subsection{HeRoN Random (\texttt{HERON\_random.py})}
+
+\textbf{Strategia}: LLM (Helper + Reviewer) attivo con probabilità casuale 50\% ad ogni step.
+
+\textbf{Parametri}:
+\begin{itemize}
+    \item \texttt{LLM\_PROBABILITY = 0.5}
+    \item \texttt{threshold\_episodes = 100}
+    \item Reviewer: T5 PPO fine-tuned (\texttt{reviewer\_retrained\_ppo})
+\end{itemize}
+
+\textbf{Logica di decisione}:
+\begin{verbatim}
+if random() < LLM_PROBABILITY and episode < threshold_episodes:
+    # Workflow Helper + Reviewer
+else:
+    action = agent.act(state, env)
+\end{verbatim}
+
+\subsection{HeRoN Final (\texttt{HERON\_final.py})}
+
+\textbf{Strategia}: LLM (Helper + Reviewer) con probabilità crescente durante ogni episodio (threshold decay per-step).
+
+\textbf{Parametri}:
+\begin{itemize}
+    \item \texttt{KAPPA = 0.01} (decremento threshold per step)
+    \item \texttt{threshold\_episodes = 100}
+    \item Reviewer: T5 PPO fine-tuned (\texttt{reviewer\_retrained\_ppo})
+\end{itemize}
+
+\textbf{Logica di decisione}:
+\begin{verbatim}
+# All'inizio di ogni episodio
+threshold = 1.0
+
+# Ad ogni step
+if episode < threshold_episodes:
+    if random() > threshold:  # Probabilita' LLM = 1 - threshold
+        # Workflow Helper + Reviewer
+    else:
+        action = agent.act(state, env)
+    threshold = max(0, threshold - KAPPA)  # Decay per-step
+else:
+    action = agent.act(state, env)  # DQN autonomo
+\end{verbatim}
+
+\textbf{Caratteristiche distintive}:
+\begin{itemize}
+    \item Step 0: threshold = 1.0 $\rightarrow$ 0\% probabilità LLM (DQN esplora)
+    \item Step 50: threshold = 0.5 $\rightarrow$ ~50\% probabilità LLM
+    \item Step 100+: threshold = 0.0 $\rightarrow$ 100\% probabilità LLM (guidance strategica)
+    \item Threshold si resetta a 1.0 all'inizio di ogni nuovo episodio
+\end{itemize}
+
+\section{Parametri di Training Comuni}
+
+Tutte le configurazioni condividono i seguenti parametri di base:
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|l|l|}
+\hline
+\rowcolor{gray!20}
+\textbf{Parametro} & \textbf{Valore} \\
+\hline
+Episodi totali & 300 \\
+\hline
+Max steps per episodio & 1000 \\
+\hline
+Batch size DQN & 64 \\
+\hline
+Replay buffer size & 5,000 transizioni \\
+\hline
+Learning rate & 0.0001 (Adam) \\
+\hline
+Gamma ($\gamma$) & 0.99 \\
+\hline
+Epsilon decay & Lineare 1.0 $\rightarrow$ 0.05 in 300 episodi \\
+\hline
+Target network update & Ogni 100 step (hard copy) \\
+\hline
+Prioritized Replay $\alpha$ & 0.6 \\
+\hline
+Prioritized Replay $\beta$ & 0.4 $\rightarrow$ 1.0 (incremento +0.001/step) \\
+\hline
+LLM cutoff episodi & 100 (DQN autonomo dopo ep. 100) \\
+\hline
+LLM model & qwen/qwen3-4b-2507 (via LM Studio) \\
+\hline
+Reviewer model & T5 fine-tuned con PPO (reviewer\_retrained\_ppo) \\
+\hline
+\end{tabular}
+\caption{Parametri di training comuni a tutte le configurazioni}
+\end{table}
+
+\section{Metriche di Valutazione}
+
+Per valutare le prestazioni di HeRoN e delle sue varianti, sono state definite diverse metriche:
 
 \begin{enumerate}
     \item \textbf{Achievement Score}: Numero medio di achievement sbloccati per episodio

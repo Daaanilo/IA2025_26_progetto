@@ -13,27 +13,41 @@ from pathlib import Path
 
 # Configuration
 BASE_DIR = Path(__file__).parent.parent
-TESTING_DIR = BASE_DIR / "testing" / "test_output"
+TESTING_DIR = BASE_DIR / "testing"
 OUTPUT_DIR = Path(__file__).parent / "testing"
 
 # Test configurations with their file paths
 TEST_MODELS = {
-    "HeRoN Final": {
-        "metrics": TESTING_DIR / "heron_crafter_final" / "test_metrics.jsonl",
-        "achievements": TESTING_DIR / "heron_crafter_final" / "test_achievement_statistics.json",
-        "color": "#d62728"
+    "DQN Base": {
+        "metrics": TESTING_DIR / "dqn_base_output" / "test_metrics.jsonl",
+        "achievements": TESTING_DIR / "dqn_base_output" / "test_achievement_statistics.json",
+        "color": "#1f77b4"
     },
     "DQN + Helper": {
-        "metrics": TESTING_DIR / "dqn_helper_crafter_final" / "test_metrics.jsonl",
-        "achievements": TESTING_DIR / "dqn_helper_crafter_final" / "test_achievement_statistics.json",
+        "metrics": TESTING_DIR / "dqn_helper_output" / "test_metrics.jsonl",
+        "achievements": TESTING_DIR / "dqn_helper_output" / "test_achievement_statistics.json",
         "color": "#ff7f0e"
     },
-    "Nuovo DQN": {
-        "metrics": TESTING_DIR / "nuovo_crafter_dqn_final" / "test_metrics.jsonl",
-        "achievements": TESTING_DIR / "nuovo_crafter_dqn_final" / "test_achievement_statistics.json",
-        "color": "#1f77b4"
+    "HeRoN Initial": {
+        "metrics": TESTING_DIR / "heron_initial_output" / "test_metrics.jsonl",
+        "achievements": TESTING_DIR / "heron_initial_output" / "test_achievement_statistics.json",
+        "color": "#2ca02c"
+    },
+    "HeRoN Random": {
+        "metrics": TESTING_DIR / "heron_random_output" / "test_metrics.jsonl",
+        "achievements": TESTING_DIR / "heron_random_output" / "test_achievement_statistics.json",
+        "color": "#9467bd"
+    },
+    "HeRoN Final": {
+        "metrics": TESTING_DIR / "heron_final_output" / "test_metrics.jsonl",
+        "achievements": TESTING_DIR / "heron_final_output" / "test_achievement_statistics.json",
+        "color": "#d62728"
     }
 }
+
+# Filter TEST_MODELS to only include those that have existing metrics files
+TEST_MODELS = {name: config for name, config in TEST_MODELS.items() 
+               if (config["metrics"].exists() and config["achievements"].exists())}
 
 # All 22 achievements in Crafter
 ALL_ACHIEVEMENTS = [

@@ -30,17 +30,58 @@ L'architettura HeRoN rappresenta un'estensione del DQN baseline, con l'aggiunta 
 
 \textbf{Meccanismo Chiave - Threshold Decay}:
 
-Il threshold $\theta$ controlla la probabilità di consultare LLM vs. utilizzare DQN autonomo:
+Il threshold $\theta$ controlla la probabilità di consultare LLM vs. utilizzare DQN autonomo. Nel progetto sono state implementate tre strategie di attivazione LLM:
+
+\textbf{1. HeRoN Initial - Finestra Temporale Fissa:}
+\begin{itemize}
+    \item LLM attivo solo nei primi 100 step di ogni episodio
+    \item Strategia: guidance consistente nella fase esplorativa iniziale
+    \item Vantaggio: prevedibilità e supporto nell'esplorazione early-episode
+\end{itemize}
+
+\textbf{2. HeRoN Random - Attivazione Stocastica:}
+\begin{itemize}
+    \item LLM con probabilità casuale del 50\% ad ogni step (fino a episodio 100)
+    \item Strategia: test di robustezza a pattern irregolari
+    \item Vantaggio: maggiore esplorazione, valutazione resilienza sistema
+\end{itemize}
+
+\textbf{3. HeRoN Final - Threshold Decay Adattivo (k=0.01):}
 \begin{equation}
-\theta(e) = \max(0, 1.0 - 0.01 \times e)
+\theta(t) = \max(0, 1.0 - k \times t)
 \end{equation}
 
-dove $e$ è il numero dell'episodio corrente. Questo garantisce:
+dove $t$ è il numero di step corrente nell'episodio e $k=0.01$ (costante \texttt{KAPPA} nel codice). 
+
+\textbf{Significato di k}: il parametro $k$ rappresenta il \textbf{tasso di decadimento del threshold}. Specificamente:
 \begin{itemize}
-    \item \textbf{Episodi 0-100}: $\theta$: 1.0 → 0.0, transizione graduale da 100\% LLM a 0\% LLM
-    \item \textbf{Episodi 100+}: $\theta = 0$, DQN completamente autonomo
-    \item \textbf{Vantaggio}: Nelle fasi iniziali, l'intervento LLM supporta il processo decisionale, mentre nelle fasi successive il DQN opera in modo autonomo
+    \item $k = 0.01$ significa che il threshold si riduce di 0.01 ad ogni step
+    \item Dopo 100 step, il threshold raggiunge 0 (100\% probabilità LLM)
+    \item Valori di $k$ più alti comportano una transizione più rapida verso LLM
+    \item Valori di $k$ più bassi mantengono più a lungo l'esplorazione DQN autonoma
 \end{itemize}
+
+Questo garantisce:
+\begin{itemize}
+    \item \textbf{Step 0}: $\theta = 1.0$ (0\% probabilità LLM, 100\% DQN)
+    \item \textbf{Step 50}: $\theta = 0.5$ (~50\% probabilità LLM)
+    \item \textbf{Step 100+}: $\theta = 0.0$ (100\% probabilità LLM)
+    \item \textbf{Vantaggio}: Il DQN esplora autonomamente all'inizio di ogni episodio, mentre il LLM fornisce guidance strategica crescente man mano che il contesto si arricchisce
+    \item \textbf{Reset}: Il threshold si resetta a 1.0 all'inizio di ogni nuovo episodio
+    \item \textbf{Episode Cutoff}: LLM attivo solo nei primi 100 episodi (\texttt{threshold\_episodes=100}), poi DQN completamente autonomo
+\end{itemize}
+
+La probabilità di consultare il LLM è data da:
+\begin{equation}
+ P_{\text{LLM}}(t, e) = \begin{cases}
+1 - \theta(t) = \min(1.0, k \times t) & \text{se } e < 100 \\
+0 & \text{se } e \geq 100
+\end{cases}
+\end{equation}
+
+dove $e$ è il numero dell'episodio corrente.
+
+La strategia adattiva di HeRoN Final è risultata ottimale, bilanciando esplorazione RL e pianificazione LLM in modo contestuale.
 
 \textbf{Flusso Completo (Esempio con LLM Path)}:
 \begin{enumerate}
@@ -67,17 +108,27 @@ L'architettura HeRoN è composta da tre componenti principali che interagiscono 
 L'NPC è l'agente che gioca in Crafter usando il Reinforcement Learning. In questo progetto, l'NPC usa l'algoritmo Deep Q-Network (DQN), che funziona così:
 
 \begin{itemize}
-    \item \textbf{Architettura}: DQN usa una seconda rete (target network) per rendere l'apprendimento più stabile.
-    \item \textbf{Replay Buffer}: Salva le esperienze passate e dà più importanza a quelle utili, con spazio per 5.000 eventi.
-    \item \textbf{Parametri principali}:
+    \item \textbf{Architettura Rete Neurale} (classe \texttt{DQNNetwork}):
     \begin{itemize}
-        \item $\alpha = 0.6$: priorità alle esperienze importanti
-        \item $\beta = 0.4$ che cresce fino a $1.0$: corregge il campionamento
-        \item $\gamma = 0.99$: importanza delle ricompense future
-        \item $\epsilon = 1.0$ che scende fino a $0.05$: probabilità di provare azioni nuove
+        \item Input Layer: 43 neuroni (dimensione stato)
+        \item Hidden Layer 1: 128 neuroni, attivazione ReLU
+        \item Hidden Layer 2: 128 neuroni, attivazione ReLU
+        \item Hidden Layer 3: 64 neuroni, attivazione ReLU
+        \item Output Layer: 17 neuroni (Q-values, uno per azione)
     \end{itemize}
-    \item \textbf{Input}: Stato dell'ambiente (43 numeri)
-    \item \textbf{Output}: Valori Q per 17 azioni possibili
+    \item \textbf{Double DQN}: Due reti distinte (policy network e target network aggiornata ogni 100 step)
+    \item \textbf{Prioritized Experience Replay}: Buffer di 5.000 transizioni con priorità basate su TD-error
+    \item \textbf{Parametri di Training}:
+    \begin{itemize}
+        \item $\alpha = 0.6$: esponente prioritizzazione
+        \item $\beta = 0.4 \rightarrow 1.0$: importance sampling weight (incremento +0.001 per step)
+        \item $\gamma = 0.99$: discount factor
+        \item $\epsilon$: decay lineare da 1.0 a 0.05 in 300 episodi
+        \item Learning rate: 0.0001 (Adam optimizer)
+        \item Batch size: 64
+    \end{itemize}
+    \item \textbf{Input}: Vettore di stato a 43 dimensioni
+    \item \textbf{Output}: 17 Q-values (uno per ogni azione disponibile)
 \end{itemize}
 
 In pratica, l'NPC osserva lo stato, esegue un'azione, riceve una ricompensa e aggiorna la sua memoria per imparare a giocare meglio nel tempo.

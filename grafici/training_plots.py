@@ -46,6 +46,10 @@ VARIANTS = {
     }
 }
 
+# Filter VARIANTS to only include those that have existing metrics files
+VARIANTS = {name: config for name, config in VARIANTS.items() 
+            if (config["metrics"].exists() and config["achievements"].exists())}
+
 # All 22 achievements in Crafter
 ALL_ACHIEVEMENTS = [
     "collect_coal", "collect_diamond", "collect_drink", "collect_iron",

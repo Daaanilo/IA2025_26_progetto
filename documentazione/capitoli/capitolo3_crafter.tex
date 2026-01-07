@@ -59,17 +59,17 @@ Nel presente lavoro si impiega una rappresentazione strutturata a 43 dimensioni 
  wood_sword, stone_sword, iron_sword]
 \end{verbatim}
 
-\paragraph{Posizione e Orientamento (2 dimensioni)}
+\paragraph{Posizione (2 dimensioni)}
 \begin{itemize}
-    \item Coordinata X (normalizzata)
-    \item Coordinata Y (normalizzata)
+    \item Coordinata X (normalizzata in [0,1])
+    \item Coordinata Y (normalizzata in [0,1])
 \end{itemize}
 
-\paragraph{Statistiche Vitali (3 dimensioni)}
+\paragraph{Status (3 dimensioni)}
 \begin{itemize}
-    \item Salute (0-9)
-    \item Cibo (0-9)
-    \item Acqua (0-9)
+    \item Discount (1.0 = vivo, 0.0 = morto)
+    \item Sleeping (1.0 = sta dormendo, 0.0 = sveglio)
+    \item Daylight (valore normalizzato: 0.0 = notte, 1.0 = giorno)
 \end{itemize}
 
 \paragraph{Achievement (22 dimensioni)} Vettore binario degli achievement sbloccati:
@@ -131,13 +131,14 @@ Questo reward è estremamente sparso: in un episodio tipico, il giocatore può s
 \subsubsection{Reward Shaping (Dense)}
 
 
-Per facilitare l'apprendimento, viene implementato un sistema di reward shaping che fornisce segnali più frequenti:
+Per facilitare l'apprendimento, viene implementato un sistema di reward shaping (classe \texttt{CrafterRewardShaper}) che fornisce segnali più frequenti:
 
 \begin{align}
-r_{shaped} &= r_{native} + r_{resources} + r_{health} + r_{tools} \\
-r_{resources} &= 0.1 \times \text{\# nuove risorse raccolte} \\
-r_{health} &= 0.02 \quad (\text{se health, food o drink} > 5) \\
-r_{tools} &= 0.3 \times \text{\# nuovi strumenti crafted}
+r_{shaped} &= r_{native} + r_{resources} + r_{health} + r_{tools} + r_{death} \\
+r_{resources} &= 0.1 \times \Delta_{\text{risorse}} \quad (\text{wood, stone, coal, iron, diamond, sapling}) \\
+r_{health} &= 0.02 \times N_{\text{vitals>5}} \quad (\text{health, food, drink} > 5) \\
+r_{tools} &= 0.3 \quad (\text{se nuovo tool craftato, max 0.3 per step}) \\
+r_{death} &= -1.0 \quad (\text{penalità se health diventa 0})
 \end{align}
 
 Il reward shaping mantiene i seguenti principi:

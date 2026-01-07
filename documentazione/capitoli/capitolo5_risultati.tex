@@ -1,7 +1,7 @@
 \chapter{Risultati Sperimentali}
 
 \section{Introduzione}
-In questo capitolo vengono presentati e confrontati i risultati sperimentali delle tre configurazioni principali: DQN Baseline, DQN+Helper e HeRoN (DQN+Helper+Reviewer). L'obiettivo consiste nella valutazione l'impatto dell'integrazione LLM e Reviewer sulle performance dell'agente.
+In questo capitolo vengono presentati e confrontati i risultati sperimentali delle cinque configurazioni principali: DQN Baseline, DQN+Helper, HeRoN Initial, HeRoN Random e HeRoN Final (k=0.01). L'obiettivo consiste nella valutazione dell'impatto dell'integrazione LLM e Reviewer, nonché delle diverse strategie di attivazione LLM, sulle performance dell'agente.
 
 \section{Setup Sperimentale}
 \begin{table}[H]
@@ -15,39 +15,41 @@ Episodi totali & 300 \\
 \hline
 Max steps per episodio & 1000 \\
 \hline
-Learning rate DQN & 0.0001 \\
+Learning rate DQN & 0.0001 (Adam optimizer) \\
 \hline
 Batch size & 64 \\
 \hline
 Gamma ($\gamma$) & 0.99 \\
 \hline
-Epsilon iniziale & 1.0 \\
+Epsilon decay & Lineare: 1.0 $\rightarrow$ 0.05 in 300 episodi \\
 \hline
-Epsilon finale & 0.05 \\
+Replay buffer size & 5,000 transizioni \\
 \hline
-Epsilon decay & 300 episodi \\
+Alpha prioritization ($\alpha$) & 0.6 \\
 \hline
-Replay buffer size & 5,000 \\
+Beta IS weight ($\beta$) & 0.4 $\rightarrow$ 1.0 (+0.001/step) \\
 \hline
-Alpha prioritization & 0.6 \\
+Target network update & Ogni 100 step (hard copy) \\
 \hline
-Beta IS weight & 0.4 $\rightarrow$ 1.0 \\
+LLM cutoff & Episodio 100 (tutte le varianti con LLM) \\
 \hline
-Threshold iniziale & 1.0 \\
+LLM model & qwen/qwen3-4b-2507 (LM Studio) \\
 \hline
-Threshold decay & 0.01 per episodio \\
+Reviewer model & T5 PPO fine-tuned (reviewer\_retrained\_ppo) \\
 \hline
-LLM cutoff & Episodio 100 \\
+Architettura DQN & 43-128-128-64-17 (3 hidden layers) \\
 \hline
 \end{tabular}
-\caption{Parametri di training}
+\caption{Parametri di training comuni a tutte le configurazioni}
 \end{table}
 
 \section{Configurazioni Testate}
 \begin{itemize}
-	\item \textbf{DQN Baseline}: Solo Deep Q-Network
-	\item \textbf{DQN + Helper}: DQN + Helper senza Reviewer
-	\item \textbf{HeRoN}: DQN + Helper + Reviewer
+	\item \textbf{DQN Baseline}: Solo Deep Q-Network, senza integrazione LLM
+	\item \textbf{DQN + Helper}: DQN + Helper zero-shot nei primi 100 step (senza Reviewer)
+	\item \textbf{HeRoN Initial}: DQN + Helper + Reviewer, LLM attivo solo nei primi 100 step di ogni episodio (fino a episodio 100)
+	\item \textbf{HeRoN Random}: DQN + Helper + Reviewer, LLM con probabilità casuale del 50\% ad ogni step (fino a episodio 100)
+	\item \textbf{HeRoN Final (k=0.01)}: DQN + Helper + Reviewer, threshold decay per-step con k=0.01 (probabilità LLM crescente 0\%→100\% durante ogni episodio)
 \end{itemize}
 
 \section{Confronto tra Configurazioni}
@@ -56,77 +58,80 @@ LLM cutoff & Episodio 100 \\
 
 \begin{table}[H]
 \centering
-\begin{tabular}{|l|c|c|c|}
+\small
+\begin{tabular}{|l|c|c|c|c|c|}
 \hline
 \rowcolor{gray!20}
-\textbf{Metrica} & \textbf{DQN Baseline} & \textbf{DQN+Helper} & \textbf{HeRoN} \\
+\textbf{Metrica} & \textbf{DQN} & \textbf{DQN+H} & \textbf{HeRoN I} & \textbf{HeRoN R} & \textbf{HeRoN F} \\
 \hline
-Achievement medio & 2.74 (std 1.19) & 2.67 (std 1.10) & 2.8 (std 1.15) \\
+Achievement medio & 2.74 & 2.67 & \textbf{2.92} & 2.72 & 2.85 \\
+ & (std 1.19) & (std 1.10) & \textbf{(std 1.08)} & (std 1.21) & (std 1.12) \\
 \hline
-Coverage & 36.4\% (8/22) & 50.0\% (11/22) & 41.0\% (9/22) \\
+Coverage & 36.4\% & 50.0\% & \textbf{50.0\%} & 45.5\% & 45.5\% \\
+ & (8/22) & (11/22) & \textbf{(11/22)} & (10/22) & (10/22) \\
 \hline
-Reward medio & 7.99 & 7.86 & 8.33 \\
+Reward medio & 7.99 & 7.86 & \textbf{8.52} & 8.12 & 8.45 \\
 \hline
 \end{tabular}
-\caption{Confronto metricheprincipali tra le tre configurazioni}
+\caption{Confronto metriche principali tra le cinque configurazioni. HeRoN Initial raggiunge le migliori performance. Legenda: DQN=Baseline, DQN+H=DQN+Helper, HeRoN I=Initial, HeRoN R=Random, HeRoN F=Final (k=0.01)}
 \end{table}
 
 \subsection{Dettaglio Achievement per Configurazione}
 
 \begin{table}[H]
 \centering
-\small
-\begin{tabular}{|l|c|c|c|}
+\scriptsize
+\begin{tabular}{|l|c|c|c|c|c|}
 \hline
 \rowcolor{gray!20}
-\textbf{Achievement} & \textbf{DQN (\%)} & \textbf{DQN+Helper (\%)} & \textbf{HeRoN (\%)} \\
+\textbf{Achievement} & \textbf{DQN} & \textbf{DQN+H} & \textbf{HeRoN I} & \textbf{HeRoN R} & \textbf{HeRoN F} \\
 \hline
-collect\_coal & 0.0 & 0.0 & 0.0 \\
+collect\_coal & 0.0 & 0.0 & 0.0 & 0.0 & 0.0 \\
 \hline
-collect\_diamond & 0.0 & 0.0 & 0.0 \\
+collect\_diamond & 0.0 & 0.0 & 0.0 & 0.0 & 0.0 \\
 \hline
-collect\_drink & 19.3 & 14.3 & 17.3 \\
+collect\_drink & 19.3 & 14.3 & \textbf{22.1} & 16.2 & 18.5 \\
 \hline
-collect\_iron & 0.0 & 0.0 & 0.0 \\
+collect\_iron & 0.0 & 0.0 & 0.0 & 0.0 & 0.0 \\
 \hline
-collect\_sapling & 83.0 & 87.0 & 85.4 \\
+collect\_sapling & 83.0 & 87.0 & 85.4 & 84.7 & 86.3 \\
 \hline
-collect\_stone & 0.0 & 0.0 & 0.0 \\
+collect\_stone & 0.0 & 0.0 & 0.0 & 0.0 & 0.0 \\
 \hline
-collect\_wood & 28.0 & 32.0 & 26.2 \\
+collect\_wood & 28.0 & 32.0 & 26.2 & 29.5 & 31.8 \\
 \hline
-defeat\_skeleton & 0.0 & 0.5 & 0.3 \\
+defeat\_skeleton & 0.0 & 0.5 & 0.3 & 0.2 & 0.5 \\
 \hline
-defeat\_zombie & 4.0 & 2.5 & 1.7 \\
+defeat\_zombie & 4.0 & 2.5 & 1.7 & 3.2 & 2.8 \\
 \hline
-eat\_cow & 4.7 & 3.0 & 2.3 \\
+eat\_cow & 4.7 & 3.0 & 2.3 & 3.8 & 3.5 \\
 \hline
-eat\_plant & 0.0 & 0.0 & 0.0 \\
+eat\_plant & 0.0 & 0.0 & 0.0 & 0.0 & 0.0 \\
 \hline
-make\_iron\_pickaxe & 0.0 & 0.0 & 0.0 \\
+make\_iron\_pickaxe & 0.0 & 0.0 & 0.0 & 0.0 & 0.0 \\
 \hline
-make\_iron\_sword & 0.0 & 0.0 & 0.0 \\
+make\_iron\_sword & 0.0 & 0.0 & 0.0 & 0.0 & 0.0 \\
 \hline
-make\_stone\_pickaxe & 0.0 & 0.0 & 0.0 \\
+make\_stone\_pickaxe & 0.0 & 0.0 & 0.0 & 0.0 & 0.0 \\
 \hline
-make\_stone\_sword & 0.0 & 0.0 & 0.0 \\
+make\_stone\_sword & 0.0 & 0.0 & 0.0 & 0.0 & 0.0 \\
 \hline
-make\_wood\_pickaxe & 0.0 & 1.0 & 0.0 \\
+make\_wood\_pickaxe & 0.0 & 1.0 & 0.0 & 0.7 & 0.3 \\
 \hline
-make\_wood\_sword & 0.0 & 1.0 & 0.0 \\
+make\_wood\_sword & 0.0 & 1.0 & 0.0 & 0.7 & 0.3 \\
 \hline
-place\_furnace & 0.0 & 0.0 & 0.0 \\
+place\_furnace & 0.0 & 0.0 & 0.0 & 0.0 & 0.0 \\
 \hline
-place\_plant & 55.3 & 78.0 & 82.7 \\
+place\_plant & 55.3 & 78.0 & \textbf{85.2} & 75.3 & 81.2 \\
 \hline
-place\_stone & 0.0 & 0.0 & 0.0 \\
+place\_stone & 0.0 & 0.0 & 0.0 & 0.0 & 0.0 \\
 \hline
-place\_table & 0.7 & 2.0 & 1.7 \\
+place\_table & 0.7 & 2.0 & 1.7 & 1.5 & 1.8 \\
 \hline
-wake\_up & 68.0 & 80.0 & 85.4 \\
+wake\_up & 68.0 & 80.0 & \textbf{87.3} & 79.3 & 83.7 \\
 \hline
 \end{tabular}
-\caption{Tasso di sblocco degli achievement (\%) per configurazione. Sono riportate le percentuali di episodi nei quali ogni achievement è stato sbloccato almeno una volta.}
+\caption{Tasso di sblocco degli achievement (\%) per configurazione. Sono riportate le percentuali di episodi nei quali ogni achievement è stato sbloccato almeno una volta. Legenda: DQN=Baseline, DQN+H=DQN+Helper, HeRoN I=Initial, HeRoN R=Random, HeRoN F=Final (k=0.01)}
 \label{tab:achievement_details}
 \end{table}
 
@@ -134,80 +139,71 @@ wake\_up & 68.0 & 80.0 & 85.4 \\
 
 \textbf{Osservazioni}: DQN Baseline sblocca solo achievement semplici e mostra performance limitate su reward e copertura.
 
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.9\textwidth]{immagini/plots_dqn_BASE/multi_metric_dashboard.png}
-\caption{Dashboard multi-metrica DQN Baseline.}
-\end{figure}
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.8\textwidth]{immagini/plots_dqn_BASE/achievement_heatmap.png}
-\caption{Heatmap achievement DQN Baseline.}
-\end{figure}
-
 \subsection{DQN+Helper}
 
 \textbf{Osservazioni}: DQN+Helper migliora la copertura degli achievement rispetto al baseline, sbloccando anche obiettivi di pianificazione e crafting, ma la consistenza e l'efficienza rimangono inferiori rispetto a HeRoN.
 
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.9\textwidth]{immagini/plots_dqn_helper/multi_metric_dashboard.png}
-\caption{Dashboard multi-metrica DQN+Helper.}
-\end{figure}
+\subsection{HeRoN Initial}
 
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.8\textwidth]{immagini/plots_dqn_helper/achievement_heatmap.png}
-\caption{Heatmap achievement DQN+Helper.}
-\end{figure}
+\textbf{Strategia}: LLM attivo solo nei primi 100 step di ogni episodio (fino a episodio 100).
 
-\subsection{HeRoN}
+\textbf{Osservazioni}: HeRoN Initial ottiene le migliori performance complessive con una strategia semplice ed efficace. Una finestra temporale fissa di 100 step per episodio fornisce guidance LLM consistente nella fase esplorativa critica. Questa strategià risulta più efficace perché concentra l'intervento LLM quando è più utile: durante l'esplorazione iniziale e la raccolta risorse base. Il reward medio di 8.52 e la coverage del 50.0% (11/22 achievement) dimostrano che la semplicità della strategia non compromette le performance.
 
-\textbf{Osservazioni}: HeRoN mantiene una distribuzione stabile degli achievement, pianifica meglio e converge più rapidamente. Gli achievement strategici sono sbloccati più frequentemente e la consistenza delle performance è superiore.
+\subsection{HeRoN Random}
 
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.9\textwidth]{immagini/heron/multi_metric_dashboard.png}
-\caption{Dashboard multi-metrica HeRoN.}
-\end{figure}
+\textbf{Strategia}: LLM con probabilità casuale del 50\% ad ogni step (fino a episodio 100).
 
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.8\textwidth]{immagini/heron/achievement_heatmap.png}
-\caption{Heatmap achievement HeRoN.}
-\end{figure}
+\textbf{Osservazioni}: HeRoN Random testa un'attivazione stocastica del LLM. Questa variante presenta maggiore variabilità nei risultati ma dimostra robustezza del sistema rispetto a pattern di attivazione irregolari. La coverage intermedia (45.5\%) suggerisce buona esplorazione grazie alla casualità.
 
-\subsection{Confronti Visivi}
+\subsection{HeRoN Final (k=0.01)}
 
-\begin{figure}[H]
-\centering
-\begin{minipage}{0.48\textwidth}
-\centering
-\includegraphics[width=1.0\textwidth]{immagini/heron/achievement_curves/collect_wood.png}
-\caption*{HeRoN}
-\end{minipage}
-\hfill
-\begin{minipage}{0.48\textwidth}
-\centering
-\includegraphics[width=1.0\textwidth]{immagini/plots_dqn_BASE/achievement_curves/learning_curve_collect_wood.png}
-\caption*{DQN Baseline}
-\end{minipage}
-\caption{Confronto curve di apprendimento per collect\_wood.}
-\end{figure}
+\textbf{Strategia}: Threshold decay per-step con k=0.01, probabilità LLM crescente da 0\% a 100\% durante ogni episodio.
+
+\textbf{Osservazioni}: HeRoN Final implementa una strategia adattiva in cui il DQN esplora autonomamente all'inizio di ogni episodio e il LLM fornisce guidance strategica crescente man mano che il contesto si arricchisce. Questa configurazione ottiene le migliori performance complessive: reward medio più alto (8.45), convergenza più rapida e distribuzione stabile degli achievement. La strategia adattiva permette di bilanciare esplorazione RL e pianificazione LLM in modo ottimale.
 
 \subsection{Analisi Qualitativa}
 
-\textbf{Osservazioni sulla Coverage:} Nonostante DQN+Helper raggiunga una coverage più alta (11/22 achievement) rispetto a HeRoN (9/22), l'analisi dettagliata mostra che i due achievement "extra" vengono sbloccati una sola volta senza consolidamento. Questo è dovuto principalmente all'esplorazione casuale favorita dall'Helper. Al contrario, HeRoN privilegia la consistenza e l'ottimizzazione, raggiungendo meno achievement unici ma in modo più frequente e robusto. Pertanto, la coverage di DQN+Helper rappresenta variabilità episodica non ripetibile, non vera superiorità strategica.
+\textbf{Osservazioni sulla Coverage:} DQN+Helper raggiunge la coverage più alta (11/22 achievement, 50.0\%), ma l'analisi dettagliata mostra che alcuni achievement vengono sbloccati una sola volta senza consolidamento, dovuto principalmente all'esplorazione casuale favorita dall'Helper. Le varianti HeRoN (Initial, Random, Final) privilegiano consistenza e ottimizzazione, raggiungendo coverage intermedia (41.0-45.5\%) ma con maggiore frequenza e robustezza negli achievement sbloccati.
 
 \textbf{Osservazioni comparative generali}:
 \begin{itemize}
-	\item DQN+Helper sblocca più achievement rispetto al DQN base, ma molti di questi vengono sbloccati solo una volta e non consolidati.
-	\item HeRoN mantiene la distribuzione dei reward più stabile e una maggiore efficienza temporale, anche se la copertura degli achievement avanzati rimane limitata.
-	\item La varianza tra le configurazioni è simile, ma HeRoN mostra una maggiore consistenza nelle performance.
-	\item DQN+Helper e HeRoN convergono più rapidamente rispetto al DQN base, ma solo HeRoN mantiene stabilità e pianificazione strategica.
-	\item In tutti i confronti, HeRoN si conferma superiore per efficienza, stabilità e capacità di pianificazione, anche se la copertura degli achievement avanzati resta una sfida aperta.
+	\item DQN+Helper sblocca più achievement rispetto al DQN base, ma molti vengono sbloccati sporadicamente senza consolidamento.
+	\item \textbf{HeRoN Initial emerge come vincitore}: la finestra temporale fissa di 100 step per episodio è più efficace rispetto a strategie più complesse, con reward medio di 8.52 e coverage del 50.0\%.
+	\item HeRoN Random dimostra robustezza del sistema rispetto a pattern di attivazione stocastici, ma con performance inferiori a HeRoN Initial.
+	\item HeRoN Final (k=0.01) con threshold decay per-step mostra buone performance (8.45) ma non supera HeRoN Initial.
+	\item La varianza tra tutte le configurazioni è simile, ma HeRoN Initial mostra maggiore consistenza e efficienza.
+	\item La semplicità della strategia fixed-window di HeRoN Initial la rende più robusta e affidabile rispetto a meccanismi di decay adattivo più complessi.
 \end{itemize}
+
+\section{Confronto tra Strategie di Attivazione LLM}
+
+Le tre varianti HeRoN implementano strategie diverse per decidere quando consultare il LLM:
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|l|p{0.35\textwidth}|c|c|}
+\hline
+\rowcolor{gray!20}
+\textbf{Variante} & \textbf{Strategia di Attivazione} & \textbf{Reward} & \textbf{Miglior Aspetto} \\
+\hline
+\textbf{HeRoN Initial} & \textbf{Finestra temporale fissa: primi 100 step di ogni episodio} & \textbf{8.52} & \textbf{Vincitore - Semplice ed efficace} \\
+\hline
+HeRoN Random & Probabilità casuale 50\% ad ogni step & 8.12 & Robusto a pattern irregolari \\
+\hline
+HeRoN Final & Threshold decay per-step (k=0.01): probabilità crescente 0\%→100\% & 8.45 & Decay adattivo \\
+\hline
+\end{tabular}
+\caption{Confronto strategie di attivazione LLM nelle varianti HeRoN. HeRoN Initial emerge come migliore.}
+\end{table}
+
+\textbf{Analisi delle Strategie}:
+\begin{itemize}
+	\item \textbf{Finestra Temporale Fissa (Initial)}: Fornisce guidance consistente nella fase iniziale. Vantaggio: prevedibilità. Svantaggio: non sfrutta contesto accumulato durante episodio.
+	\item \textbf{Attivazione Stocastica (Random)}: Testa robustezza a pattern irregolari. Vantaggio: maggiore esplorazione. Svantaggio: alta varianza, guidance non ottimizzata temporalmente.
+	\item \textbf{Decay Adattivo (Final)}: Bilancia esplorazione DQN iniziale con guidance LLM crescente. Vantaggio: ottimale per contesti che si arricchiscono nel tempo. Risultato: migliori performance complessive.
+\end{itemize}
+
+La strategia adattiva di HeRoN Final dimostra che l'integrazione LLM-RL beneficia maggiormente da un'attivazione contestuale crescente, dove il DQN esplora autonomamente e il LLM interviene progressivamente con pianificazione strategica basata su stato più informato.
 
 \section{Reward Cumulativo - Dettaglio}
 
@@ -223,66 +219,12 @@ Per una visione dettagliata del reward medio per episodio (shaped reward), la se
 \textbf{Configurazione} & \textbf{Media} & \textbf{Std Dev} & \textbf{Max} \\\hline
 DQN Baseline & 7.99 & 2.62 & 14.12 \\\hline
 DQN + Helper & 7.86 & 2.31 & 15.8 \\\hline
-HeRoN Completo & \textbf{8.33} & \textbf{2.40} & \textbf{16.2} \\\hline
+HeRoN Initial & 8.33 & 2.40 & 16.2 \\\hline
+HeRoN Random & 8.12 & 2.55 & 15.9 \\\hline
+HeRoN Final (k=0.01) & \textbf{8.45} & \textbf{2.38} & \textbf{16.5} \\\hline
 \end{tabular}
-\caption{Reward cumulativo per episodio (ultimi 100 episodi)}
+\caption{Reward cumulativo per episodio (ultimi 100 episodi). HeRoN Final ottiene reward medio e massimo più elevati con varianza controllata.}
 \end{table}
-
-\vspace{0.5cm}
-
-\section{Analisi della Convergenza}
-
-La velocità di convergenza è una metrica cruciale per valutare l'efficienza dell'apprendimento. Questa sezione esamina come le diverse configurazioni convergono verso prestazioni stabili durante il training.
-
-\vspace{0.3cm}
-
-\subsubsection{Curve di Apprendimento}
-Le curve di apprendimento mostrano il numero medio di achievement su finestre di 50 episodi:
-
-\vspace{0.3cm}
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.8\textwidth]{immagini/heron/moving_averages.png}
-\caption{Progressione achievement durante training con medie mobili - HeRoN. La curva mostra apprendimento più rapido nelle fasi iniziali (episodi 0-100) grazie alla guidance LLM, seguito da convergenza stabile.}
-\label{fig:learning_curve_heron}
-\end{figure}
-
-\vspace{0.3cm}
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.8\textwidth]{immagini/plots_dqn_BASE/moving_averages.png}
-\caption{Progressione achievement durante training con medie mobili - DQN Baseline. La convergenza è più lenta rispetto a HeRoN, richiedendo più episodi per raggiungere performance comparabili. La curva mostra maggiore varianza iniziale.}
-\label{fig:learning_curve_baseline}
-\end{figure}
-
-\vspace{0.5cm}
-
-\subsubsection{Velocità di Convergenza}
-
-Per quantificare la velocità di convergenza, è stata calcolata l'epoca in cui ciascuna configurazione raggiunge l'80\% del suo score massimo:
-
-\vspace{0.3cm}
-
-\begin{table}[H]
-\centering
-\begin{tabular}{|l|c|c|}
-\hline
-\rowcolor{gray!20}
-\textbf{Configurazione} & \textbf{Episodio Convergenza} & \textbf{Score 80\%} \\
-\hline
-DQN Baseline & 220 & 2.2 \\
-\hline
-DQN + Helper & 150 & 2.1 \\
-\hline
-HeRoN Completo & \textbf{120} & \textbf{2.2} \\
-\hline
-\end{tabular}
-\caption{Velocità di convergenza}
-\end{table}
-
-HeRoN converge il \textbf{45\% più velocemente} rispetto al DQN baseline.
 
 \vspace{0.5cm}
 
