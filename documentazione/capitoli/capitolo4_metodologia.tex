@@ -125,8 +125,8 @@ LM Studio è stato configurato per servire il modello Qwen3-4B-2507:
 \begin{itemize}
     \item Server host: http://127.0.0.1:1234
     \item Modello: qwen/qwen3-4b-2507
-    \item Temperatura: 0.7 (bilanciamento tra creatività e coerenza)
-    \item Max tokens: 150 (sufficiente per sequenze di 3-5 azioni)
+    \item Temperatura: default LM Studio (non configurata esplicitamente nel codice)
+    \item Max tokens: default LM Studio (non configurato esplicitamente nel codice)
     \item Context window: 8192 tokens (gestione conversazioni lunghe)
     \item Tokenizer: Qwen2.5-7B-Instruct (per conteggio token context-aware)
     \item Safe threshold: 6500 tokens (per evitare context overflow)
@@ -343,13 +343,13 @@ Epochs & 5 \\
 \hline
 Max input length & 512 token \\
 \hline
-Max output length & 128 token \\
-\hline
-Gradient accumulation steps & 2 \\
+Max output length & 150 token \\
 \hline
 \end{tabular}
-\caption{Parametri di fine-tuning del Reviewer}
+\caption{Parametri di fine-tuning supervisionato del Reviewer (Fase 1)}
 \end{table}
+
+\textbf{Nota}: Questi parametri si riferiscono alla fase di fine-tuning supervisionato. La successiva fase di fine-tuning con PPO utilizza parametri differenti (vedi Sezione ``Estensione: Fine-tuning del Reviewer tramite RL'').
 
 \subsubsection{Validazione}
 
@@ -552,7 +552,7 @@ HeRoN è stato confrontato con:
 
 Per garantire validità statistica:
 \begin{itemize}
-    \item Ogni configurazione testata per 100 episodi
+    \item Ogni configurazione testata per 300 episodi
     \item 5 seed casuali diversi
     \item Media e deviazione standard riportate
     \item Test statistici (t-test) per significatività
@@ -579,21 +579,19 @@ Per il modulo Reviewer, basato su T5, sono state testate diverse configurazioni 
 \begin{table}[H]
 \centering
 \caption{Configurazioni testate per il tuning del Reviewer (T5)}
-\resizebox{0.8\textwidth}{!}{%
+\small
 \begin{tabular}{|l|l|}
 \hline
 \rowcolor{gray!20} 
-\textbf{Parametro} & \textbf{Valore/Testato} \\
+\textbf{Parametro} & \textbf{Valore} \\
 \hline
 Modello & google/flan-t5-base \\
 \hline
 Dimensione dataset & 2000--5000 samples \\
 \hline
-Episodi generazione dataset & 50--100 \\
+Episodi generazione & 50--100 \\
 \hline
-Lunghezza episodio & 500 steps \\
-\hline
-Batch size (train/eval) & 8 \\
+Batch size & 8 \\
 \hline
 Epoche & 5 \\
 \hline
@@ -601,16 +599,9 @@ Learning rate & 5e-5 \\
 \hline
 Weight decay & 0.01 \\
 \hline
-Logging steps & 10 \\
+Helper calls/episodio & ogni 5 step \\
 \hline
-Metriche best model & eval\_loss \\
-\hline
-Limite salvataggi & 3 \\
-\hline
-Helper calls per episodio & ogni 5 step \\
-\hline
-\end{tabular}%
-}
+\end{tabular}
 \end{table}
 
 Queste configurazioni sono state selezionate tramite test iterativi e grid search limitata, con l'obiettivo di massimizzare la qualità delle correzioni generate dal Reviewer e la generalizzazione sulle strategie di gioco. Il dataset è stato generato simulando tra 50 e 100 episodi, con chiamate al modulo Helper ogni 5 step, per ottenere una varietà di situazioni e feedback strategici.
@@ -700,7 +691,7 @@ Il processo di addestramento segue questi passi:
 
 \begin{table}[H]
 \centering
-\caption{Parametri PPO per Fine-Tuning Reviewer}
+\caption{Parametri PPO per Fine-Tuning Reviewer (Fase 2)}
 \begin{tabular}{|l|l|}
 \hline
 \rowcolor{gray!20}
@@ -708,7 +699,9 @@ Il processo di addestramento segue questi passi:
 \hline
 Learning rate & $5 \times 10^{-7}$ \\
 \hline
-PPO epochs & 1 \\
+Training epochs (esterni) & 3 \\
+\hline
+PPO epochs (interni) & 1 \\
 \hline
 Mini batch size & 1 \\
 \hline

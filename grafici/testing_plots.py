@@ -19,28 +19,28 @@ OUTPUT_DIR = Path(__file__).parent / "testing"
 # Test configurations with their file paths
 TEST_MODELS = {
     "DQN Base": {
-        "metrics": TESTING_DIR / "dqn_base_output" / "test_metrics.jsonl",
-        "achievements": TESTING_DIR / "dqn_base_output" / "test_achievement_statistics.json",
+        "metrics": TESTING_DIR / "dqn_base_output" / "dqn_base_test_metrics.jsonl",
+        "achievements": TESTING_DIR / "dqn_base_output" / "dqn_base_test_achievement_statistics.json",
         "color": "#1f77b4"
     },
     "DQN + Helper": {
-        "metrics": TESTING_DIR / "dqn_helper_output" / "test_metrics.jsonl",
-        "achievements": TESTING_DIR / "dqn_helper_output" / "test_achievement_statistics.json",
+        "metrics": TESTING_DIR / "dqn_helper_output" / "dqn_helper_test_metrics.jsonl",
+        "achievements": TESTING_DIR / "dqn_helper_output" / "dqn_helper_test_achievement_statistics.json",
         "color": "#ff7f0e"
     },
     "HeRoN Initial": {
-        "metrics": TESTING_DIR / "heron_initial_output" / "test_metrics.jsonl",
-        "achievements": TESTING_DIR / "heron_initial_output" / "test_achievement_statistics.json",
+        "metrics": TESTING_DIR / "heron_initial_output" / "heron_initial_test_metrics.jsonl",
+        "achievements": TESTING_DIR / "heron_initial_output" / "heron_initial_test_achievement_statistics.json",
         "color": "#2ca02c"
     },
     "HeRoN Random": {
-        "metrics": TESTING_DIR / "heron_random_output" / "test_metrics.jsonl",
-        "achievements": TESTING_DIR / "heron_random_output" / "test_achievement_statistics.json",
+        "metrics": TESTING_DIR / "heron_random_output" / "heron_random_test_metrics.jsonl",
+        "achievements": TESTING_DIR / "heron_random_output" / "heron_random_test_achievement_statistics.json",
         "color": "#9467bd"
     },
     "HeRoN Final": {
-        "metrics": TESTING_DIR / "heron_final_output" / "test_metrics.jsonl",
-        "achievements": TESTING_DIR / "heron_final_output" / "test_achievement_statistics.json",
+        "metrics": TESTING_DIR / "heron_final_output" / "heron_final_test_metrics.jsonl",
+        "achievements": TESTING_DIR / "heron_final_output" / "heron_final_test_achievement_statistics.json",
         "color": "#d62728"
     }
 }

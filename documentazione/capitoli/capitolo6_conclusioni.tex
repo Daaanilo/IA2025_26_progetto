@@ -13,10 +13,11 @@ Il presente lavoro affronta l'applicazione dell'architettura HeRoN (Helper-Revie
 L'analisi comparativa di cinque configurazioni (presentata in dettaglio nel Capitolo~5) evidenzia risultati significativi:
 
 \begin{itemize}
-    \item \textbf{Vincitore reward}: HeRoN Random con attivazione stocastica ottiene il reward medio più elevato
-    \item \textbf{Vincitore coverage}: DQN Baseline e HeRoN Initial raggiungono parità con coverage massima (50\%, 11/22 achievement), includendo crafting base e combat
-    \item \textbf{Esplorazione accelerata}: La guidance LLM accelera l'esplorazione early-stage, con maggiore accumulo achievement negli episodi iniziali (0-50)
-    \item \textbf{Fallimento critico}: HeRoN Final con threshold decay rapido ($k=0.01$) presenta performance drasticamente inferiori, compromettendo gravemente l'assistenza LLM (achievement medio meno della metà rispetto alle altre configurazioni)
+    \item \textbf{Vincitore complessivo}: HeRoN Initial con strategia fixed-window ottiene il miglior reward shaped (8.02), coverage massima (50\%, 11/22 achievement), achievement medio più alto (2.65) e maggior numero di unlock totali (802)
+    \item \textbf{Coverage}: HeRoN Initial e HeRoN Random raggiungono parità con coverage massima (50\%, 11/22 achievement), includendo crafting base e combat. DQN Baseline raggiunge solo 18.2\% (4/22)
+    \item \textbf{Esplorazione accelerata}: La guidance LLM fixed-window accelera significativamente l'esplorazione, con HeRoN Initial che supera DQN baseline del +331\% su reward e +546\% su achievement medio
+    \item \textbf{Performance intermedie}: HeRoN Final con threshold decay k=0.01 presenta performance intermedie (reward 3.84, coverage 36.4\%, 228 unlock), superiori a DQN baseline ma inferiori a HeRoN Initial
+    \item \textbf{Generalizzazione}: In testing (senza LLM), HeRoN Initial mantiene vantaggio su DQN baseline (+192\% achievement medio, +344\% reward), confermando apprendimento robusto
 \end{itemize}
 
 \vspace{0.5cm}
@@ -112,7 +113,7 @@ Hallucinations & TYPO\_MAP + fuzzy matching & 98\% azioni valide \\
 
 \vspace{0.3cm}
 
-Queste soluzioni hanno permesso a HeRoN di raggiungere performance superiori (2.76 achievement score) rispetto al baseline (2.67), dimostrando l'efficacia dell'approccio integrato RL-LLM.
+Queste soluzioni hanno permesso a HeRoN Initial di raggiungere performance superiori (2.65 achievement medio, 8.02 reward shaped) rispetto al DQN baseline (0.41 achievement medio, 1.86 reward shaped), con miglioramento del +546\% su achievement e +331\% su reward, dimostrando l'efficacia dell'approccio integrato RL-LLM.
 
 \vspace{0.5cm}
 
@@ -123,7 +124,7 @@ Nonostante i risultati positivi, il progetto presenta alcune limitazioni:
 \begin{enumerate}
     \item \textbf{Assenza di informazioni visive}: Il progetto lavora esclusivamente su uno stato vettoriale di 43 dimensioni, senza accesso a osservazioni visive (immagini RGB). Questo limita la possibilità di apprendere strategie basate su percezione visiva, come fanno molti agenti RL avanzati.
     \item \textbf{Pianificazione a breve termine}: Sequenze di 5 azioni limitano la capacità di perseguire obiettivi molto distanti (es. collect\_diamond richiede 50+ azioni coordinate)
-    \item \textbf{Coverage incompleta}: 13 achievement su 22 (59\%) mai sbloccati durante il training, principalmente quelli più avanzati
+    \item \textbf{Coverage incompleta}: HeRoN Initial raggiunge 11 achievement su 22 (50\% coverage), mentre DQN Baseline solo 4/22 (18.2\%). Gli achievement più avanzati richiedono catene complesse non ancora supportate
     \item \textbf{Dipendenza da threshold manuale}: Il decay lineare del threshold è una scelta euristica che potrebbe non essere ottimale
     \item \textbf{Gestione inventario limitata}: L'Helper non sempre considera vincoli di capacità inventario
 \end{enumerate}
@@ -161,11 +162,11 @@ L'architettura HeRoN potrebbe essere applicata a:
 Il presente lavoro dimostra che l'architettura HeRoN può essere estesa oltre il suo dominio originale (JRPG a turni) a environment più complessi come Crafter. I risultati evidenziano aspetti chiave dell'integrazione RL-LLM:
 
 \begin{itemize}
-    \item \textbf{Successi}: L'attivazione stocastica (HeRoN Random) emerge come strategia vincente per reward grazie al bilanciamento esplorazione-sfruttamento. La finestra temporale fissa (HeRoN Initial) mantiene coverage massima con alta consistenza.
-    \item \textbf{Criticità}: La scelta del meccanismo di attivazione LLM è cruciale - configurazioni con decay troppo rapidi annullano completamente i benefici della guidance LLM, compromettendo sia achievement che reward.
-    \item \textbf{Sorpresa}: Il DQN Baseline puro raggiunge performance comparabili alle configurazioni assistite da LLM in termini di coverage, suggerendo che su Crafter l'apprendimento autonomo RL è già efficace per achievement base. La guidance LLM offre benefici principalmente su reward totale ed esplorazione diversificata.
-    \item \textbf{Efficacia di HeRoN}: L'esperienza su Crafter evidenzia che l'efficacia dipende fortemente da: (1) tuning attento dei parametri di attivazione LLM, (2) quality del reward shaping, (3) robustezza del sistema di fallback per situazioni critiche. Il successo in domini diversi (JRPG vs survival open-world) conferma la generalizzabilità dell'approccio.
-    \item \textbf{Vantaggi osservati}: Velocità di apprendimento migliorata, performance finale leggermente superiore, capacità di pianificazione strategica e adattabilità a nuove situazioni.
+    \item \textbf{Successi}: L'architettura HeRoN Initial con strategia fixed-window emerge come vincitore complessivo, ottimizzando simultaneamente reward (+331\% vs baseline), coverage (50\% vs 18.2\%) e achievement medio (+546\% vs baseline). La semplicità e consistenza della guidance LLM nei primi 100 step di ogni episodio si rivela la scelta ottimale.
+    \item \textbf{Criticità}: La scelta del meccanismo di attivazione LLM è cruciale - la strategia fixed-window (Initial) supera significativamente sia l'attivazione stocastica (Random) che il decay adattivo (Final). Su Crafter, il DQN baseline puro senza LLM raggiunge solo 18.2\% coverage (4/22 achievement), confermando che la guidance LLM è fondamentale per esplorazione efficace.
+    \item \textbf{Generalizzazione}: I risultati di testing confermano che la policy appresa con guidance LLM mantiene performance superiori (+192\% achievement, +344\% reward per HeRoN Initial vs baseline) anche senza LLM in fase di inference, dimostrando apprendimento robusto e generalizzabile.
+    \item \textbf{Efficacia di HeRoN}: L'esperienza su Crafter evidenzia che l'efficacia dipende fortemente da: (1) strategia fixed-window per guidance consistente, (2) quality del reward shaping multi-componente, (3) robustezza del sistema di re-planning e fallback per situazioni critiche. Il successo in domini diversi (JRPG vs survival open-world) conferma la generalizzabilità dell'approccio.
+    \item \textbf{Vantaggi osservati}: Velocità di apprendimento significativamente migliorata, performance finale superiore su tutte le metriche principali, capacità di pianificazione strategica e coverage achievement triplicata rispetto a baseline puro.
 \end{itemize}
 
 Allo stesso tempo, sono emersi sfide importanti relative all'overhead computazionale, alla qualità del dataset per il Reviewer e ai limiti della pianificazione a breve termine. Le direzioni future di ricerca identificate offrono percorsi promettenti per superare queste limitazioni.

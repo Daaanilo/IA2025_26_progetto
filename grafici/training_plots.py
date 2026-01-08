@@ -20,8 +20,8 @@ OUTPUT_DIR = Path(__file__).parent / "training"
 # Variant configurations with their file paths
 VARIANTS = {
     "DQN Base": {
-        "metrics": TRAINING_DIR / "dqn_base_output" / "dqn_helper_crafter_metrics.jsonl",
-        "achievements": TRAINING_DIR / "dqn_base_output" / "dqn_helper_achievement_statistics.json",
+        "metrics": TRAINING_DIR / "dqn_base_output" / "dqn_base_metrics.jsonl",
+        "achievements": TRAINING_DIR / "dqn_base_output" / "dqn_base_achievement_statistics.json",
         "color": "#1f77b4"
     },
     "DQN + Helper": {
@@ -40,7 +40,7 @@ VARIANTS = {
         "color": "#d62728"
     },
     "HeRoN Random": {
-        "metrics": TRAINING_DIR / "heron_random_output" / "heron_random_crafter_metrics.jsonl",
+        "metrics": TRAINING_DIR / "heron_random_output" / "heron_random_metrics.jsonl",
         "achievements": TRAINING_DIR / "heron_random_output" / "heron_random_achievement_statistics.json",
         "color": "#9467bd"
     }
