@@ -3,6 +3,8 @@
 *.pt
 *.safetensors
 *.keras
+*.pkl
+
 
 # Training output
 training_output/
@@ -60,3 +62,4 @@ documentazione/main.lof
 documentazione/main.lot
 documentazione/main.out
 documentazione/main.toc
+

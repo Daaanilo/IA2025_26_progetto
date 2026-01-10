@@ -1,7 +1,4 @@
 """
-F05: Dataset Generation per Reviewer (Crafter Environment)
-==========================================================
-
 Episodic data collector for generating training data for Reviewer fine-tuning.
 Captures: game states → Helper suggestions → outcome evaluation → strategic feedback
 

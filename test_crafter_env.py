@@ -1,12 +1,3 @@
-"""
-Test script per verificare integrazione CrafterEnv con DQN.
-Testa:
-1. CrafterEnv creation e feature extraction
-2. DQNAgent compatibility con state_size=43 (16 inventory + 2 pos + 3 status + 22 achievements)
-3. 5 episodi di 100 steps con azioni random
-4. Verifica shape, rewards, done flags
-"""
-
 import numpy as np
 import sys
 sys.path.insert(0, './classes')

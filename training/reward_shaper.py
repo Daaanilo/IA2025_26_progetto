@@ -1,7 +1,3 @@
-"""
-Roba per dare premi extra all'agente (Reward Shaping).
-"""
-
 import numpy as np
 
 
@@ -10,15 +6,6 @@ import numpy as np
 # ============================================================================
 
 class CrafterRewardShaper:
-    """
-    Dà dei bonus extra all'agente per aiutarlo a imparare, visto che Crafter è tirchio.
-    
-    Bonus:
-    - Raccogliere risorse: +0.1
-    - Stare bene (salute/cibo/acqua > 5): +0.02
-    - Costruire attrezzi: +0.3
-    - Morire: -1.0 (male!)
-    """
     def __init__(self):
         self.bonus_tracker = {
             'resource_collection': [],
@@ -28,9 +15,6 @@ class CrafterRewardShaper:
         }
 
     def calculate_shaped_reward(self, native_reward, info, previous_info):
-        """
-        Calcola il reward totale = reward del gioco + bonus nostri.
-        """
         shaped_reward = native_reward
         bonuses = {
             'resource_collection': 0.0,
