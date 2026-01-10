@@ -2,122 +2,97 @@
 
 \section{Introduzione}
 
-Questo capitolo descrive la metodologia utilizzata per sviluppare e valutare l'architettura HeRoN nel dominio Crafter. Viene fornita una panoramica delle fasi principali (implementazione dell'NPC, integrazione LLM, generazione del dataset per il Reviewer, fine-tuning e training integrato), seguita da dettagli tecnici e protocolli sperimentali.
+Questo capitolo descrive la metodologia utilizzata per sviluppare e valutare l'architettura HeRoN nel dominio Crafter. Il processo di sviluppo è articolato in cinque fasi principali:
 
-\section{Panoramica del Processo}
-
-Le fasi principali dello sviluppo sono:
 \begin{enumerate}
-    \item Implementazione e addestramento del NPC (DQN)
+    \item Implementazione e addestramento del NPC (DQN baseline)
     \item Progettazione e integrazione dell'Helper (LLM)
     \item Generazione del dataset per il Reviewer
-    \item Fine-tuning supervised del Reviewer (T5)
+    \item Fine-tuning del Reviewer (supervised + PPO)
     \item Training integrato dell'architettura HeRoN e valutazione
 \end{enumerate}
 
 \section{NPC (DQN Agent)}
 
+L'agente DQN costituisce il modulo di base dell'architettura HeRoN, responsabile dell'apprendimento attraverso reinforcement learning e dell'esecuzione delle azioni nell'environment Crafter.
 
 \subsection{Architettura della Rete Neurale}
-L'agente DQN è stato progettato con una rete neurale feedforward composta da:
+
+La rete neurale feedforward è composta da:
 \begin{itemize}
-    \item \textbf{Input Layer}: 43 neuroni (corrispondenti alla dimensione dello stato)
-    \item \textbf{Hidden Layer 1}: 128 neuroni, attivazione ReLU
-    \item \textbf{Hidden Layer 2}: 128 neuroni, attivazione ReLU
-    \item \textbf{Hidden Layer 3}: 64 neuroni, attivazione ReLU
-    \item \textbf{Output Layer}: 17 neuroni (Q-values, uno per ciascuna azione)
+    \item \textbf{Input Layer}: 43 neuroni (dimensione dello stato Crafter)
+    \item \textbf{Hidden Layers}: 128-128-64 neuroni con attivazione ReLU
+    \item \textbf{Output Layer}: 17 neuroni (Q-values per ciascuna azione)
 \end{itemize}
 
-\subsubsection{Algoritmi RL: Double DQN, PER, TD-error, Backpropagation}
+\subsection{Algoritmi di Reinforcement Learning}
 
-L'addestramento dell'agente DQN si basa su alcuni concetti fondamentali dell'apprendimento automatico, che spieghiamo qui in modo semplice:
+L'addestramento dell'agente implementa diverse tecniche avanzate di reinforcement learning:
 
 \begin{itemize}
-    \item \textbf{Funzione di perdita Q (Errore di previsione)}:
-    
-    La funzione di perdita misura la differenza tra la previsione del valore di un'azione in uno stato e il valore ideale atteso. La formula è:
-    $$L = \mathbb{E}[(Q(s,a) - y)^2]$$
-    Dove:
+    \item \textbf{Double DQN}: Utilizza due reti neurali separate per ridurre la sovrastima dei Q-values:
     \begin{itemize}
-        \item $Q(s,a)$ rappresenta la stima del valore dell'azione $a$ nello stato $s$.
-        \item $y$ è il valore ideale, calcolato come:
-        $$y = r + \gamma \max_{a'} Q(s',a')$$
-        \item $r$ è il premio (reward) ottenuto dopo l'esecuzione dell'azione.
-        \item $\gamma$ è un numero tra 0 e 1 che indica il peso attribuito ai premi futuri (più è vicino a 1, maggiore è l'importanza del lungo termine).
-        \item $s'$ è lo stato successivo dopo l'azione.
-        \item $\max_{a'} Q(s',a')$ indica la migliore stima tra tutte le azioni possibili nel nuovo stato.
+        \item Policy network per la selezione delle azioni
+        \item Target network per la valutazione, aggiornata ogni 100 step: $\theta_{target} \leftarrow \theta_{policy}$
     \end{itemize}
-
-    \item \textbf{Double DQN}:
-    
-    Per evitare che l'agente sia troppo ottimista nelle sue previsioni, si usano due reti neurali diverse:
-    \begin{itemize}
-        \item La "policy network" sceglie le azioni.
-        \item La "target network" serve solo per calcolare il valore ideale $y$.
-    \end{itemize}
-    La formula diventa:
+    Il target viene calcolato come:
     $$y = r + \gamma Q'(s', \arg\max_{a'} Q(s',a'))$$
-    Dove $Q'$ è la rete target e $\arg\max$ indica l'azione migliore secondo la policy network.
 
-    \item \textbf{Prioritized Experience Replay}:
-
-    Il replay buffer utilizza un campionamento prioritario per migliorare l'efficienza dell'apprendimento:
-        \begin{enumerate}
-            \item \textbf{Calcolo priorità}: Per ogni transizione, la priorità si basa sul TD-error:
-            $$p_i = |\delta_i|^\alpha + \epsilon$$
-            dove $\delta_i = r + \gamma \max_{a'} Q_{target}(s', a') - Q(s, a)$
-            \item \textbf{Sampling}: La probabilità di selezionare la transizione $i$ è:
-            $$P(i) = \frac{p_i^\alpha}{\sum_k p_k^\alpha}$$
-            \item \textbf{Importance Sampling}: Per correggere il bias introdotto dal campionamento, i pesi sono:
-            $$w_i = \left(\frac{1}{N \cdot P(i)}\right)^\beta$$
-        \end{enumerate}
+    \item \textbf{Prioritized Experience Replay}: Campionamento prioritario basato sul TD-error per ottimizzare l'apprendimento:
+        \begin{align*}
+        p_i &= |\delta_i|^\alpha + \epsilon && \text{(priorità)} \\
+        P(i) &= \frac{p_i^\alpha}{\sum_k p_k^\alpha} && \text{(probabilità di sampling)} \\
+        w_i &= \left(\frac{1}{N \cdot P(i)}\right)^\beta && \text{(importance sampling weights)}
+        \end{align*}
    
-    \item \textbf{Backpropagation (Aggiornamento dei pesi)}:
-    
-    L'agente aggiorna i "pesi" della rete neurale (cioè i suoi parametri interni) per ridurre l'errore. La regola di aggiornamento è:
+    \item \textbf{Backpropagation}: Aggiornamento dei pesi tramite discesa del gradiente:
     $$\theta \leftarrow \theta - \alpha \nabla_{\theta} L$$
-    Dove:
-    \begin{itemize}
-        \item $\theta$ sono i pesi della rete.
-        \item $\alpha$ è la velocità di apprendimento (learning rate).
-        \item $\nabla_{\theta} L$ è il gradiente, cioè la direzione in cui bisogna cambiare i pesi per ridurre l'errore.
-    \end{itemize}
+    dove $L = \mathbb{E}[(Q(s,a) - y)^2]$ è la funzione di perdita Q.
 \end{itemize}
 
-In sintesi: l'agente prova azioni, riceve premi, aggiorna le sue previsioni e impara soprattutto dagli errori più grandi, migliorando così la sua capacità di prendere decisioni nel tempo.
+\subsection{Parametri di Training DQN}
 
-L'aggiornamento della target network avviene ogni $C = 100$ step tramite hard copy:
-$$\theta_{target} \leftarrow \theta_{policy}$$
+\begin{table}[H]
+\centering
+\begin{tabular}{|l|l|}
+\hline
+\rowcolor{gray!20}
+\textbf{Parametro} & \textbf{Valore} \\
+\hline
+Episodi totali & 300 \\
+\hline
+Max steps per episodio & 1000 \\
+\hline
+Batch size & 64 \\
+\hline
+Replay buffer size & 5,000 transizioni \\
+\hline
+Learning rate ($\alpha$) & 0.0001 (Adam) \\
+\hline
+Discount factor ($\gamma$) & 0.99 \\
+\hline
+Epsilon decay & Lineare 1.0 $\rightarrow$ 0.05 in 300 episodi \\
+\hline
+Target network update & Ogni 100 step (hard copy) \\
+\hline
+PER $\alpha$ & 0.6 \\
+\hline
+PER $\beta$ & 0.4 $\rightarrow$ 1.0 (+0.001/step) \\
+\hline
+\end{tabular}
+\caption{Parametri di training dell'agente DQN (comuni a tutte le configurazioni)}
+\end{table}
 
-\subsubsection{Training Baseline DQN}
-Prima dell'integrazione dei moduli LLM, è stato addestrato un agente DQN baseline con i seguenti parametri:
-\begin{itemize}
-    \item \textbf{Episodi}: 300
-    \item \textbf{Max steps per episodio}: 1000
-    \item \textbf{Epsilon decay}: $\epsilon = 1.0 \rightarrow 0.05$ in 300 episodi
-    \item \textbf{Learning rate}: $\alpha = 0.0001$
-    \item \textbf{Batch size}: 64
-\end{itemize}
-Questo baseline costituisce il riferimento per valutare l'efficacia dell'integrazione con i moduli LLM.
+\section{Helper (LLM)}
 
-\section{Helper (LLM) e Prompt Design}
+Il modulo Helper fornisce suggerimenti strategici sotto forma di sequenze di azioni, guidando l'agente DQN verso obiettivi a lungo termine. La progettazione ha richiesto sia la selezione del modello LLM più adatto sia lo sviluppo iterativo di prompt efficaci.
 
-La progettazione del modulo Helper e dei prompt è stata fondamentale per ottenere sequenze di azioni coerenti e strategiche. Le tabelle seguenti mostrano la selezione dei modelli e l'evoluzione dei prompt.
+\subsection{Selezione del Modello}
 
-\newpage
-
-\textbf{Selezione del Modello}:
-
-Sono stati testati diversi modelli, ma nella tabella sono riportati solo quelli rilevanti per la selezione finale. Qwen3-4B-2507 è stato scelto per la sua elevata conformità al formato richiesto e coerenza strategica.
-
-\medskip
-	\textbf{Calcolo della percentuale di azioni valide}
-
-Per valutare la conformità delle azioni generate dai modelli LLM rispetto al set ufficiale e al formato richiesto, è stata utilizzata la seguente formula:
+Sono stati testati diversi modelli LLM, valutando conformità al formato richiesto e coerenza strategica. La percentuale di azioni valide è stata calcolata come:
 \begin{equation}
 	\text{Valid Actions \%} = \frac{N_{valid}}{N_{total}} \times 100
 \end{equation}
-dove $N_{valid}$ è il numero di azioni conformi e $N_{total}$ il numero totale di azioni generate per il campione analizzato.
 
 % --- TABELLA CONFRONTO MODELLI LLM ---
 \begin{table}[H]
@@ -132,16 +107,16 @@ Llama-3.2-1B & 1.1B & 23\% & Bassa & Genera spiegazioni verbose invece di sequen
 \hline
 Phi-3-mini & 3.8B & 72\% & Media & Difficoltà istruzioni, allucinazioni frequenti \\
 \hline
-\textbf{Qwen3-4B-2507} & 4B & \textbf{98\%} & \textbf{Molto alta} & \textbf{Selezionato: rispetta formato, sequenze coerenti. Finetunato per tool use e reasoning, oltre a seguire istruzioni specifiche.} \\
+\textbf{Qwen3-4B-2507} & 4B & \textbf{98\%} & \textbf{Molto alta} & \textbf{Selezionato: rispetta formato, sequenze coerenti. Finetunato per tool use e reasoning} \\
 \hline
 \end{tabular}%
 }
-\caption{Confronto tra modelli LLM testati per l'Helper. Qwen3-4B-2507 è il migliore per conformità e coerenza.}
+\caption{Confronto tra modelli LLM testati per l'Helper}
 \end{table}
 
-\subsubsection{Progettazione del Prompt}
+\subsection{Progettazione del Prompt}
 
-Il prompt per l'Helper è stato sottoposto a progettazione iterativa mediante sperimentazione. La tabella seguente mostra l'evoluzione delle versioni del prompt per migliorare lo zero-shot dell'Helper:
+Il prompt è stato sviluppato attraverso sperimentazione iterativa per massimizzare le prestazioni zero-shot:
 
 % --- TABELLA 4.1 CON VERSIONI ESPLICITE ---
 \begin{table}[H]
@@ -158,9 +133,10 @@ v2 (Intermedio) & Lista azioni valide, goal survival & Sequenza contestualizzata
 v3 (Rifinito) & Goal multipli, errori da evitare, stato attuale & Sequenza ottimizzata \\
 \hline
 \end{tabular}
-\caption{Versioni dei prompt Helper LLM}
+\caption{Evoluzione dei prompt Helper LLM}
 \end{table}
 
+\newpage
 
 % --- NUOVA TABELLA: ESEMPI DI PROMPT ---
 \begin{table}[H]
@@ -169,14 +145,14 @@ v3 (Rifinito) & Goal multipli, errori da evitare, stato attuale & Sequenza ottim
 \begin{tabular}{|p{0.95\textwidth}|}
 \hline
 \rowcolor{gray!20}
-\textbf{Prompt base} \\
+\textbf{Prompt base (v1)} \\
 \hline
 Generate a sequence of actions for Crafter. \\
 Use actions like move, do, place. \\
 Format: [action1], [action2] \\
 \hline
 \rowcolor{gray!20}
-\textbf{Prompt intermedio} \\
+\textbf{Prompt intermedio (v2)} \\
 \hline
 You are a Crafter AI. GOALS: Survive and unlock achievements. \\
 VALID ACTIONS: move\_up, move\_down, move\_left, move\_right, do, sleep, place\_stone, place\_table, place\_furnace, place\_plant, make\_wood\_pickaxe, make\_stone\_pickaxe, make\_iron\_pickaxe, make\_wood\_sword, make\_stone\_sword, make\_iron\_sword, noop \\
@@ -185,7 +161,7 @@ FORMAT: [action1], [action2], [action3], [action4] \\
 EXAMPLES: [move\_right], [do], [place\_table] \\
 \hline
 \rowcolor{gray!20}
-\textbf{Prompt raffinato} \\
+\textbf{Prompt raffinato (v3)} \\
 \hline
 You are a Crafter AI. GOALS: 1) Survive 2) Unlock achievements 3) Be efficient. \\
 VALID ACTIONS: [full list of 17 actions] \\
@@ -204,42 +180,62 @@ YOUR TURN: [final instructions] \\
 \caption{Esempi espliciti dei prompt Helper LLM utilizzati}
 \end{table}
 
+\subsection{Numero Ottimale di Azioni per Sequenza}
 
-\section{Generazione del Dataset per il Reviewer}
+È stata condotta un'analisi sperimentale per determinare la lunghezza ottimale delle sequenze:
 
-\subsubsection{Processo di Raccolta Dati}
+\begin{table}[H]
+\centering
+\begin{tabular}{|c|c|c|}
+\hline
+\rowcolor{gray!20}
+\textbf{Azioni/sequenza} & \textbf{Achievement medi} & \textbf{Chiamate Helper/ep.} \\
+\hline
+1 & 3.2 & 150-200 \\
+\hline
+3 & 4.5 & 50-80 \\
+\hline
+\textbf{5} & \textbf{4.8} & \textbf{30-50} \\
+\hline
+7 & 4.3 & 20-35 \\
+\hline
+10 & 3.9 & 15-25 \\
+\hline
+\end{tabular}
+\caption{Impatto del numero di azioni per sequenza}
+\end{table}
 
-Per addestrare il Reviewer, è stato necessario generare un dataset di esempi:
+Il valore ottimale è risultato 5 azioni, che bilancia pianificazione strategica, flessibilità di re-planning e overhead computazionale.
 
-\begin{enumerate}
-    \item \textbf{Esecuzione episodi}: 150 episodi di gioco con Helper zero-shot (circa 15.000 esempi di training)
-    \item \textbf{Registrazione}: Per ogni chiamata Helper, vengono salvati (come in JSONL):
-    \begin{itemize}
-        \item Stato dell'environment
-        \item Sequenza di azioni suggerite 
-        \item Achievement sbloccati 
-        \item Istruzioni e feedback 
-        \item Metadati episodio/step 
-    \end{itemize}
-\end{enumerate}
 
-\subsection{Fase 5: Fine-tuning del Reviewer}
+\section{Reviewer (T5): Dataset e Fine-tuning}
 
-\subsubsection{Scelta del Modello Base}
+Il modulo Reviewer analizza le sequenze dell'Helper e fornisce feedback correttivi. Il suo sviluppo ha richiesto la generazione di un dataset specifico e un processo di fine-tuning in due fasi: supervised learning e reinforcement learning (PPO).
 
-È stato scelto FLAN-T5-base come modello base per il Reviewer, successivamente fine-tuned con PPO:
+\subsection{Generazione del Dataset}
+
+Il dataset è stato creato attraverso l'esecuzione di 150 episodi con Helper zero-shot, raccogliendo circa 15.000 esempi. Per ogni chiamata Helper sono stati registrati:
 \begin{itemize}
-    \item Dimensioni gestibili (250M parametri)
-    \item Buone capacità di text-to-text generation
-    \item Fine-tuned su task di instruction-following
-    \item Veloce per inference durante il training
-    \item Modello base: \texttt{google/flan-t5-base}
-    \item Training: Supervised learning + PPO reinforcement learning
+    \item Stato dell'environment (descrizione dettagliata)
+    \item Sequenza di azioni suggerite dall'Helper
+    \item Achievement sbloccati durante l'esecuzione
+    \item Feedback strategico e istruzioni correttive
+    \item Metadati (episodio, step, reward)
 \end{itemize}
 
-\subsubsection{Configurazione Training}
+\subsection{Scelta del Modello Base}
 
-Il fine-tuning è stato eseguito con i seguenti parametri:
+È stato selezionato FLAN-T5-base (\texttt{google/flan-t5-base}) per le seguenti caratteristiche:
+\begin{itemize}
+    \item Dimensioni gestibili (250M parametri)
+    \item Capacità di text-to-text generation
+    \item Pre-training su task di instruction-following
+    \item Efficienza nell'inference durante il training
+\end{itemize}
+
+\subsection{Fase 1: Fine-tuning Supervised}
+
+Il primo stadio di addestramento utilizza supervised learning sui dati raccolti:
 
 \begin{table}[H]
 \centering
@@ -260,308 +256,45 @@ Max input length & 512 token \\
 \hline
 Max output length & 150 token \\
 \hline
+Weight decay & 0.01 \\
+\hline
 \end{tabular}
 \caption{Parametri di fine-tuning supervisionato del Reviewer}
 \end{table}
 
+\subsection{Fase 2: Fine-tuning con Reinforcement Learning (PPO)}
 
-\section{Training Integrato HeRoN}
+Dopo il supervised learning, il Reviewer viene ulteriormente ottimizzato tramite PPO per massimizzare la qualità dei feedback strategici.
 
-\subsubsection{Protocollo di Training}
+\subsubsection{Reward Function}
 
-Il training completo dell'architettura HeRoN segue questo protocollo:
-
-\subsubsection{Parametri di Training}
-
-\begin{itemize}
-    \item \textbf{Episodi totali}: 300
-    \item \textbf{Max steps per episodio}: 1000
-    \item \textbf{LLM cutoff}: Episodio 100 (dopo, solo DQN)
-\end{itemize}
-
-\subsubsection{Analisi del Numero Ottimale di Azioni}
-
-È stata condotta un'analisi sperimentale per determinare il numero ottimale di azioni per sequenza:
-
-\begin{table}[H]
-\centering
-\begin{tabular}{|c|c|c|}
-\hline
-\rowcolor{gray!20}
-\textbf{Azioni per sequenza} & \textbf{Achievement medi} & \textbf{Chiamate Helper/episodio} \\
-\hline
-1 & 3.2 & 150-200 \\
-\hline
-3 & 4.5 & 50-80 \\
-\hline
-5 & 4.8 & 30-50 \\
-\hline
-7 & 4.3 & 20-35 \\
-\hline
-10 & 3.9 & 15-25 \\
-\hline
-\end{tabular}%
-\caption{Impatto del numero di azioni per sequenza}
-\end{table}
-
-Il valore ottimale è risultato essere 5 azioni, che bilancia:
-\begin{itemize}
-    \item Pianificazione strategica 
-    \item Flessibilità di re-planning
-    \item Overhead computazionale LLM
-\end{itemize}
-
-\section{Configurazioni di Training}
-
-Sono state implementate cinque configurazioni per valutare diverse strategie di integrazione LLM-RL:
-
-\subsection{DQN Baseline}
-
-\textbf{Strategia}: Reinforcement Learning puro senza integrazione LLM. Usa sempre DQN con epsilon-greedy, senza consultazione LLM, con reward shaping applicato per facilitare apprendimento.
-
-\subsection{DQN + Helper}
-
-\textbf{Strategia}: LLM (solo Helper, senza Reviewer) attivo nei primi 100 step di ogni episodio.
-
-\textbf{Parametri}:
-\begin{itemize}
-    \item \texttt{ASSISTED\_STEPS = 100}
-    \item \texttt{threshold\_episodes = 100}
-\end{itemize}
-
-\subsection{HeRoN Initial}
-
-\textbf{Strategia}: LLM (Helper + Reviewer) attivo nei primi 100 step di ogni episodio.
-
-\textbf{Parametri}:
-\begin{itemize}
-    \item \texttt{ASSISTED\_STEPS = 100}
-    \item \texttt{threshold\_episodes = 100}
-    \item Reviewer: T5 PPO fine-tuned 
-\end{itemize}
-
-\subsection{HeRoN Random}
-
-\textbf{Strategia}: LLM (Helper + Reviewer) attivo con probabilità casuale 50\% ad ogni step.
-
-\textbf{Parametri}:
-\begin{itemize}
-    \item \texttt{LLM\_PROBABILITY = 0.5}
-    \item \texttt{threshold\_episodes = 100}
-    \item Reviewer: T5 PPO fine-tuned 
-\end{itemize}
-
-\subsection{HeRoN Final}
-
-\textbf{Strategia}: LLM (Helper + Reviewer) con probabilità crescente durante ogni episodio.
-
-\textbf{Parametri}:
-\begin{itemize}
-    \item \texttt{K = 0.01} 
-    \item \texttt{threshold\_episodes = 100}
-    \item Reviewer: T5 PPO fine-tuned 
-\end{itemize}
-
-
-\section{Parametri di Training Comuni}
-
-Tutte le configurazioni condividono i seguenti parametri di base:
-
-\begin{table}[H]
-\centering
-\begin{tabular}{|l|l|}
-\hline
-\rowcolor{gray!20}
-\textbf{Parametro} & \textbf{Valore} \\
-\hline
-Episodi totali & 300 \\
-\hline
-Max steps per episodio & 1000 \\
-\hline
-Batch size DQN & 64 \\
-\hline
-Replay buffer size & 5,000 transizioni \\
-\hline
-Learning rate & 0.0001 (Adam) \\
-\hline
-Gamma ($\gamma$) & 0.99 \\
-\hline
-Epsilon decay & Lineare 1.0 $\rightarrow$ 0.05 in 300 episodi \\
-\hline
-Target network update & Ogni 100 step (hard copy) \\
-\hline
-Prioritized Replay $\alpha$ & 0.6 \\
-\hline
-Prioritized Replay $\beta$ & 0.4 $\rightarrow$ 1.0 (incremento +0.001/step) \\
-\hline
-LLM cutoff episodi & 100  \\
-\hline
-LLM model & qwen/qwen3-4b-2507  \\
-\hline
-Reviewer model & T5 fine-tuned con PPO  \\
-\hline
-\end{tabular}
-\caption{Parametri di training comuni a tutte le configurazioni}
-\end{table}
-
-\section{Metriche di Valutazione}
-
-Per valutare le prestazioni di HeRoN e delle sue varianti, sono state definite diverse metriche:
-
-\begin{enumerate}
-    \item \textbf{Achievement Score}: Numero medio di achievement sbloccati per episodio
-    $$\text{Score} = \frac{1}{N} \sum_{i=1}^N \text{achievements}_i$$
-    
-    \item \textbf{Coverage}: Percentuale di achievement unici sbloccati almeno una volta
-    $$\text{Coverage} = \frac{|\text{achievement unici}|}{22} \times 100\%$$
-    
-    \item \textbf{Success Rate per Achievement}: Percentuale di episodi in cui ciascun achievement è stato sbloccato
-    
-    \item \textbf{Reward Cumulativo}: Somma dei reward durante l'episodio (shaped e nativo)
-\end{enumerate}
-
-\subsubsection{Baseline di Confronto}
-
-HeRoN è stato confrontato con:
-\begin{itemize}
-    \item \textbf{DQN puro}: Stesso agente senza componenti LLM
-    \item \textbf{Helper}: DQN + Helper senza Reviewer
-\end{itemize}
-
-\subsection{Fase 8: Analisi e Ottimizzazione}
-
-\subsection{Tuning degli Iperparametri}
-
-Grid search limitata su:
-% La 'grid search limitata' consiste nel testare sistematicamente solo un sottoinsieme selezionato di combinazioni di iperparametri, invece di esplorare tutte le possibili opzioni. Questo approccio permette di individuare rapidamente i valori più promettenti, riducendo il tempo e le risorse computazionali necessarie rispetto a una grid search completa.
-\begin{itemize}
-    \item Learning rate DQN: [1e-4, 5e-4, 1e-3]
-    \item Threshold decay rate: [0.005, 0.01, 0.02]
-    \item Peso reward shaping: [0.5, 1.0, 2.0]
-\end{itemize}
-
-La configurazione ottimale trovata corrisponde ai parametri descritti nelle sezioni precedenti.
-
-\subsection{Tuning e Configurazioni del Reviewer (T5)}
-
-Per il modulo Reviewer, basato su T5, sono state testate diverse configurazioni di tuning. La tabella seguente riassume i principali parametri utilizzati durante la fase di fine-tuning e generazione del dataset:
-
-\begin{table}[H]
-\centering
-\caption{Configurazioni testate per il tuning del Reviewer (T5)}
-\small
-\begin{tabular}{|l|l|}
-\hline
-\rowcolor{gray!20} 
-\textbf{Parametro} & \textbf{Valore} \\
-\hline
-Modello & google/flan-t5-base \\
-\hline
-Dimensione dataset & 2000--5000 samples \\
-\hline
-Episodi generazione & 50--100 \\
-\hline
-Batch size & 8 \\
-\hline
-Epoche & 5 \\
-\hline
-Learning rate & 5e-5 \\
-\hline
-Weight decay & 0.01 \\
-\hline
-Helper calls/episodio & ogni 5 step \\
-\hline
-\end{tabular}
-\end{table}
-
-Queste configurazioni sono state selezionate tramite test iterativi e grid search limitata, con l'obiettivo di massimizzare la qualità delle correzioni generate dal Reviewer e la generalizzazione sulle strategie di gioco. Il dataset è stato generato simulando tra 50 e 100 episodi, con chiamate al modulo Helper ogni 5 step, per ottenere una varietà di situazioni e feedback strategici.
-
-\section{Estensione: Fine-tuning del Reviewer tramite RL}
-
-Il fine-tuning avanzato del modulo Reviewer è stato realizzato tramite Reinforcement Learning (PPO), seguendo un workflow strutturato:
-
-\begin{itemize}
-    \item \textbf{Generazione del dataset:} Per ogni episodio vengono raccolti:
-    \begin{itemize}
-        \item Stato dell'environment (descrizione dettagliata)
-        \item Sequenza di azioni suggerite dall'Helper
-        \item Feedback correttivo (strategic feedback) generato da regole o Reviewer simulato
-        \item Reward associato alla qualità del feedback
-    \end{itemize}
-    \item \textbf{Struttura del sample:} Ogni esempio contiene: stato, azioni, feedback, reward, outcome, refined sequence.
-    \item \textbf{Addestramento RL:} Il Reviewer viene addestrato tramite PPO (Proximal Policy Optimization), ottimizzando la policy per generare feedback strategici e correttivi, massimizzando il reward rispetto a un target ideale.
-    \item \textbf{Obiettivo:} Migliorare la capacità del Reviewer di fornire feedback utili e strategici, ottimizzando la collaborazione con Helper e NPC.
-\end{itemize}
-
-\begin{table}[H]
-\centering
-\caption{Workflow Fine-Tuning Reviewer RL}
-\resizebox{0.7\textwidth}{!}{%
-\begin{tabular}{|l|l|}
-\hline
-\rowcolor{gray!20} 
-\textbf{Fase} & \textbf{Descrizione} \\
-\hline
-Generazione dataset & Stati, azioni Helper, feedback, reward \\
-\hline
-Feedback & Regole/Reviewer simulato, strategico \\
-\hline
-Algoritmo RL & PPO (Proximal Policy Optimization) \\
-\hline
-Reward & Qualità del feedback rispetto al target \\
-\hline
-Obiettivo & Policy ottimizzata per feedback strategici \\
-\hline
-\end{tabular}%
-}
-\end{table}
-
-Questo approccio consente al Reviewer di apprendere non solo dai dati supervisionati, ma anche dall'interazione iterativa e dal reward, migliorando la qualità dei suggerimenti e la sinergia tra i moduli dell'architettura HeRoN.
-
-\subsection{Reward Function per PPO}
-
-La reward function utilizzata per l'addestramento PPO del Reviewer è stata progettata per valutare la qualità dei feedback strategici generati. La funzione è multi-componente e combina diversi criteri:
+La reward function multi-componente valuta la qualità dei feedback generati:
 
 \begin{equation}
 r = r_{\text{length}} + r_{\text{terms}} + r_{\text{actions}} + r_{\text{quality}} + r_{\text{penalty}}
 \end{equation}
 
-I componenti sono definiti come segue:
-
+dove:
 \begin{itemize}
-    \item \textbf{Penalità lunghezza} ($r_{\text{length}}$): Feedback troppo corti (meno di 10 caratteri) o vuoti ricevono una penalità di $-5.0$, poiché non forniscono informazioni utili.
-    
-    \item \textbf{Bonus termini strategici} ($r_{\text{terms}}$): 
-    \begin{equation}
-    r_{\text{terms}} = 0.5 \times \sum_{t \in T} \mathbb{1}[t \in \text{feedback}]
-    \end{equation}
-    dove $T$ è l'insieme dei termini strategici specifici di Crafter: \textit{achievement, resource, collect, craft, health, wood, stone, iron, pickaxe, sword, table, prioritize, efficiency, progression, tier}.
-    
-    \item \textbf{Overlap azioni} ($r_{\text{actions}}$): Misura la corrispondenza tra le azioni suggerite nel feedback e quelle ideali nel dataset:
-    \begin{equation}
-    r_{\text{actions}} = 3.0 \times \frac{|A_{\text{ideal}} \cap A_{\text{suggested}}|}{\max(|A_{\text{ideal}}|, 1)}
-    \end{equation}
-    dove $A_{\text{ideal}}$ e $A_{\text{suggested}}$ sono rispettivamente gli insiemi di azioni nel feedback target e in quello generato, estratte tramite pattern matching sui tag \texttt{[action]}.
-    
-    \item \textbf{Indicatori di qualità} ($r_{\text{quality}}$): Un bonus di $+2.0$ viene assegnato se il feedback contiene indicatori strutturati come \texttt{EXCELLENT}, \texttt{GOOD}, \texttt{CRITICAL}, \texttt{WARNING} o \texttt{SUGGESTION}.
-    
-    \item \textbf{Penalità verbosità} ($r_{\text{penalty}}$): Feedback eccessivamente lunghi (oltre 500 caratteri) ricevono una penalità di $-1.0$ per scoraggiare output prolissi e poco concisi.
+    \item $r_{\text{length}} = -5.0$ se il feedback è vuoto o $<$ 10 caratteri
+    \item $r_{\text{terms}} = 0.5 \times \sum_{t \in T} \mathbb{1}[t \in \text{feedback}]$, con $T$ = \{achievement, resource, collect, craft, health, wood, stone, iron, pickaxe, sword, table, prioritize, efficiency, progression, tier\}
+    \item $r_{\text{actions}} = 3.0 \times \frac{|A_{\text{ideal}} \cap A_{\text{suggested}}|}{\max(|A_{\text{ideal}}|, 1)}$ (overlap azioni)
+    \item $r_{\text{quality}} = +2.0$ se il feedback contiene indicatori strutturati (EXCELLENT, GOOD, CRITICAL, WARNING, SUGGESTION)
+    \item $r_{\text{penalty}} = -1.0$ se il feedback supera i 500 caratteri
 \end{itemize}
 
 \subsubsection{Pipeline di Addestramento PPO}
 
-Il processo di addestramento segue questi passi:
-
 \begin{enumerate}
-    \item \textbf{Input}: Il modello riceve la concatenazione di stato del gioco e risposta dell'Helper
+    \item \textbf{Input}: Concatenazione di stato del gioco e risposta dell'Helper
     \item \textbf{Generazione}: Il Reviewer genera un feedback strategico
-    \item \textbf{Calcolo reward}: La reward function valuta la qualità del feedback generato
-    \item \textbf{Aggiornamento policy}: PPO aggiorna i pesi del modello per massimizzare il reward atteso
+    \item \textbf{Calcolo reward}: La reward function valuta la qualità del feedback
+    \item \textbf{Aggiornamento policy}: PPO aggiorna i pesi per massimizzare il reward atteso
 \end{enumerate}
 
 \begin{table}[H]
 \centering
-\caption{Parametri PPO per Fine-Tuning Reviewer (Fase 2)}
+\caption{Parametri PPO per Fine-Tuning Reviewer}
 \begin{tabular}{|l|l|}
 \hline
 \rowcolor{gray!20}
@@ -575,9 +308,7 @@ PPO epochs (interni) & 1 \\
 \hline
 Mini batch size & 1 \\
 \hline
-Batch size & 1 \\
-\hline
-Temperature (generazione) & 0.4 \\
+Temperature & 0.4 \\
 \hline
 Top-k sampling & 50 \\
 \hline
@@ -588,4 +319,95 @@ Max new tokens & 128 \\
 \end{tabular}
 \end{table}
 
-Questa configurazione è stata scelta per garantire stabilità nell'addestramento e generazione di feedback concisi ma informativi.
+\section{Training Integrato HeRoN}
+
+Completata la preparazione dei singoli moduli, l'architettura HeRoN viene addestrata integrando NPC (DQN), Helper (LLM) e Reviewer (T5). Il training prevede l'uso dei moduli LLM nei primi 100 episodi (cutoff), con transizione al DQN autonomo.
+
+\subsection{Configurazioni Sperimentali}
+
+Sono state implementate cinque configurazioni per valutare diverse strategie di integrazione:
+
+\subsubsection{1. DQN Baseline}
+\textbf{Strategia}: RL puro senza LLM, solo DQN con epsilon-greedy e reward shaping.
+
+\subsubsection{2. DQN + Helper}
+\textbf{Strategia}: Helper attivo nei primi 100 step/episodio, senza Reviewer.
+\begin{itemize}
+    \item \texttt{ASSISTED\_STEPS = 100}
+    \item \texttt{threshold\_episodes = 100}
+\end{itemize}
+
+\subsubsection{3. HeRoN Initial}
+\textbf{Strategia}: Helper + Reviewer attivi nei primi 100 step/episodio.
+\begin{itemize}
+    \item \texttt{ASSISTED\_STEPS = 100}
+    \item \texttt{threshold\_episodes = 100}
+\end{itemize}
+
+\subsubsection{4. HeRoN Random}
+\textbf{Strategia}: Helper + Reviewer con probabilità 50\% ad ogni step.
+\begin{itemize}
+    \item \texttt{LLM\_PROBABILITY = 0.5}
+    \item \texttt{threshold\_episodes = 100}
+\end{itemize}
+
+\subsubsection{5. HeRoN Final}
+\textbf{Strategia}: Helper + Reviewer con probabilità crescente durante l'episodio.
+\begin{itemize}
+    \item \texttt{K = 0.01}
+    \item \texttt{threshold\_episodes = 100}
+\end{itemize}
+
+\subsection{Parametri di Training}
+
+Tutte le configurazioni condividono i parametri DQN descritti nella Sezione 4.2.3, con i seguenti parametri aggiuntivi:
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|l|l|}
+\hline
+\rowcolor{gray!20}
+\textbf{Parametro} & \textbf{Valore} \\
+\hline
+Episodi totali & 300 \\
+\hline
+Max steps per episodio & 1000 \\
+\hline
+LLM cutoff episodi & 100 \\
+\hline
+Azioni per sequenza Helper & 5 \\
+\hline
+Helper model & qwen/qwen3-4b-2507 \\
+\hline
+Reviewer model & FLAN-T5-base (fine-tuned) \\
+\hline
+\end{tabular}
+\caption{Parametri specifici per training integrato HeRoN}
+\end{table}
+
+
+\section{Metriche di Valutazione e Protocollo Sperimentale}
+
+\subsection{Metriche}
+
+Per valutare le prestazioni delle diverse configurazioni sono state definite le seguenti metriche:
+
+\begin{enumerate}
+    \item \textbf{Achievement Score}: Numero medio di achievement sbloccati per episodio
+    $$\text{Score} = \frac{1}{N} \sum_{i=1}^N \text{achievements}_i$$
+    
+    \item \textbf{Coverage}: Percentuale di achievement unici sbloccati almeno una volta
+    $$\text{Coverage} = \frac{|\text{achievement unici}|}{22} \times 100\%$$
+    
+    \item \textbf{Success Rate per Achievement}: Percentuale di episodi in cui ciascun achievement è stato sbloccato
+    
+    \item \textbf{Reward Cumulativo}: Somma dei reward durante l'episodio (shaped e nativo)
+\end{enumerate}
+
+\subsection{Baseline di Confronto}
+
+HeRoN è stato confrontato con:
+\begin{itemize}
+    \item \textbf{DQN baseline}: Agente senza componenti LLM
+    \item \textbf{DQN + Helper}: DQN con solo Helper, senza Reviewer
+\end{itemize}
