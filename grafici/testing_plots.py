@@ -1,10 +1,3 @@
-"""
-Testing Plots Generator for HeRoN in Crafter
-Generates visualization graphs for test evaluation data.
-
-Authors: Danilo Gisolfi & Vincenzo Maiellaro
-"""
-
 import json
 import numpy as np
 import matplotlib.pyplot as plt

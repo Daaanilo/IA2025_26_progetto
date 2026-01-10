@@ -6,14 +6,11 @@ import crafter
 
 class CrafterEnv:
     """
-    Wrapper per Crafter che tira fuori feature semantiche (43 in totale)
-    da dare in pasto alla DQN.
-    
-    Cosa c'è dentro (43 dims):
-    - 16 Inventario (cibo, materiali, attrezzi...)
-    - 2 Posizione (x, y)
-    - 3 Status (vivo/morto, dorme, luce del giorno)
-    - 22 Achievements (one-hot per sapere cosa hai sbloccato)
+    (43 dims):
+    - 16 Inventario 
+    - 2 Posizione 
+    - 3 Status 
+    - 22 Achievements 
     """
     
     def __init__(self, 
@@ -23,10 +20,6 @@ class CrafterEnv:
                  reward=True, 
                  length=10000, 
                  seed=None):
-        """
-        Setup dell'ambiente Crafter con il wrapper.
-        Parametri standard di Crafter (area, view, size, reward, ecc).
-        """
         self.env = crafter.Env(area=area, view=view, size=size, reward=reward, length=length, seed=seed)
         
 
@@ -61,9 +54,6 @@ class CrafterEnv:
         self._last_info = None
         
     def reset(self):
-        """
-        Reset e ritorna lo stato iniziale (vettore + info).
-        """
         obs = self.env.reset()
         self._last_info = self._get_dummy_info()
         state = self._extract_state()
@@ -71,25 +61,18 @@ class CrafterEnv:
         return state, self._last_info
     
     def step(self, action):
-        """
-        Fa un passo e ritorna (state, reward, done, info).
-        """
         obs, reward, done, info = self.env.step(action)
         self._last_info = info
         state = self._extract_state()
         return state, reward, done, info
     
     def _get_dummy_info(self):
-        """Prende un info dict facendo una mossa a vuoto."""
         obs, reward, done, info = self.env.step(0)  
         if done:
             self.env.reset()
         return info
     
     def _extract_state(self):
-        """
-        Trasforma l'info dict in un vettore numpy da 43 float.
-        """
         info = self._last_info
         if info is None:
             return np.zeros(43, dtype=np.float32)
@@ -147,32 +130,22 @@ class CrafterEnv:
         return state
     
     def get_state_size(self):
-        """Ritorna dimensione dello stato."""
         return self.state_size
     
     def get_action_size(self):
-        """Ritorna numero di azioni possibili."""
         return self.action_size
     
     def get_valid_actions(self):
-        """
-        In Crafter puoi sempre fare tutto.
-        """
         return list(range(self.action_size))
     
     def render(self, mode='human'):
-        """Disegna a schermo."""
         return self.env.render(mode=mode)
     
     def close(self):
-        """Chiude tutto."""
         self.env.close()
 
 
 class CrafterEnvRecorded(CrafterEnv):
-    """
-    Versione che salva video e stats.
-    """
     
     def __init__(self, 
                  area=(64, 64), 
@@ -182,9 +155,6 @@ class CrafterEnvRecorded(CrafterEnv):
                  length=10000, 
                  seed=None,
                  record_dir=None):
-        """
-        Se gli passi record_dir salva la roba lì.
-        """
        
         env_name = 'CrafterReward-v1' if reward else 'CrafterNoReward-v1'
         base_env = crafter.Env(area=area, view=view, size=size, reward=reward, length=length, seed=seed)

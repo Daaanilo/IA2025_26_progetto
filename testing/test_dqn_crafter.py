@@ -1,9 +1,6 @@
 """
 Test Script for Trained DQN Models on Crafter Environment
 
-Tests trained DQN models and generates evaluation metrics using the existing
-EvaluationSystem infrastructure.
-
 Usage:
     python testing/test_dqn_crafter.py --model training/heron_final_output/models/heron_crafter_final
     python testing/test_dqn_crafter.py --model training/dqn_base_output/models/nuovo_crafter_dqn_final -e 50
@@ -253,20 +250,7 @@ def test_dqn(model_path: str, episodes: int = 300, seed: int = None, output_dir:
 def main():
     parser = argparse.ArgumentParser(
         description="Test trained DQN models on Crafter environment",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Available models:
-  training/heron_final_output/models/heron_crafter_final     - HeRoN Final (full system)
-  training/heron_initial_output/models/heron_crafter_final   - HeRoN Initial (fixed 100-step LLM)
-  training/heron_random_output/models/heron_crafter_final    - HeRoN Random (random LLM activation)
-  training/dqn_base_output/models/nuovo_crafter_dqn_final    - Pure DQN baseline
-  training/dqn_helper_output/models/dqn_helper_crafter_final - DQN + Helper
-
-Examples:
-  python testing/test_dqn_crafter.py --model training/heron_final_output/models/heron_crafter_final
-  python testing/test_dqn_crafter.py --model training/dqn_base_output/models/nuovo_crafter_dqn_final -e 50
-  python testing/test_dqn_crafter.py --model training/heron_random_output/models/heron_crafter_final -s 42
-        """
+        formatter_class=argparse.RawDescriptionHelpFormatter
     )
 
     parser.add_argument("--model", "-m", required=True,

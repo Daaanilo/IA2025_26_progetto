@@ -53,14 +53,8 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"[Config] Using device: {device}")
 print(f"[Config] NOTE: MPS (Apple Silicon) not supported by Crafter environment")
 
-# ============================================================================
-# DQN + Helper Configuration (same as HERON_initial, without Reviewer)
-# ============================================================================
 ASSISTED_STEPS = 100  # LLM attivo solo nei primi 100 step di ogni episodio
 
-# ============================================================================
-# Main Training Loop
-# ============================================================================
 
 def train_dqn_helper(episodes=300, batch_size=64, episode_length=1000, threshold_episodes=100):
     """

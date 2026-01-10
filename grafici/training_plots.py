@@ -1,10 +1,3 @@
-"""
-Training Plots Generator for HeRoN in Crafter
-Generates visualization graphs for training data analysis.
-
-Authors: Danilo Gisolfi & Vincenzo Maiellaro
-"""
-
 import json
 import os
 import numpy as np

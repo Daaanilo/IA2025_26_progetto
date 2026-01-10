@@ -1,12 +1,5 @@
 """
 Crafter Helper - Un LLM Zero-shot che suggerisce sequenze di azioni.
-
-Cosa fa:
-1. Spiega la situazione a parole.
-2. Crea prompt per farsi dare azioni.
-3. Parla con LM Studio.
-4. Controlla che le azioni siano valide.
-5. Decide se cambiare piano al volo.
 """
 
 import re
@@ -39,9 +32,6 @@ class CrafterHelper:
     
     def __init__(self, server_host="http://127.0.0.1:1234", model_name="qwen/qwen3-4b-2507",
                  min_sequence_length=3, max_sequence_length=5, default_sequence_length=4):
-        """
-        Si connette a LM Studio.
-        """
         self.server_host = server_host
         self.model_name = model_name
         
@@ -91,11 +81,7 @@ class CrafterHelper:
         self._max_sequence_history = 5
     
     def describe_crafter_state(self, state, info, previous_info=None):
-        """
-        Traduce lo stato numerico in una descrizione testuale per l'LLM.
-        """
-        
-        
+
         inventory = info.get('inventory', {})
         achievements = info.get('achievements', {})
         player_pos = info.get('player_pos', [32, 32])
@@ -193,10 +179,6 @@ class CrafterHelper:
             return "Explore and unlock remaining achievements (combat, crafting)"
     
     def generate_action_sequence(self, state, info, previous_info=None, override_prompt=None):
-        """
-        Chiede all'LLM una sequenza di 3-5 azioni.
-        Ritorna (lista_azioni, risposta_raw).
-        """
         game_description = self.describe_crafter_state(state, info, previous_info)
 
     
@@ -348,10 +330,6 @@ class CrafterHelper:
         return prompt
     
     def parse_action_sequence(self, llm_response, max_length=None):
-        """
-        Estrae le azioni tra parentesi quadre dalla risposta.
-        Prende SOLO la prima riga valida.
-        """
         if max_length is None:
             max_length = self.max_sequence_length
         
@@ -418,9 +396,6 @@ class CrafterHelper:
         return None
     
     def should_replan(self, state, info, previous_info, action_sequence):
-        """
-        Decide se buttare via il piano corrente e rifarlo.
-        """
         if previous_info is None:
             return False
         
@@ -462,7 +437,6 @@ class CrafterHelper:
         return False
     
     def get_statistics(self):
-        """Statistiche dell'helper."""
         return {
             'sequences_generated': self.sequence_count,
             'hallucinations': self.hallucination_count,

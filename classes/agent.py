@@ -7,7 +7,6 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-# Named tuple for prioritized replay
 Transition = namedtuple('Transition', ('state', 'action', 'reward', 'next_state', 'done', 'priority'))
 
 
@@ -132,10 +131,6 @@ class DQNAgent:
         return action
 
     def decay_epsilon_linear(self, episode, total_episodes=None):
-        """
-        Abbassa epsilon linearmente.
-        Formula: epsilon = max(epsilon_min, 1.0 - (episode / total_episodes) * (1.0 - epsilon_min))
-        """
         if total_episodes is None:
             total_episodes = self.epsilon_decay_episodes
 
