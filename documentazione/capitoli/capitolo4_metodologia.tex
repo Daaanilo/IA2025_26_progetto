@@ -4,8 +4,6 @@
 
 Questo capitolo descrive la metodologia utilizzata per sviluppare e valutare l'architettura HeRoN nel dominio Crafter. Viene fornita una panoramica delle fasi principali (implementazione dell'NPC, integrazione LLM, generazione del dataset per il Reviewer, fine-tuning e training integrato), seguita da dettagli tecnici e protocolli sperimentali.
 
-Le sezioni sono organizzate al fine di orientare la lettura dalla teoria all'implementazione pratica, passando per la progettazione dei moduli, la raccolta dati e la valutazione sperimentale. Ogni tabella e algoritmo è presentato subito dopo la relativa spiegazione, per garantire coerenza e leggibilità.
-
 \section{Panoramica del Processo}
 
 Le fasi principali dello sviluppo sono:
@@ -16,8 +14,6 @@ Le fasi principali dello sviluppo sono:
     \item Fine-tuning supervised del Reviewer (T5)
     \item Training integrato dell'architettura HeRoN e valutazione
 \end{enumerate}
-
-Per una descrizione dettagliata dei componenti architetturali (NPC, Helper, Reviewer) e del meccanismo di threshold decay, si rimanda al Capitolo~2. Le sezioni seguenti sviluppano i dettagli implementativi di ciascuna fase.
 
 \section{NPC (DQN Agent)}
 
@@ -63,18 +59,19 @@ L'addestramento dell'agente DQN si basa su alcuni concetti fondamentali dell'app
     $$y = r + \gamma Q'(s', \arg\max_{a'} Q(s',a'))$$
     Dove $Q'$ è la rete target e $\arg\max$ indica l'azione migliore secondo la policy network.
 
-    \item \textbf{Prioritized Experience Replay (PER)}:
-    
-    L'agente impara rivedendo le sue esperienze passate. Non tutte le esperienze sono uguali: quelle dove ha sbagliato di più sono più utili per imparare. Si assegna una "priorità" a ogni esperienza usando questa formula:
-    $$p_i = |\delta_i| + \epsilon$$
-    Dove:
-    \begin{itemize}
-        \item $\delta_i$ è l'errore di previsione (TD-error):
-        $$\delta_i = r + \gamma \max_{a'} Q_{target}(s', a') - Q(s, a)$$
-        Più è grande, più l'agente ha sbagliato e più deve imparare da quell'esperienza.
-        \item $\epsilon$ è un piccolo numero che serve solo a evitare problemi matematici.
-    \end{itemize}
+    \item \textbf{Prioritized Experience Replay}:
 
+    Il replay buffer utilizza un campionamento prioritario per migliorare l'efficienza dell'apprendimento:
+        \begin{enumerate}
+            \item \textbf{Calcolo priorità}: Per ogni transizione, la priorità si basa sul TD-error:
+            $$p_i = |\delta_i|^\alpha + \epsilon$$
+            dove $\delta_i = r + \gamma \max_{a'} Q_{target}(s', a') - Q(s, a)$
+            \item \textbf{Sampling}: La probabilità di selezionare la transizione $i$ è:
+            $$P(i) = \frac{p_i^\alpha}{\sum_k p_k^\alpha}$$
+            \item \textbf{Importance Sampling}: Per correggere il bias introdotto dal campionamento, i pesi sono:
+            $$w_i = \left(\frac{1}{N \cdot P(i)}\right)^\beta$$
+        \end{enumerate}
+   
     \item \textbf{Backpropagation (Aggiornamento dei pesi)}:
     
     L'agente aggiorna i "pesi" della rete neurale (cioè i suoi parametri interni) per ridurre l'errore. La regola di aggiornamento è:
@@ -92,18 +89,6 @@ In sintesi: l'agente prova azioni, riceve premi, aggiorna le sue previsioni e im
 L'aggiornamento della target network avviene ogni $C = 100$ step tramite hard copy:
 $$\theta_{target} \leftarrow \theta_{policy}$$
 
-\subsubsection{Prioritized Experience Replay}
-Il replay buffer utilizza un campionamento prioritario per migliorare l'efficienza dell'apprendimento:
-\begin{enumerate}
-    \item \textbf{Calcolo priorità}: Per ogni transizione, la priorità si basa sul TD-error:
-    $$p_i = |\delta_i|^\alpha + \epsilon$$
-    dove $\delta_i = r + \gamma \max_{a'} Q_{target}(s', a') - Q(s, a)$
-    \item \textbf{Sampling}: La probabilità di selezionare la transizione $i$ è:
-    $$P(i) = \frac{p_i^\alpha}{\sum_k p_k^\alpha}$$
-    \item \textbf{Importance Sampling}: Per correggere il bias introdotto dal campionamento, i pesi sono:
-    $$w_i = \left(\frac{1}{N \cdot P(i)}\right)^\beta$$
-\end{enumerate}
-
 \subsubsection{Training Baseline DQN}
 Prima dell'integrazione dei moduli LLM, è stato addestrato un agente DQN baseline con i seguenti parametri:
 \begin{itemize}
@@ -119,27 +104,7 @@ Questo baseline costituisce il riferimento per valutare l'efficacia dell'integra
 
 La progettazione del modulo Helper e dei prompt è stata fondamentale per ottenere sequenze di azioni coerenti e strategiche. Le tabelle seguenti mostrano la selezione dei modelli e l'evoluzione dei prompt.
 
-
-\subsubsection{Setup LM Studio}
-LM Studio è stato configurato per servire il modello Qwen3-4B-2507:
-\begin{itemize}
-    \item Server host: http://127.0.0.1:1234
-    \item Modello: qwen/qwen3-4b-2507
-    \item Temperatura: default LM Studio (non configurata esplicitamente nel codice)
-    \item Max tokens: default LM Studio (non configurato esplicitamente nel codice)
-    \item Context window: 8192 tokens (gestione conversazioni lunghe)
-    \item Tokenizer: Qwen2.5-7B-Instruct (per conteggio token context-aware)
-    \item Safe threshold: 6500 tokens (per evitare context overflow)
-    \item Max message history: 12 messaggi (gestione memoria conversazionale)
-    \item Timeout LLM: 60 secondi
-\end{itemize}
-
-\textbf{Parametri Sequenze Azioni} (classe \texttt{CrafterHelper}):
-\begin{itemize}
-    \item \texttt{min\_sequence\_length}: 3 azioni (garantisce pianificazione minima)
-    \item \texttt{default\_sequence\_length}: 4 azioni (target prompt, bilanciato)
-    \item \texttt{max\_sequence\_length}: 5 azioni (limite superiore per flessibilità)
-\end{itemize}
+\newpage
 
 \textbf{Selezione del Modello}:
 
@@ -239,51 +204,6 @@ YOUR TURN: [final instructions] \\
 \caption{Esempi espliciti dei prompt Helper LLM utilizzati}
 \end{table}
 
-\subsubsection{Meccanismi di Re-planning}
-
-\textbf{Cos'è il Re-planning?}
-
-Il re-planning è il meccanismo di \textbf{interruzione adattiva della sequenza di azioni} per rispondere a cambiamenti critici dello stato. L'Helper genera una sequenza di 3-5 azioni, ma NON le esegue tutte passivamente. Invece, un sistema di monitoraggio verifica costantemente se accadono eventi importanti:
-
-\begin{itemize}
-    \item Se accade un evento critico, la sequenza viene \textbf{immediatamente interrotta}
-    \item Una nuova query viene inviata all'Helper con il \textbf{contesto aggiornato}
-    \item Una \textbf{nuova sequenza} viene generata e subito eseguita
-\end{itemize}
-
-\textbf{Esempio}: L'agente sta eseguendo [move\_right, do, move\_left, noop] quando sblocca il achievement collect\_wood. Immediatamente: interruzione della sequenza, nuova query all'Helper ("hai appena sbloccato wood collection, cosa fai?"), nuova sequenza generata e in esecuzione.
-
-Sono state implementate logiche per interrompere e ri-pianificare durante l'esecuzione di sequenze LLM (costanti nella classe \texttt{CrafterHelper}):
-
-\begin{itemize}
-    \item \texttt{REPLAN\_THRESHOLD\_HP = 0.3}: Re-planning se health < 30\% del massimo
-    \item \texttt{REPLAN\_THRESHOLD\_HP\_CRITICAL = 5}: Fallback immediato a DQN se health $\leq$ 5
-    \item \texttt{REPLAN\_THRESHOLD\_ACHIEVEMENT = True}: Re-planning immediato quando achievement sbloccato
-    \item \texttt{REPLAN\_THRESHOLD\_INVENTORY\_CHANGE = True}: Monitoring cambiamenti inventario
-\end{itemize}
-
-L'algoritmo seguente descrive il processo di re-planning durante l'esecuzione, garantendo che l'agente possa adattarsi dinamicamente a cambiamenti critici nello stato.
-
-\begin{algorithm}
-\caption{Re-planning durante esecuzione}
-\begin{algorithmic}
-\WHILE{esecuzione sequenza}
-    \STATE $next\_state, reward, done, info \gets env.step(action)$
-    \IF{achievement sbloccato}
-        \STATE Genera nuova sequenza con contesto aggiornato
-        \STATE BREAK
-    \ENDIF
-    \IF{$health \leq 5$}
-        \STATE Fallback a DQN per sopravvivenza immediata
-        \STATE BREAK
-    \ENDIF
-    \IF{$health < 0.3 \times max\_health$}
-        \STATE Re-query con priorità gestione salute
-        \STATE BREAK
-    \ENDIF
-\ENDWHILE
-\end{algorithmic}
-\end{algorithm}
 
 \section{Generazione del Dataset per il Reviewer}
 
@@ -292,18 +212,14 @@ L'algoritmo seguente descrive il processo di re-planning durante l'esecuzione, g
 Per addestrare il Reviewer, è stato necessario generare un dataset di esempi:
 
 \begin{enumerate}
-    \item \textbf{Esecuzione episodi}: 50 episodi di gioco con Helper zero-shot (circa 2,500 esempi di training)
-    \item \textbf{Registrazione}: Per ogni chiamata Helper, salvare:
+    \item \textbf{Esecuzione episodi}: 150 episodi di gioco con Helper zero-shot (circa 15.000 esempi di training)
+    \item \textbf{Registrazione}: Per ogni chiamata Helper, vengono salvati (come in JSONL):
     \begin{itemize}
         \item Stato dell'environment
-        \item Sequenza di azioni suggerite
-        \item Risultato dell'esecuzione (reward, achievement)
-    \end{itemize}
-    \item \textbf{Annotazione}: Generazione di feedback basati su:
-    \begin{itemize}
-        \item Successo/fallimento della sequenza
-        \item Efficienza (step sprecati)
-        \item Priorità rispetto allo stato (es. salute bassa ignorata)
+        \item Sequenza di azioni suggerite 
+        \item Achievement sbloccati 
+        \item Istruzioni e feedback 
+        \item Metadati episodio/step 
     \end{itemize}
 \end{enumerate}
 
@@ -318,7 +234,6 @@ Per addestrare il Reviewer, è stato necessario generare un dataset di esempi:
     \item Fine-tuned su task di instruction-following
     \item Veloce per inference durante il training
     \item Modello base: \texttt{google/flan-t5-base}
-    \item Modello fine-tuned utilizzato: \texttt{reviewer\_retrained\_ppo}
     \item Training: Supervised learning + PPO reinforcement learning
 \end{itemize}
 
@@ -346,25 +261,9 @@ Max input length & 512 token \\
 Max output length & 150 token \\
 \hline
 \end{tabular}
-\caption{Parametri di fine-tuning supervisionato del Reviewer (Fase 1)}
+\caption{Parametri di fine-tuning supervisionato del Reviewer}
 \end{table}
 
-\textbf{Nota}: Questi parametri si riferiscono alla fase di fine-tuning supervisionato. La successiva fase di fine-tuning con PPO utilizza parametri differenti (vedi Sezione ``Estensione: Fine-tuning del Reviewer tramite RL'').
-
-\subsubsection{Validazione}
-
-Il dataset è stato diviso in:
-\begin{itemize}
-    \item Training set: 80\% (circa 2,000 esempi)
-    \item Validation set: 20\% (circa 500 esempi)
-\end{itemize}
-
-Metriche monitorate durante il training:
-\begin{itemize}
-    \item Training loss
-    \item Validation loss
-    \item BLEU score (similarità con feedback attesi)
-\end{itemize}
 
 \section{Training Integrato HeRoN}
 
@@ -378,7 +277,6 @@ Il training completo dell'architettura HeRoN segue questo protocollo:
     \item \textbf{Episodi totali}: 300
     \item \textbf{Max steps per episodio}: 1000
     \item \textbf{LLM cutoff}: Episodio 100 (dopo, solo DQN)
-    \item \textbf{Checkpoint}: Salvataggio ogni 50 episodi + best model
 \end{itemize}
 
 \subsubsection{Analisi del Numero Ottimale di Azioni}
@@ -408,8 +306,8 @@ Il training completo dell'architettura HeRoN segue questo protocollo:
 
 Il valore ottimale è risultato essere 5 azioni, che bilancia:
 \begin{itemize}
-    \item Pianificazione strategica (non troppo breve)
-    \item Flessibilità di re-planning (non troppo lungo)
+    \item Pianificazione strategica 
+    \item Flessibilità di re-planning
     \item Overhead computazionale LLM
 \end{itemize}
 
@@ -419,7 +317,7 @@ Sono state implementate cinque configurazioni per valutare diverse strategie di 
 
 \subsection{DQN Baseline}
 
-\textbf{Strategia}: Pure Reinforcement Learning senza integrazione LLM. Usa sempre DQN con epsilon-greedy, senza consultazione LLM, con reward shaping applicato per facilitare apprendimento.
+\textbf{Strategia}: Reinforcement Learning puro senza integrazione LLM. Usa sempre DQN con epsilon-greedy, senza consultazione LLM, con reward shaping applicato per facilitare apprendimento.
 
 \subsection{DQN + Helper}
 
@@ -439,7 +337,7 @@ Sono state implementate cinque configurazioni per valutare diverse strategie di 
 \begin{itemize}
     \item \texttt{ASSISTED\_STEPS = 100}
     \item \texttt{threshold\_episodes = 100}
-    \item Reviewer: T5 PPO fine-tuned (\texttt{reviewer\_retrained\_ppo})
+    \item Reviewer: T5 PPO fine-tuned 
 \end{itemize}
 
 \subsection{HeRoN Random}
@@ -450,38 +348,20 @@ Sono state implementate cinque configurazioni per valutare diverse strategie di 
 \begin{itemize}
     \item \texttt{LLM\_PROBABILITY = 0.5}
     \item \texttt{threshold\_episodes = 100}
-    \item Reviewer: T5 PPO fine-tuned (\texttt{reviewer\_retrained\_ppo})
+    \item Reviewer: T5 PPO fine-tuned 
 \end{itemize}
 
 \subsection{HeRoN Final}
 
-\textbf{Strategia}: LLM (Helper + Reviewer) con probabilità crescente durante ogni episodio (threshold decay per-step).
+\textbf{Strategia}: LLM (Helper + Reviewer) con probabilità crescente durante ogni episodio.
 
 \textbf{Parametri}:
 \begin{itemize}
-    \item \texttt{KAPPA = 0.01} (decremento threshold per step, equivalente al parametro $k$ nella formula $\theta(t) = \max(0, 1.0 - k \times t)$)
+    \item \texttt{K = 0.01} 
     \item \texttt{threshold\_episodes = 100}
-    \item Reviewer: T5 PPO fine-tuned (\texttt{reviewer\_retrained\_ppo})
+    \item Reviewer: T5 PPO fine-tuned 
 \end{itemize}
 
-\textbf{Significato di k (KAPPA)}:
-
-Il parametro $k$ rappresenta il \textbf{tasso di decadimento del threshold} per-step. Specificamente:
-\begin{itemize}
-    \item $k = 0.01$ significa che il threshold si riduce di 0.01 ad ogni step dell'episodio
-    \item Dopo 100 step, il threshold raggiunge 0 (transizione completa verso LLM al 100\%)
-    \item Quindi, \textbf{il parametro k determina quanto rapidamente l'agente passa dal 100\% DQN (step 0) al 100\% LLM} 
-    \item Valori di $k$ \textbf{più alti} (es. 0.05) comportano una \textbf{transizione più rapida} verso LLM
-    \item Valori di $k$ \textbf{più bassi} (es. 0.005) mantengono \textbf{più a lungo l'esplorazione DQN autonoma}
-\end{itemize}
-
-\textbf{Evoluzione del threshold durante l'episodio}:
-\begin{itemize}
-    \item Step 0: $\theta = 1.0$ (0\% LLM, 100\% DQN)
-    \item Step 50: $\theta = 0.5$ (~50\% LLM, ~50\% DQN)
-    \item Step 100+: $\theta = 0.0$ (100\% LLM, 0\% DQN)
-    \item Il threshold si resetta a 1.0 all'inizio di ogni nuovo episodio
-\end{itemize}
 
 \section{Parametri di Training Comuni}
 
@@ -514,11 +394,11 @@ Prioritized Replay $\alpha$ & 0.6 \\
 \hline
 Prioritized Replay $\beta$ & 0.4 $\rightarrow$ 1.0 (incremento +0.001/step) \\
 \hline
-LLM cutoff episodi & 100 (DQN autonomo dopo ep. 100) \\
+LLM cutoff episodi & 100  \\
 \hline
-LLM model & qwen/qwen3-4b-2507 (via LM Studio) \\
+LLM model & qwen/qwen3-4b-2507  \\
 \hline
-Reviewer model & T5 fine-tuned con PPO (reviewer\_retrained\_ppo) \\
+Reviewer model & T5 fine-tuned con PPO  \\
 \hline
 \end{tabular}
 \caption{Parametri di training comuni a tutte le configurazioni}
@@ -545,17 +425,7 @@ Per valutare le prestazioni di HeRoN e delle sue varianti, sono state definite d
 HeRoN è stato confrontato con:
 \begin{itemize}
     \item \textbf{DQN puro}: Stesso agente senza componenti LLM
-    \item \textbf{Helper solo}: DQN + Helper senza Reviewer
-\end{itemize}
-
-\subsubsection{Protocollo di Test}
-
-Per garantire validità statistica:
-\begin{itemize}
-    \item Ogni configurazione testata per 300 episodi
-    \item 5 seed casuali diversi
-    \item Media e deviazione standard riportate
-    \item Test statistici (t-test) per significatività
+    \item \textbf{Helper}: DQN + Helper senza Reviewer
 \end{itemize}
 
 \subsection{Fase 8: Analisi e Ottimizzazione}

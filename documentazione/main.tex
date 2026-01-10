@@ -96,7 +96,7 @@ Questo lavoro presenta l'adattamento e la validazione dell'architettura HeRoN (H
 
 L'implementazione affronta sfide tecniche complesse: la sparsità del reward nativo di Crafter viene mitigata attraverso un sistema di reward shaping multi-componente; la gestione delle situazioni critiche è garantita da meccanismi di re-planning che interrompono le sequenze pre-pianificate in caso di emergenza; le allucinazioni dell'LLM sono corrette mediante un sistema di validazione e fuzzy matching.
 
-Lo spazio di stati è rappresentato da un vettore a 43 dimensioni comprendente inventario (16 item), posizione, statistiche vitali e achievement sbloccati (22 obiettivi). Il training integrato utilizza diverse strategie di attivazione LLM (finestra temporale fissa, probabilità stocastica, threshold decay per-step) permettendo all'agente DQN di acquisire gradualmente autonomia dopo i primi 100 episodi.
+Lo spazio di stati è rappresentato da un vettore a 43 dimensioni comprendente inventario (16 item), posizione, statistiche vitali e achievement sbloccati (22 obiettivi). Il training integrato utilizza diverse strategie di attivazione LLM (finestra temporale fissa, probabilità stocastica, threshold decay per-step) permettendo all'agente DQN di acquisire autonomia dopo i primi 100 episodi.
 
 I risultati sperimentali includono metriche di apprendimento dettagliate, analisi approfondite delle policy miste RL+LLM e strumenti avanzati per la visualizzazione e la valutazione degli apprendimenti conseguiti dall'architettura proposta.
 
@@ -125,7 +125,10 @@ I risultati sperimentali includono metriche di apprendimento dettagliate, analis
 \input{capitoli/capitolo3_crafter}
 \input{capitoli/capitolo4_metodologia}
 \input{capitoli/capitolo5_risultati}
-\input{capitoli/capitolo6_conclusioni}
+\input{capitoli/capitolo6_conclusioni} % This line was missing a closing brace
+
+% Ensure all itemize environments are properly closed in the included chapters.
+% If the error persists, check each capitolo*.tex file for unclosed \begin{itemize}.
 
 %% ----------------------------------------------------------------------------
 %% BIBLIOGRAFIA

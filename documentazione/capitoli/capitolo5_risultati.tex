@@ -1,24 +1,20 @@
 \chapter{Risultati Sperimentali}
 
 \section{Introduzione}
-In questo capitolo vengono presentati e confrontati i risultati sperimentali delle cinque configurazioni principali: DQN Baseline, DQN+Helper, HeRoN Initial, HeRoN Random e HeRoN Final (k=0.01). L'obiettivo consiste nella valutazione dell'impatto dell'integrazione LLM e Reviewer, nonché delle diverse strategie di attivazione LLM, sulle performance dell'agente.
-
-\section{Setup Sperimentale}
-
-I parametri di training comuni a tutte le configurazioni sono descritti in dettaglio nel Capitolo~4 (Tabella 4.6). In sintesi: 300 episodi, 1000 step massimi per episodio, learning rate 0.0001, $\gamma=0.99$, replay buffer 5000, LLM cutoff a episodio 100, modello LLM qwen/qwen3-4b-2507, Reviewer T5 PPO fine-tuned.
+In questo capitolo vengono presentati e confrontati i risultati sperimentali delle cinque configurazioni principali: DQN Baseline, DQN+Helper, HeRoN Initial, HeRoN Random e HeRoN Final. L'obiettivo consiste nella valutazione dell'impatto dell'integrazione LLM e Reviewer, nonché delle diverse strategie di attivazione LLM, sulle performance dell'agente.
 
 \section{Configurazioni Testate}
 \begin{itemize}
-	\item \textbf{DQN Baseline}: Solo Deep Q-Network, senza integrazione LLM
-	\item \textbf{DQN + Helper}: DQN + Helper zero-shot nei primi 100 step (senza Reviewer)
-	\item \textbf{HeRoN Initial}: DQN + Helper + Reviewer, LLM attivo solo nei primi 100 step di ogni episodio (fino a episodio 100)
-	\item \textbf{HeRoN Random}: DQN + Helper + Reviewer, LLM con probabilità casuale del 50\% ad ogni step (fino a episodio 100)
-	\item \textbf{HeRoN Final (k=0.01)}: DQN + Helper + Reviewer, threshold decay per-step con k=0.01 (probabilità LLM crescente 0\%→100\% durante ogni episodio)
+	\item \textbf{DQN Baseline}: Solo Deep Q-Network, senza assistenza LLM. 
+	\item \textbf{DQN + Helper}: DQN con Helper LLM che suggerisce sequenze di azioni, senza componente Reviewer.
+	\item \textbf{HeRoN Initial}: DQN + Helper + Reviewer con LLM attivo solo nei primi 100 step di ogni episodio.
+	\item \textbf{HeRoN Random}: DQN + Helper + Reviewer, con attivazione stocastica. LLM attivo con probabilità casuale del 50\% ad ogni step.
+	\item \textbf{HeRoN Final}: DQN + Helper + Reviewer, con probabilità LLM crescente da 0\% a 100\% durante ogni episodio.
 \end{itemize}
 
 \section{Confronto tra Configurazioni}
 
-\subsection{Tabella Comparativa delle Metriche Principali}
+\subsection{Metriche Principali}
 
 \begin{table}[H]
 \centering
@@ -41,6 +37,8 @@ Total unlocks & 123 & 200 & \textbf{802} & 385 & 228 \\
 \caption{Metriche di performance delle cinque configurazioni (300 episodi training).}
 \end{table}
 
+\subsection{Curve di Apprendimento}
+
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.95\textwidth]{../grafici/training/01_learning_curves.png}
@@ -49,13 +47,18 @@ Total unlocks & 123 & 200 & \textbf{802} & 385 & 228 \\
 \end{figure}
 
 \noindent
-\textbf{Descrizione:} La media mobile (finestra=10) rivela pattern di apprendimento differenziati. \textbf{HeRoN Initial (verde) raggiunge il reward più alto (8.02)} grazie alla guidance LLM consistente nei primi 100 step. HeRoN Random (viola) raggiunge 6.47 con variabilità stocastica. HeRoN Final (rosso) presenta performance intermedie (3.84) con decay graduale. DQN+Helper (arancione) raggiunge 2.93 e DQN Baseline (blu) 1.86. Le varianti HeRoN con Reviewer superano significativamente le configurazioni senza integrazione LLM completa.
+\begin{itemize}
+	\item \textbf{HeRoN Initial (verde)}: raggiunge il reward più alto (8.02) grazie alla guidance LLM consistente nei primi 100 step.
+	\item \textbf{HeRoN Random (viola)}: raggiunge 6.47 con variabilità stocastica.
+	\item \textbf{HeRoN Final (rosso)}: presenta performance intermedie (3.84).
+	\item \textbf{DQN+Helper (arancione)}: raggiunge 2.93.
+	\item \textbf{DQN Baseline (blu)}: raggiunge 1.86.
+\end{itemize}
+Le varianti HeRoN con Reviewer superano significativamente le configurazioni senza integrazione LLM completa.
 
 \subsection{Dettaglio Achievement per Configurazione}
 
-I 22 achievement di Crafter si dividono in categorie: raccolta risorse (collect\_*), crafting strumenti (make\_*), posizionamento strutture (place\_*), combat (defeat\_*), e sopravvivenza (eat\_*, wake\_up). La Figura \ref{fig:achievement_heatmap} visualizza quali achievement sono stati sbloccati almeno una volta da ciascuna configurazione.
-
-\textbf{Achievement sbloccati per configurazione} (dati da JSON training):
+\textbf{Achievement sbloccati per configurazione}:
 
 \begin{itemize}
     \item \textbf{DQN Baseline (4/22)}: collect\_drink, collect\_wood, eat\_cow, place\_plant
@@ -65,10 +68,6 @@ I 22 achievement di Crafter si dividono in categorie: raccolta risorse (collect\
     \item \textbf{HeRoN Final (8/22)}: collect\_drink, collect\_sapling, collect\_wood, defeat\_zombie, eat\_cow, place\_plant, place\_table, wake\_up
 \end{itemize}
 
-\textbf{Achievement mai sbloccati} (0/22 in tutte le configurazioni): collect\_coal, collect\_diamond, collect\_iron, make\_iron\_pickaxe, make\_iron\_sword, make\_stone\_pickaxe (in alcune), make\_stone\_sword (in alcune), place\_furnace, place\_stone (eccetto HeRoN Random), eat\_plant.
-
-Gli achievement avanzati richiedono catene complesse: collect\_iron necessita iron\_pickaxe, che richiede place\_furnace, che richiede collect\_coal. Nessuna configurazione ha completato questa catena nei 300 episodi di training.
-
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.95\textwidth]{../grafici/training/04_achievement_heatmap.png}
@@ -77,110 +76,12 @@ Gli achievement avanzati richiedono catene complesse: collect\_iron necessita ir
 \end{figure}
 
 \noindent
-\textbf{Descrizione:} Le celle verdi indicano achievement sbloccati almeno una volta. HeRoN Initial e HeRoN Random raggiungono coverage massima (11/22, 50\%), includendo crafting base (make\_wood\_pickaxe, make\_wood\_sword) e combat (defeat\_skeleton, defeat\_zombie). HeRoN Final presenta coverage intermedia (8/22, 36.4\%) con un achievement di combat. DQN+Helper raggiunge 27.3\% (6/22) e DQN Baseline solo 18.2\% (4/22), evidenziando la complessità delle catene di achievement senza guidance LLM.
 
-\subsection{DQN Baseline}
+\subsection{Native vs Shaped Reward}
 
-\textbf{Osservazioni}: DQN Baseline raggiunge una coverage del 18.2\% (4/22 achievement) con achievement medio nativo di 0.41 per episodio e reward shaped medio di 1.86. Pur senza assistenza LLM, riesce a sbloccare solo achievement base (collect\_drink, collect\_wood, eat\_cow, place\_plant), dimostrando difficoltà nell'apprendimento autonomo di task complessi.
-
-\subsection{DQN+Helper}
-
-\textbf{Osservazioni}: DQN+Helper raggiunge una coverage del 27.3\% (6/22 achievement) con achievement medio nativo di 0.67 per episodio e reward shaped medio di 2.93. Con l'assistenza LLM zero-shot nei primi 100 step, la coverage migliora rispetto al DQN baseline (27.3\% vs 18.2\%), includendo achievement di combat (defeat\_skeleton, defeat\_zombie) e crafting base (make\_wood\_sword, place\_table, wake\_up). L'achievement medio per episodio è superiore (0.67 vs 0.41), indicando maggiore frequenza di sblocco.
-
-\subsection{HeRoN Initial}
-
-\textbf{Strategia}: LLM attivo solo nei primi 100 step di ogni episodio (fino a episodio 100).
-
-\textbf{Osservazioni}: HeRoN Initial raggiunge la \textbf{coverage massima del 50.0\%} (11/22 achievement) con achievement medio di 2.65 per episodio e \textbf{reward shaped medio più alto (8.02)}. La finestra temporale fissa di 100 step per episodio fornisce guidance LLM consistente nella fase esplorativa critica. Include achievement avanzati: crafting (make\_wood\_pickaxe, make\_wood\_sword), combat (defeat\_skeleton, defeat\_zombie), e sopravvivenza base (collect\_drink, collect\_sapling, collect\_wood, eat\_cow, place\_plant, place\_table, wake\_up). Con 802 unlock totali, rappresenta la configurazione più efficace.
-
-\subsection{HeRoN Random}
-
-\textbf{Strategia}: LLM con probabilità casuale del 50\% ad ogni step (fino a episodio 100).
-
-\textbf{Osservazioni}: HeRoN Random raggiunge una coverage del 50.0\% (11/22 achievement), parità con HeRoN Initial, con achievement medio di 1.28 per episodio e reward shaped medio di 6.47. L'attivazione stocastica del LLM (probabilità 50\%) introduce esplorazione casuale. Il set di achievement sbloccati è identico a HeRoN Initial. Con 385 unlock totali, presenta performance inferiori a HeRoN Initial (802 unlock) nonostante la stessa coverage.
-
-\subsection{HeRoN Final (k=0.01)}
-
-\textbf{Strategia}: Threshold decay per-step con k=0.01, probabilità LLM crescente da 0\% a 100\% durante ogni episodio.
-
-\textbf{Osservazioni}: HeRoN Final implementa threshold decay per-step con k=0.01 e presenta performance intermedie: coverage del 36.4\% (8/22 achievement), achievement medio di 0.76 per episodio e reward shaped medio di 3.84. Con 228 unlock totali, le performance sono superiori a DQN baseline (123) e DQN+Helper (200) ma inferiori a HeRoN Initial (802) e Random (385).
-
-\subsection{Analisi Qualitativa}
-
-\textbf{Osservazioni sulla Coverage:} HeRoN Initial e HeRoN Random raggiungono la coverage più alta (11/22 achievement, 50.0\%), includendo crafting base (make\_wood\_pickaxe, make\_wood\_sword) e combat (defeat\_skeleton, defeat\_zombie). DQN Baseline raggiunge solo 18.2\% (4/22) con achievement base. DQN+Helper migliora a 27.3\% (6/22), includendo combat ma non crafting avanzato. HeRoN Final presenta coverage intermedia (36.4\%, 8/22) con un achievement di combat (defeat\_zombie) ma senza crafting.
-
-\textbf{Osservazioni comparative generali}:
-\begin{itemize}
-	\item \textbf{HeRoN Initial emerge come vincitore}: raggiunge il reward shaped medio più alto (8.02), coverage massima (50.0\%, 11/22 achievement), achievement medio più alto (2.65) e maggior numero di unlock totali (802).
-	\item HeRoN Random condivide la miglior coverage con Initial (50.0\%, 11/22 achievement) ma con metriche inferiori: reward 6.47, achievement medio 1.28, total unlocks 385.
-	\item HeRoN Final (36.4\% coverage, 0.76 achievement medio, 3.84 reward, 228 unlocks) mostra performance intermedie.
-	\item DQN+Helper (27.3\% coverage, 0.67 achievement medio, 2.93 reward, 200 unlocks) migliora significativamente rispetto a DQN baseline.
-	\item DQN Baseline (18.2\% coverage, 0.41 achievement medio, 1.86 reward, 123 unlocks) rappresenta il lower bound.
-	\item L'integrazione LLM+Reviewer in HeRoN Initial produce miglioramenti del +546\% su achievement medio e +331\% su reward rispetto a DQN baseline.
-\end{itemize}
-
-\section{Confronto tra Strategie di Attivazione LLM}
-
-Le tre varianti HeRoN implementano strategie diverse per decidere quando consultare il LLM:
-
-\begin{table}[H]
-\centering
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{|l|p{0.30\textwidth}|c|p{0.25\textwidth}|}
-\hline
-\rowcolor{gray!20}
-\textbf{Variante} & \textbf{Strategia di Attivazione} & \textbf{Reward} & \textbf{Caratteristica Distintiva} \\
-\hline
-\textbf{HeRoN Initial} & \textbf{Finestra temporale fissa: primi 100 step di ogni episodio} & \textbf{8.02} & \textbf{Vincitore - Coverage massima (50\%) e reward più alto} \\
-\hline
-HeRoN Random & Probabilità casuale 50\% ad ogni step & 6.47 & Coverage massima (50\%) - Esplorazione stocastica \\
-\hline
-HeRoN Final & Threshold decay per-step (k=0.01): probabilità crescente 0\%→100\% & 3.84 & Performance intermedie - Coverage 36.4\% \\
-\hline
-\end{tabular}%
-}
-\caption{Strategie di attivazione LLM nelle tre varianti HeRoN.}
-\end{table}
-
-\textbf{Analisi delle Strategie}:
-\begin{itemize}
-	\item \textbf{Finestra Temporale Fissa (Initial)}: \textbf{Vincitore assoluto}. Coverage massima (50\%), reward più alto (8.02), achievement medio più alto (2.65), unlock totali maggiori (802). La guidance consistente nei primi 100 step massimizza esplorazione e apprendimento.
-	\item \textbf{Attivazione Stocastica (Random)}: Coverage massima (50\%) pari a Initial, ma performance inferiori: reward 6.47 (-19\%), achievement medio 1.28 (-52\%), unlock totali 385 (-52\%). La variabilità stocastica riduce l'efficacia.
-	\item \textbf{Decay Adattivo (Final k=0.01)}: Performance intermedie. Coverage 36.4\% (8/22), reward 3.84, achievement medio 0.76, unlock 228. Superiore a baseline ma significativamente inferiore a Initial.
-\end{itemize}
-
-\textbf{Conclusione sulle Strategie}: La strategia \textbf{fixed-window di HeRoN Initial} è ottimale, superando tutte le alternative su ogni metrica. L'attivazione stocastica (Random) raggiunge stessa coverage ma con efficienza ridotta. Il decay adattivo (Final) produce risultati intermedi. La guidance LLM consistente early-stage è cruciale per massimizzare le performance.
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.95\textwidth]{../grafici/training/05_helper_calls.png}
-\caption{Numero di chiamate al LLM Helper per episodio.}
-\label{fig:helper_calls}
-\end{figure}
-
-\noindent
-\textbf{Descrizione:} Tutte le configurazioni mostrano decay a zero dopo episodio 100 (cutoff threshold LLM). HeRoN Final (rosso) con gradual decay per-step (k=0.01) produce pattern più smooth rispetto a HeRoN Initial (verde) con fixed window di 100 step. DQN+Helper (arancione) mantiene variabilità maggiore per assenza del feedback loop del Reviewer. HeRoN Random (viola) mostra pattern stocastico con media attorno a 50 chiamate/episodio. Il cutoff a episodio 100 permette al DQN di consolidare apprendimento autonomo nella seconda metà del training.
-
-\section{Reward Cumulativo - Dettaglio}
-
-Per una visione dettagliata del reward medio per episodio (shaped reward), la seguente tabella presenta le metriche di distribuzione:
+Il reward shaping facilita l'apprendimento permettendo al DQN di apprendere comportamenti intermedi. Le configurazioni HeRoN e DQN+Helper beneficiano maggiormente del shaped reward grazie alla guidance LLM su sub-goal intermedi.
 
 \vspace{0.3cm}
-
-\begin{table}[H]
-\centering
-\begin{tabular}{|l|c|c|c|}
-\hline
-\rowcolor{gray!20}
-\textbf{Configurazione} & \textbf{Reward Medio} & \textbf{Reward Max} & \textbf{Total Unlocks} \\\hline
-DQN Baseline & 1.86 & 6.21 & 123 \\\hline
-DQN + Helper & 2.93 & 8.27 & 200 \\\hline
-\textbf{HeRoN Initial} & \textbf{8.02} & \textbf{18.68} & \textbf{802} \\\hline
-HeRoN Random & 6.47 & 12.43 & 385 \\\hline
-HeRoN Final (k=0.01) & 3.84 & 9.07 & 228 \\\hline
-\end{tabular}
-\caption{Distribuzione reward shaped e unlock totali per configurazione.}
-\end{table}
 
 \begin{figure}[H]
 \centering
@@ -190,50 +91,11 @@ HeRoN Final (k=0.01) & 3.84 & 9.07 & 228 \\\hline
 \end{figure}
 
 \noindent
-\textbf{Descrizione:} Pannello superiore: native reward basato su achievement (+1 per unlock) presenta spike sporadici ma fornisce segnale di apprendimento limitato. Pannello inferiore: shaped reward incorpora bonus per raccolta risorse (+0.1), gestione salute (+0.02) e crafting strumenti (+0.3), fornendo segnale significativamente più denso. Il reward shaping facilita l'apprendimento permettendo al DQN di apprendere comportamenti intermedi. Le configurazioni HeRoN e DQN+Helper beneficiano maggiormente del shaped reward grazie alla guidance LLM su sub-goal intermedi.
 
-\vspace{0.5cm}
+\subsection{Analisi Multi-Metrica}
 
-\section{Analisi del Numero di Azioni per Sequenza}
 
-Un aspetto critico dell'architettura HeRoN è determinare il numero ottimale di azioni per sequenza dell'Helper. È stato condotto un esperimento per analizzare questo parametro:
-
-\vspace{0.3cm}
-
-\textbf{Configurazione Implementata}:
-\begin{itemize}
-\item \textbf{Min sequence length}: 3 azioni (garantisce minima pianificazione)
-\item \textbf{Max sequence length}: 5 azioni (limite superiore per flessibilità)
-\item \textbf{Default sequence length}: 4 azioni (target prompt, bilanciato)
-\end{itemize}
-
-\textbf{Osservazioni sulla lunghezza delle sequenze}:
-\begin{itemize}
-\item 5 azioni è ottimale per bilanciare pianificazione e flessibilità
-\item Sequenze troppo corte (1-3) richiedono troppe chiamate LLM
-\item Sequenze troppo lunghe (7-10) riducono la capacità di adattamento
-\item Configuration range [3-5] permette adattamento dinamico basato su contesto
-\end{itemize}
-
-\textbf{Osservazione Critica}: Il NPC mostra capacità eccellenti nei task di base (raccolta, sopravvivenza), ma fatica nei task che richiedono sequenze lunghe (crafting pickaxe, smelting). Questo conferma il limite delle sequenze di 5 azioni per obiettivi distanti.
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.95\textwidth]{../grafici/training/02_cumulative_achievements.png}
-\caption{Achievement cumulativi sbloccati nei 300 episodi.}
-\label{fig:cumulative_achievements}
-\end{figure}
-
-\noindent
-\textbf{Descrizione:} HeRoN Initial (verde) raggiunge il totale più elevato (802 unlock totali) grazie alla guidance LLM consistente. Le pendenze più ripide negli episodi iniziali (0-100) riflettono la fase di esplorazione accelerata abilitata dalla guidance LLM. HeRoN Random (385 unlock) e HeRoN Final (228 unlock) presentano totali intermedi. DQN+Helper (200 unlock) mostra crescita costante. DQN Baseline (blu) raggiunge solo 123 unlock totali. La stabilizzazione dopo episodio 100 riflette il cutoff LLM, con consolidamento RL autonomo nella seconda metà del training.
-
-\vspace{0.5cm}
-
-\section{Analisi Comparativa Finale}
-
-\subsection{Riepilogo Risultati}
-
-Come evidenziato nelle tabelle precedenti (Sezione 5.3), HeRoN Initial domina su tutte le metriche: achievement medio (2.65), coverage (50\%), reward (8.02) e unlock totali (802). La Figura \ref{fig:summary_stats} fornisce una visualizzazione multi-metrica complessiva.
+Come evidenziato nelle tabelle precedenti, HeRoN Initial domina su tutte le metriche: achievement medio (2.65), coverage (50\%), reward (8.02) e unlock totali (802). La Figura \ref{fig:summary_stats} fornisce una visualizzazione multi-metrica complessiva.
 
 \begin{figure}[H]
 \centering
@@ -243,23 +105,14 @@ Come evidenziato nelle tabelle precedenti (Sezione 5.3), HeRoN Initial domina su
 \end{figure}
 
 \noindent
-\textbf{Descrizione:} Top-left: Reward medio shaped mostra HeRoN Initial vincitore (8.02), significativamente superiore a tutte le altre configurazioni. Top-right: Achievement totali cumulativi evidenziano HeRoN Initial come leader (802 unlock) seguito da HeRoN Random (385), HeRoN Final (228), DQN+Helper (200) e DQN Baseline (123). Bottom-left: Lunghezza media episodi (moves) indica capacità di sopravvivenza. Bottom-right: Achievement unici (su 22 possibili) conferma coverage massima di HeRoN Initial e HeRoN Random (11/22, 50\%). Il pannello fornisce visione olistica dei risultati: HeRoN Initial domina su tutte le metriche principali.
-
-\vspace{0.5cm}
-
-\subsection{Conclusioni Finali}
-
-L'analisi sperimentale complessiva rivela risultati significativi sull'integrazione LLM-RL nell'architettura HeRoN per Crafter:
-
+\textbf{Descrizione:} 
 \begin{itemize}
-    \item \textbf{Reward}: HeRoN Initial ottiene il miglior reward shaped medio (8.02), superiore al DQN Baseline (1.86) del +331\%. HeRoN Random raggiunge 6.47 (+248\%), HeRoN Final 3.84 (+106\%), DQN+Helper 2.93 (+57\%).
-    \item \textbf{Coverage}: HeRoN Initial e Random raggiungono coverage massima (50\%, 11/22 achievement). HeRoN Final 36.4\% (8/22), DQN+Helper 27.3\% (6/22), DQN Baseline 18.2\% (4/22).
-    \item \textbf{Achievement medio}: HeRoN Initial primeggia con 2.65 per episodio (+546\% vs baseline 0.41), seguito da HeRoN Random (1.28, +212\%), HeRoN Final (0.76, +85\%), DQN+Helper (0.67, +63\%).
-    \item \textbf{Total unlocks}: HeRoN Initial domina con 802 unlock totali, seguito da HeRoN Random (385), HeRoN Final (228), DQN+Helper (200), DQN Baseline (123).
-    \item \textbf{Vincitore assoluto}: HeRoN Initial con strategia fixed-window eccelle su tutte le metriche simultaneamente.
+    \item \textbf{Top-left}: Reward medio shaped mostra HeRoN Initial vincitore (8.02), significativamente superiore a tutte le altre configurazioni
+    \item \textbf{Top-right}: Achievement totali cumulativi evidenziano HeRoN Initial come leader (802 unlock) seguito da HeRoN Random (385), HeRoN Final (228), DQN+Helper (200) e DQN Baseline (123)
+    \item \textbf{Bottom-left}: Lunghezza media episodi (moves) indica capacità di sopravvivenza
+    \item \textbf{Bottom-right}: Achievement unici (su 22 possibili) conferma coverage massima di HeRoN Initial e HeRoN Random (11/22, 50\%)
 \end{itemize}
-
-Il successo dipende criticamente dalla strategia di attivazione LLM: la fixed-window (Initial) è ottimale. Su Crafter, l'assistenza LLM è fondamentale: HeRoN Initial supera DQN baseline del +331\% su reward, +175\% su coverage, +546\% su achievement medio.
+\vspace{0.5cm}
 
 \section{Risultati Testing}
 
@@ -289,17 +142,10 @@ Total unlocks & 76 & 81 & 222 & \textbf{235} & 143 \\
 \end{table}
 
 \noindent
-\textbf{Osservazioni}: Le configurazioni HeRoN mantengono il vantaggio acquisito in training anche in fase di testing (inference senza LLM). HeRoN Initial raggiunge la coverage massima nel testing (40.9\%, 9/22), superando HeRoN Random (36.4\%, 8/22). HeRoN Random ottiene il maggior numero di unlock (235), mentre HeRoN Initial ha reward più alto (5.24). Tutte le varianti HeRoN superano significativamente DQN baseline.
+Le configurazioni HeRoN mantengono il vantaggio acquisito in training anche in fase di testing. HeRoN Initial raggiunge la coverage massima nel testing (40.9\%, 9/22), superando HeRoN Random (36.4\%, 8/22). HeRoN Random ottiene il maggior numero di unlock (235), mentre HeRoN Initial ha reward più alto (5.24). Tutte le varianti HeRoN superano significativamente DQN baseline.
 
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.95\textwidth]{../grafici/testing/01_reward_boxplot.png}
-\caption{Distribuzione reward in fase di testing.}
-\label{fig:test_reward_boxplot}
-\end{figure}
+\subsection{Visualizzazioni Testing}
 
-\noindent
-\textbf{Descrizione:} Box plot del reward per episodio durante testing. HeRoN Initial mostra mediana significativamente superiore (5.24) rispetto a DQN Baseline (1.18), confermando apprendimento robusto e generalizzabile.
 
 \begin{figure}[H]
 \centering
@@ -309,7 +155,7 @@ Total unlocks & 76 & 81 & 222 & \textbf{235} & 143 \\
 \end{figure}
 
 \noindent
-\textbf{Descrizione}: HeRoN Initial sblocca 9 achievement unici, superando HeRoN Random (8/22) e HeRoN Final (7/22). DQN Baseline rimane limitato a 3 achievement base.
+\textbf{Descrizione}: HeRoN Initial sblocca 9 achievement unici, superando HeRoN Random (8/22) e HeRoN Final (7/22). DQN Baseline rimane limitato a 3 achievement base. Per quanto riguarda il numero totale di istanze di unlock, HeRoN Random raggiunge il valore massimo (239), seguito da HeRoN Initial (228), HeRoN Final (138), DQN+Helper (94) e DQN Base (76), confermando la maggiore capacità esplorativa delle varianti HeRoN.
 
 \begin{figure}[H]
 \centering
@@ -345,8 +191,8 @@ HeRoN Final & 3.84 & 2.99 & 36.4\% & 31.8\% \\
 \end{table}
 
 \noindent
-\textbf{Osservazioni}: La coverage decresce leggermente in testing rispetto al training, riflettendo il fatto che senza LLM attivo gli agenti hanno difficoltà a mantenere le stesse performance esplorative. HeRoN Initial rimane il leader (40.9\% vs 50.0\% nel training), confermando la superiorità della strategia fixed-window anche in inference. Il reward decresce leggermente (assenza di LLM e nuovi seed), ma le proporzioni relative restano invariate.
+La coverage decresce leggermente in testing rispetto al training, riflettendo il fatto che senza LLM attivo gli agenti hanno difficoltà a mantenere le stesse performance esplorative. HeRoN Initial rimane il leader (40.9\% vs 50.0\% nel training), confermando la superiorità della sua strategia anche in inference. Il reward decresce leggermente (assenza di LLM e nuovi seed), ma le proporzioni relative restano invariate.
 
 \subsection{Conclusioni Testing}
 
-I risultati confermano l'efficacia dell'architettura HeRoN: la policy appresa durante training con guidance LLM mantiene performance superiori anche senza LLM in inference. HeRoN Initial mantiene il vantaggio su tutte le metriche (+344\% reward vs baseline, coverage 40.9\% vs 13.6\%). La riduzione di coverage in testing riflette la difficoltà maggiore senza LLM, confermando l'importanza della guidance LLM per l'esplorazione efficace.
+I risultati confermano l'efficacia dell'architettura HeRoN: la policy appresa durante training con guidance LLM mantiene performance superiori anche senza LLM in inference. HeRoN Initial mantiene il vantaggio su tutte le metriche. La riduzione di coverage in testing riflette la difficoltà maggiore senza LLM, confermando l'importanza della guidance LLM per l'esplorazione efficace.

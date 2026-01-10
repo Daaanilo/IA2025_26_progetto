@@ -39,8 +39,6 @@ Il threshold $\theta$ controlla quando consultare il LLM anziché usare DQN auto
 
 Tutte le configurazioni includono un \textbf{cutoff a episodio 100}: dopo i primi 100 episodi, il DQN diventa completamente autonomo.
 
-Per dettagli implementativi completi (formule, esempi numerici, configurazioni parametri) si rimanda al Capitolo~4.
-
 \textbf{Flusso Decisionale Integrato}:
 \begin{enumerate}
     \item Ambiente genera stato → Estrazione dello stato (43-dim)
@@ -72,7 +70,6 @@ L'NPC è l'agente che gioca in Crafter usando Reinforcement Learning. In questo 
     \item \textbf{Funzionamento}: L'NPC osserva lo stato (43-dim), seleziona un'azione tramite strategia $\epsilon$-greedy, esegue l'azione, riceve reward e aggiorna i pesi della rete neurale
 \end{itemize}
 
-Per dettagli implementativi completi (architettura rete, parametri di training, formule matematiche) si rimanda al Capitolo~4.
 
 \subsection{Helper}
 
@@ -108,7 +105,7 @@ Il componente Helper è un Large Language Model utilizzato in modalità zero-sho
 
 \subsection{Reviewer}
 
-Il componente Reviewer è un LLM fine-tuned (basato su T5) che valuta i suggerimenti forniti dall'Helper e genera feedback per migliorarli. Come descritto in dettaglio nel Capitolo~4, il Reviewer si addestra specificamente per il contesto di Crafter su un dataset generato da circa 50 episodi di gioco, contenente circa 2,500 esempi di coppie (suggerimento, feedback).
+Il componente Reviewer è un LLM fine-tuned (basato su T5) che valuta i suggerimenti forniti dall'Helper e genera feedback per migliorarli. Come descritto in dettaglio nel Capitolo~4, il Reviewer si addestra specificamente per il contesto di Crafter su un dataset composto da 150 episodi di gioco, contenente circa 15.000 esempi di coppie (suggerimento, feedback).
 
 Il Reviewer analizza:
 \begin{itemize}
@@ -168,10 +165,6 @@ Durante l'esecuzione di una sequenza di azioni, l'Helper monitora determinati ev
     \item \textbf{Risorsa completamente consumata}: Se una risorsa chiave (legno, pietra, carbone) raggiunge 0, viene attivata una nuova query per raccoglierla prioritariamente
 \end{itemize}
 
-\textbf{Aggiornamento dello Stato Episodio}:
-
-Ad ogni passo, l'Helper aggiorna il suo tracciamento interno registrando i nuovi achievement sbloccati, il numero di passi eseguiti, il reward accumulato e il feedback più recente del Reviewer. Questi dati vengono utilizzati durante il reset del contesto per generare un riassunto episodico coerente, assicurando che il LLM comprenda il progresso complessivo anche dopo un reset di contesto.
-
 \subsection{Reset Episodio e Pulizia Contesto}
 
 All'inizio di ogni nuovo episodio, l'Helper esegue una pulizia completa:
@@ -183,40 +176,6 @@ All'inizio di ogni nuovo episodio, l'Helper esegue una pulizia completa:
 \end{itemize}
 
 Questo previene l'accumulo di contesto da episodi precedenti.
-
-\section{Workflow dell'Architettura}
-
-Il workflow di HeRoN durante il training si articola in queste fasi:
-
-\subsection{Fase 1: Decisione di Consultazione}
-
-Ad ogni step dell'episodio, l'architettura decide se consultare i componenti LLM basandosi su una soglia dinamica $\theta$.
-
-\begin{algorithm}[H]
-\caption{Decisione di consultazione LLM}
-\begin{algorithmic}
-\IF{$random() > \theta$ AND $episode < 100$}
-    \STATE Procedi con workflow LLM
-\ELSE
-    \STATE Usa solo DQN: $a = \arg\max_a Q(s, a)$
-\ENDIF
-\end{algorithmic}
-\end{algorithm}
-
-Quando si decide di consultare l'LLM, l'Helper genera una sequenza di azioni basandosi sullo stato corrente.
-
-La soglia $\theta$ decresce linearmente da 1.0 a 0.0 nel corso di 100 episodi:
-$$\theta_t = \max(0, \theta_0 - 0.01 \cdot episode)$$
-
-In questo modo, durante le fasi iniziali dell'allenamento si fa ricorso ai suggerimenti LLM, per poi ridurre questa dipendenza man mano che l'agente RL migliora.
-
-\subsection{Fase 2: Review e Raffinamento (Reviewer)}
-
-Se il Reviewer è disponibile, valuta la sequenza proposta e fornisce un feedback.
-L'Helper utilizza il feedback per migliorare la sequenza e ne crea una seconda versione.
-Infine, si utilizza la sequenza migliorata se il Reviewer ha dato feedback, altrimenti la prima.
-
-Per dettagli implementativi e algoritmi di re-planning si rimanda al Capitolo~4.
 
 \section{Vantaggi dell'Architettura}
 

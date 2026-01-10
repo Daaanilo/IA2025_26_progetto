@@ -1,21 +1,3 @@
-"""
-Episodic data collector for generating training data for Reviewer fine-tuning.
-Captures: game states → Helper suggestions → outcome evaluation → strategic feedback
-
-Components:
-1. EpisodicDataCollector: Manages episode simulation and data capture
-2. OutcomeEvaluator: Analyzes outcome quality (achievements, resources, efficiency)
-3. FeedbackGenerator: Hand-crafted rule-based strategic feedback
-4. CrafterDatasetGenerator: Orchestrates dataset generation and CSV export
-
-Configuration:
-- Episodes: 50-100 (configurable)
-- Helper calls per episode: every 5 steps
-- Episode length: 500 steps
-- Target dataset size: 2000-5000 samples
-- Success ratio: 80% achievement-unlocking, 20% exploratory
-"""
-
 import json
 import numpy as np
 import re
@@ -1161,9 +1143,9 @@ def main():
     """Main entry point for dataset generation."""
     
     # Configuration
-    NUM_EPISODES = 150 # Increased to 50 for production dataset
+    NUM_EPISODES = 150 
     OUTPUT_FILENAME = 'game_scenarios_dataset_crafter.jsonl'
-    USE_LM_STUDIO = False  # Set to False to use synthetic responses (recommended for consistency)
+    USE_LM_STUDIO = False  
     
     # Generate dataset
     generator = CrafterDatasetGenerator(
@@ -1177,7 +1159,6 @@ def main():
         output_path = generator.export_to_jsonl()
         
         print(f"\n✓ SUCCESS: Dataset generated at '{output_path}'")
-        print(f"  Ready for F06 (Reviewer Fine-tuning)")
         
     except KeyboardInterrupt:
         print("\n✗ Generation interrupted by user")
