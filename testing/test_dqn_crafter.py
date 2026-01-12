@@ -1,12 +1,3 @@
-"""
-Test Script for Trained DQN Models on Crafter Environment
-
-Usage:
-    python testing/test_dqn_crafter.py --model training/heron_final_output/models/heron_crafter_final
-    python testing/test_dqn_crafter.py --model training/dqn_base_output/models/nuovo_crafter_dqn_final -e 50
-    python testing/test_dqn_crafter.py --model <path> --seed 42 --output-dir results/test_output
-"""
-
 import sys
 import os
 import json
@@ -14,7 +5,6 @@ import argparse
 import numpy as np
 from pathlib import Path
 
-# Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from classes.crafter_environment import CrafterEnv
@@ -23,7 +13,6 @@ from evaluation.evaluation_system import EvaluationSystem
 from evaluation.evaluation_plots import generate_all_plots
 
 
-# Achievement name-to-ID mapping (same as training scripts)
 ACHIEVEMENT_NAME_TO_ID = {
     'collect_coal': 0,
     'collect_diamond': 1,
@@ -51,9 +40,6 @@ ACHIEVEMENT_NAME_TO_ID = {
 
 
 def export_achievement_statistics_json(evaluation_system, output_file):
-    """
-    Export achievement statistics to JSON format.
-    """
     achievement_stats = evaluation_system.get_achievement_statistics()
 
     def convert_to_serializable(obj):
@@ -79,25 +65,10 @@ def export_achievement_statistics_json(evaluation_system, output_file):
 
 
 def test_dqn(model_path: str, episodes: int = 300, seed: int = None, output_dir: str = None):
-    """
-    Test a trained DQN model on Crafter environment.
-
-    Args:
-        model_path: Path to model checkpoint (without .pth extension)
-        episodes: Number of test episodes (default: 300)
-        seed: Random seed for reproducibility (optional)
-        output_dir: Output directory for results (optional)
-
-    Returns:
-        EvaluationSystem with test results
-    """
-    # Initialize environment
     env = CrafterEnv(seed=seed, reward=True, length=10000)
 
-    # Load trained agent
     agent = DQNAgent(state_size=43, action_size=17)
 
-    # Check if model exists
     model_file = f"{model_path}.pth"
     if not os.path.exists(model_file):
         print(f"[Error] Model file not found: {model_file}")
@@ -119,9 +90,8 @@ def test_dqn(model_path: str, episodes: int = 300, seed: int = None, output_dir:
         return None
 
     agent.load(model_path)
-    agent.epsilon = 0.0  # Pure exploitation for testing
+    agent.epsilon = 0.0
 
-    # Initialize evaluation system
     evaluation_system = EvaluationSystem(num_achievements=22)
 
     print(f"\n{'='*60}")
@@ -133,7 +103,6 @@ def test_dqn(model_path: str, episodes: int = 300, seed: int = None, output_dir:
     print(f"Epsilon: {agent.epsilon} (pure exploitation)")
     print(f"{'='*60}\n")
 
-    # Track overall statistics
     total_achievements_all = []
     survival_count = 0
 
@@ -144,7 +113,6 @@ def test_dqn(model_path: str, episodes: int = 300, seed: int = None, output_dir:
         total_reward = 0
         moves = 0
 
-        # Track achievements for this episode
         episode_achievement_names = set()
         previous_achievements_set = set()
 
@@ -154,14 +122,12 @@ def test_dqn(model_path: str, episodes: int = 300, seed: int = None, output_dir:
             total_reward += reward
             moves += 1
 
-            # Track newly unlocked achievements
             achievements_dict = info.get('achievements', {})
             current_achievements_set = {name for name, count in achievements_dict.items() if count > 0}
             newly_unlocked_names = current_achievements_set - previous_achievements_set
 
             if newly_unlocked_names:
                 episode_achievement_names.update(newly_unlocked_names)
-                # Track in evaluation system
                 newly_unlocked_ids = {ACHIEVEMENT_NAME_TO_ID[name] for name in newly_unlocked_names
                                      if name in ACHIEVEMENT_NAME_TO_ID}
                 evaluation_system.add_episode_achievements(e, newly_unlocked_ids, moves)
@@ -170,43 +136,37 @@ def test_dqn(model_path: str, episodes: int = 300, seed: int = None, output_dir:
             next_state = np.reshape(next_state, [1, 43])
             state = next_state
 
-        # Check survival (discount > 0 means agent is alive)
         survived = info.get('discount', 0) > 0
         if survived:
             survival_count += 1
 
-        # Record episode metrics via EvaluationSystem
         evaluation_system.add_episode(
             episode=e,
             shaped_reward=total_reward,
-            native_reward=total_reward,  # Same for test (no shaping bonuses)
+            native_reward=total_reward,
             shaped_bonus=0,
             achievements_unlocked=len(episode_achievement_names),
             moves=moves,
-            helper_calls=0,  # No helper in test
+            helper_calls=0,
             hallucinations=0,
             valid_actions_percentage=100.0
         )
 
         total_achievements_all.append(len(episode_achievement_names))
 
-        # Progress output
         if (e + 1) % 10 == 0 or e == 0:
             survival_rate = (survival_count / (e + 1)) * 100
             print(f"Episode {e+1:3d}/{episodes} | Reward: {total_reward:8.2f} | "
                   f"Achievements: {len(episode_achievement_names):2d} | Moves: {moves:4d} | "
                   f"Survived: {'Yes' if survived else 'No'} | Survival Rate: {survival_rate:.1f}%")
 
-    # Close environment (wrapped in try-except as Crafter Env may not have close())
     try:
         env.close()
     except AttributeError:
-        pass  # Crafter Env doesn't have close() method
+        pass
 
-    # Finalize evaluation system
     evaluation_system.finalize()
 
-    # Setup output directory
     if output_dir is None:
         model_name = Path(model_path).stem
         output_dir = f"testing/test_output/{model_name}"
@@ -214,23 +174,19 @@ def test_dqn(model_path: str, episodes: int = 300, seed: int = None, output_dir:
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
 
-    # Export all results using existing infrastructure
     evaluation_system.export_to_jsonl(str(output_path / "test_metrics.jsonl"))
     export_achievement_statistics_json(evaluation_system, str(output_path / "test_achievement_statistics.json"))
     evaluation_system.export_summary_json(str(output_path / "test_evaluation.json"))
 
-    # Generate plots
     plots_dir = output_path / "plots"
     plots_dir.mkdir(parents=True, exist_ok=True)
     generate_all_plots(evaluation_system, output_dir=str(plots_dir))
 
-    # Print summary
     print(f"\n{'='*60}")
     print("TEST RESULTS SUMMARY")
     print(f"{'='*60}")
     evaluation_system.print_summary_report()
 
-    # Additional test-specific statistics
     print(f"\n[Test-Specific Metrics]")
     print(f"  Final Survival Rate: {(survival_count / episodes) * 100:.2f}%")
     print(f"  Mean Achievements per Episode: {np.mean(total_achievements_all):.2f}")
