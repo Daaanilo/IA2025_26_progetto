@@ -1,15 +1,15 @@
 import json
+"""Genera grafici di testing (boxplot, radar chart, matrici achievement)."""
+
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from pathlib import Path
 
-# Configuration
 BASE_DIR = Path(__file__).parent.parent
 TESTING_DIR = BASE_DIR / "testing"
 OUTPUT_DIR = Path(__file__).parent / "testing"
 
-# Test configurations with their file paths
 TEST_MODELS = {
     "DQN Base": {
         "metrics": TESTING_DIR / "dqn_base_output" / "dqn_base_test_metrics.jsonl",
@@ -38,11 +38,9 @@ TEST_MODELS = {
     }
 }
 
-# Filter TEST_MODELS to only include those that have existing metrics files
 TEST_MODELS = {name: config for name, config in TEST_MODELS.items() 
                if (config["metrics"].exists() and config["achievements"].exists())}
 
-# All 22 achievements in Crafter
 ALL_ACHIEVEMENTS = [
     "collect_coal", "collect_diamond", "collect_drink", "collect_iron",
     "collect_sapling", "collect_stone", "collect_wood", "defeat_skeleton",
@@ -54,7 +52,6 @@ ALL_ACHIEVEMENTS = [
 
 
 def load_jsonl(filepath):
-    """Load a JSONL file and return list of dictionaries."""
     data = []
     if filepath.exists():
         with open(filepath, 'r', encoding='utf-8') as f:
@@ -65,7 +62,6 @@ def load_jsonl(filepath):
 
 
 def load_json(filepath):
-    """Load a JSON file and return dictionary."""
     if filepath.exists():
         with open(filepath, 'r', encoding='utf-8') as f:
             return json.load(f)
@@ -73,7 +69,6 @@ def load_json(filepath):
 
 
 def setup_plot_style():
-    """Setup matplotlib style for consistent plots."""
     plt.style.use('seaborn-v0_8-whitegrid')
     plt.rcParams['figure.figsize'] = (12, 6)
     plt.rcParams['font.size'] = 11
@@ -83,10 +78,8 @@ def setup_plot_style():
 
 
 def plot_reward_boxplot():
-    """Box plot comparing reward distributions across test models."""
     fig, axes = plt.subplots(1, 2, figsize=(14, 6))
 
-    # Collect data
     model_names = []
     shaped_rewards_data = []
     native_rewards_data = []
@@ -100,7 +93,6 @@ def plot_reward_boxplot():
             native_rewards_data.append([d["native_reward"] for d in data])
             colors.append(config["color"])
 
-    # Shaped Reward Box Plot
     bp1 = axes[0].boxplot(shaped_rewards_data, tick_labels=model_names, patch_artist=True)
     for patch, color in zip(bp1['boxes'], colors):
         patch.set_facecolor(color)
@@ -109,7 +101,6 @@ def plot_reward_boxplot():
     axes[0].set_title("Shaped Reward Distribution (Test)")
     axes[0].grid(True, alpha=0.3)
 
-    # Native Reward Box Plot
     bp2 = axes[1].boxplot(native_rewards_data, tick_labels=model_names, patch_artist=True)
     for patch, color in zip(bp2['boxes'], colors):
         patch.set_facecolor(color)
@@ -125,7 +116,6 @@ def plot_reward_boxplot():
 
 
 def plot_achievements_bar():
-    """Bar chart comparing achievement statistics."""
     fig, axes = plt.subplots(1, 2, figsize=(14, 6))
 
     model_names = []
@@ -143,7 +133,6 @@ def plot_achievements_bar():
             total_instances.append(stats["total_unlock_instances"])
             colors.append(config["color"])
 
-    # Unique Achievements
     bars1 = axes[0].bar(model_names, unique_counts, color=colors, edgecolor='black')
     axes[0].set_ylabel("Count")
     axes[0].set_title("Unique Achievements Unlocked (out of 22)")
@@ -152,7 +141,6 @@ def plot_achievements_bar():
         axes[0].text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.3,
                     f'{count}\n({ratio:.1f}%)', ha='center', va='bottom', fontsize=10)
 
-    # Total Unlock Instances
     bars2 = axes[1].bar(model_names, total_instances, color=colors, edgecolor='black')
     axes[1].set_ylabel("Total Instances")
     axes[1].set_title("Total Achievement Unlock Instances")
@@ -167,14 +155,11 @@ def plot_achievements_bar():
 
 
 def plot_achievement_radar():
-    """Radar/spider chart showing achievement profile for each model."""
-    # Get achievement unlock counts for each model
     model_data = {}
 
     for name, config in TEST_MODELS.items():
         stats = load_json(config["achievements"])
         if stats:
-            # Create a dict mapping achievement name to unlock count
             ach_counts = {}
             for ach_stat in stats["per_achievement_stats"]:
                 ach_counts[ach_stat["achievement_name"]] = ach_stat["unlock_count"]
@@ -184,40 +169,35 @@ def plot_achievement_radar():
         print("No data available for radar chart")
         return
 
-    # Select achievements that were unlocked by at least one model
     unlocked_achievements = set()
     for data in model_data.values():
         for ach, count in data.items():
             if count > 0:
                 unlocked_achievements.add(ach)
 
-    # Sort for consistent ordering
     achievements = sorted(list(unlocked_achievements))
 
     if len(achievements) < 3:
         print("Not enough achievements unlocked for radar chart")
         return
 
-    # Setup radar chart
     num_vars = len(achievements)
     angles = np.linspace(0, 2 * np.pi, num_vars, endpoint=False).tolist()
-    angles += angles[:1]  # Complete the loop
+    angles += angles[:1]
 
     fig, ax = plt.subplots(figsize=(10, 10), subplot_kw=dict(polar=True))
 
     for name, config in TEST_MODELS.items():
         if name in model_data:
             values = [model_data[name].get(ach, 0) for ach in achievements]
-            # Normalize to 0-1 scale
             max_val = max(max(values), 1)
             values_normalized = [v / max_val for v in values]
-            values_normalized += values_normalized[:1]  # Complete the loop
+            values_normalized += values_normalized[:1]
 
             ax.plot(angles, values_normalized, 'o-', linewidth=2,
                    label=name, color=config["color"])
             ax.fill(angles, values_normalized, alpha=0.25, color=config["color"])
 
-    # Format the chart
     ax.set_xticks(angles[:-1])
     ax.set_xticklabels([a.replace('_', '\n') for a in achievements], size=8)
     ax.set_title("Achievement Profile Comparison (Normalized)", y=1.08)
@@ -230,7 +210,6 @@ def plot_achievement_radar():
 
 
 def plot_metrics_comparison():
-    """Comprehensive metrics comparison across test models."""
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
 
     model_names = []
@@ -250,7 +229,6 @@ def plot_metrics_comparison():
             avg_achievements.append(np.mean([d["achievements_unlocked"] for d in data]))
             colors.append(config["color"])
 
-    # Average Shaped Reward
     bars1 = axes[0, 0].bar(model_names, avg_shaped, color=colors, edgecolor='black')
     axes[0, 0].set_ylabel("Average Reward")
     axes[0, 0].set_title("Average Shaped Reward")
@@ -258,7 +236,6 @@ def plot_metrics_comparison():
         axes[0, 0].text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.05,
                        f'{val:.2f}', ha='center', va='bottom')
 
-    # Average Native Reward
     bars2 = axes[0, 1].bar(model_names, avg_native, color=colors, edgecolor='black')
     axes[0, 1].set_ylabel("Average Reward")
     axes[0, 1].set_title("Average Native Reward")
@@ -266,7 +243,6 @@ def plot_metrics_comparison():
         axes[0, 1].text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.05,
                        f'{val:.2f}', ha='center', va='bottom')
 
-    # Average Moves
     bars3 = axes[1, 0].bar(model_names, avg_moves, color=colors, edgecolor='black')
     axes[1, 0].set_ylabel("Average Moves")
     axes[1, 0].set_title("Average Episode Length (Survival)")
@@ -274,7 +250,6 @@ def plot_metrics_comparison():
         axes[1, 0].text(bar.get_x() + bar.get_width()/2, bar.get_height() + 1,
                        f'{val:.1f}', ha='center', va='bottom')
 
-    # Average Achievements per Episode
     bars4 = axes[1, 1].bar(model_names, avg_achievements, color=colors, edgecolor='black')
     axes[1, 1].set_ylabel("Average Achievements")
     axes[1, 1].set_title("Average Achievements per Episode")
@@ -289,7 +264,6 @@ def plot_metrics_comparison():
 
 
 def plot_episode_performance():
-    """Line plot showing performance over test episodes."""
     fig, axes = plt.subplots(2, 1, figsize=(14, 10), sharex=True)
 
     for name, config in TEST_MODELS.items():
@@ -322,7 +296,6 @@ def plot_episode_performance():
 
 
 def plot_achievement_heatmap():
-    """Heatmap showing which achievements each model unlocked during testing."""
     matrix = []
     model_names = []
 
@@ -340,7 +313,7 @@ def plot_achievement_heatmap():
 
     fig, ax = plt.subplots(figsize=(16, 5))
 
-    cmap = sns.color_palette(["#f0f0f0", "#2ca02c"], as_cmap=True)
+    cmap = sns.color_palette(["#f0f0f0", "#4CAF50"], as_cmap=True)
     sns.heatmap(matrix, annot=False, cmap=cmap,
                 xticklabels=[a.replace('_', '\n') for a in ALL_ACHIEVEMENTS],
                 yticklabels=model_names,
@@ -360,11 +333,9 @@ def plot_achievement_heatmap():
 
 
 def plot_summary_table():
-    """Generate a summary statistics table as an image."""
     fig, ax = plt.subplots(figsize=(12, 4))
     ax.axis('off')
 
-    # Collect statistics
     rows = []
     for name, config in TEST_MODELS.items():
         data = load_jsonl(config["metrics"])
@@ -386,15 +357,13 @@ def plot_summary_table():
     columns = ['Model', 'Avg Shaped', 'Std Shaped', 'Avg Native',
                'Avg Moves', 'Avg Ach/Ep', 'Unique Ach', 'Unlock %']
 
-    # Create table
     table = ax.table(cellText=rows, colLabels=columns, loc='center',
-                    cellLoc='center', colColours=['#4472C4']*len(columns))
+                    cellLoc='center', colColours=['#808080'] * len(columns))
 
     table.auto_set_font_size(False)
     table.set_fontsize(10)
     table.scale(1.2, 1.8)
 
-    # Style header
     for i in range(len(columns)):
         table[(0, i)].set_text_props(color='white', fontweight='bold')
 
@@ -407,18 +376,14 @@ def plot_summary_table():
 
 
 def main():
-    """Generate all testing plots."""
     print("=" * 50)
     print("Testing Plots Generator")
     print("=" * 50)
 
-    # Ensure output directory exists
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Setup plot style
     setup_plot_style()
 
-    # Check which data files exist
     print("\nChecking data files...")
     for name, config in TEST_MODELS.items():
         metrics_exists = config["metrics"].exists()
@@ -427,7 +392,6 @@ def main():
 
     print("\nGenerating plots...")
 
-    # Generate all plots
     plot_reward_boxplot()
     plot_achievements_bar()
     plot_achievement_radar()

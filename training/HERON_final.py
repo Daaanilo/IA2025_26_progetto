@@ -1,15 +1,4 @@
-"""
-HeRoN Final Configuration for Crafter Environment
-
-LLM (Helper + Reviewer) interviene con probabilita' CRESCENTE man mano che l'episodio procede.
-Threshold parte da 1.0 e decresce di KAPPA ad ogni step.
-L'LLM viene usato quando random() > threshold.
-
-Configurazione:
-- KAPPA = 0.01 (decremento threshold per step)
-- threshold_episodes = 100 (LLM attivo solo nei primi 100 episodi)
-- Dopo 100 step threshold = 0 (100% probabilita LLM)
-"""
+"""Training HeRoN con probabilità LLM crescente (KAPPA=0.01 per step)."""
 
 import numpy as np
 import re
@@ -18,7 +7,6 @@ import sys
 import json
 from pathlib import Path
 
-# Parent directory
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import lmstudio as lms
@@ -31,14 +19,10 @@ from classes.crafter_helper import CrafterHelper, SequenceExecutor
 from classes.instructor_agent import InstructorAgent
 from evaluation.evaluation_system import EvaluationSystem
 from training.reward_shaper import CrafterRewardShaper
-from evaluation.evaluation_plots import AdvancedPlotter, generate_all_plots
 
-# ============================================================================
-# HeRoN Final Configuration
-# ============================================================================
-KAPPA = 0.01  # Decremento threshold per step (dopo 100 step threshold = 0)
 
-# Achievement name-to-ID mapping
+KAPPA = 0.01
+
 ACHIEVEMENT_NAME_TO_ID = {
     'collect_coal': 0,
     'collect_diamond': 1,
@@ -64,15 +48,12 @@ ACHIEVEMENT_NAME_TO_ID = {
     'wake_up': 21
 }
 
-# Reverse mapping
 ACHIEVEMENT_ID_TO_NAME = {v: k for k, v in ACHIEVEMENT_NAME_TO_ID.items()}
 
-# Device setup
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"[Config] Using device: {device}")
 print(f"[Config] NOTE: MPS (Apple Silicon) not supported by Crafter environment")
 
-# Modello Reviewer (quello finetunato con PPO)
 REVIEWER_MODEL_PATH = "reviewer_retrained_ppo"
 REVIEWER_TOKENIZER_PATH = "reviewer_retrained_ppo"
 
@@ -90,22 +71,7 @@ except Exception as e:
     model_reviewer = None
 
 
-# ============================================================================
-# Main Training Loop - HeRoN Final
-# ============================================================================
-
 def train_heron_final(episodes=300, batch_size=64, episode_length=1000, threshold_episodes=100):
-    """
-    HeRoN Final: LLM con probabilita' CRESCENTE man mano che l'episodio procede.
-
-    Logica:
-    - Threshold inizia a 1.0 ad ogni episodio
-    - Decresce di KAPPA ad ogni step
-    - Se random() > threshold e episodio < threshold_episodes: usa LLM
-    - Altrimenti: usa DQN
-    """
-
-    # Inizializza tutto
     print("\n" + "="*80)
     print("HeRoN FINAL Configuration (k=0.01)")
     print(f"Threshold decrementa di {KAPPA} ad ogni step")
@@ -119,21 +85,17 @@ def train_heron_final(episodes=300, batch_size=64, episode_length=1000, threshol
     print(f"[Init] State size: {env.state_size}, Action size: {env.action_size}")
     print(f"[Init] Using device: {device}")
 
-    # DQN Agent
     print("[Init] Initializing DQN Agent...")
     agent = DQNAgent(env.state_size, env.action_size, load_model_path=None)
 
-    # Check device
     print(f"[Init] DQN Agent device: {agent.device}")
     if agent.device != device:
         print(f"[WARNING] Device mismatch: Agent={agent.device}, Global={device}")
         print(f"[WARNING] This may cause issues with Reviewer interaction")
 
-    # Helper (LLM)
     print("[Init] Initializing CrafterHelper...")
     helper = CrafterHelper(model_name="qwen/qwen3-4b-2507")
 
-    # Reviewer
     print("[Init] Initializing InstructorAgent (Reviewer)...")
     if model_reviewer is not None and tokenizer_reviewer is not None:
         instructor = InstructorAgent(model_reviewer, tokenizer_reviewer, device)
@@ -143,13 +105,10 @@ def train_heron_final(episodes=300, batch_size=64, episode_length=1000, threshol
         use_reviewer = False
         print("[Init] WARNING: Reviewer not available - training without refinement")
 
-    # Executor
     executor = SequenceExecutor(agent, env)
 
-    # Reward Shaper
     reward_shaper = CrafterRewardShaper()
 
-    # Metriche
     rewards_per_episode = []
     achievements_per_episode = []
     moves_per_episode = []
@@ -159,11 +118,9 @@ def train_heron_final(episodes=300, batch_size=64, episode_length=1000, threshol
     native_rewards_per_episode = []
     shaped_bonus_per_episode = []
 
-    # Tracking
     best_achievement_count = 0
     best_episode = -1
 
-    # Evaluation System
     evaluation_system = EvaluationSystem(num_achievements=22)
 
     print(f"\n[Training] Starting HeRoN Final training for {episodes} episodes...")
@@ -172,7 +129,6 @@ def train_heron_final(episodes=300, batch_size=64, episode_length=1000, threshol
     print(f"[Training] Episode length: {episode_length} steps")
     print(f"[Training] Initial epsilon: {agent.epsilon:.4f}")
 
-    # ===== EPISODE LOOP =====
     for e in range(episodes):
         state, initial_info = env.reset()
         state = np.reshape(state, [1, env.state_size])
@@ -190,14 +146,11 @@ def train_heron_final(episodes=300, batch_size=64, episode_length=1000, threshol
         executor.current_sequence = []
         executor.current_sequence_index = 0
 
-        # Lista achievement episodio
         episode_achievements_list = []
 
-        # Pulisce conversazione a inizio episodio
         helper.reset_conversation()
 
-        # ===== THRESHOLD RESET AD OGNI EPISODIO =====
-        threshold = 1.0  # Resetta a 1.0 ad ogni nuovo episodio
+        threshold = 1.0
 
         # ===== STEP LOOP =====
         while not done and moves < episode_length:
@@ -211,10 +164,8 @@ def train_heron_final(episodes=300, batch_size=64, episode_length=1000, threshol
             threshold = max(0, threshold - KAPPA)
 
             if use_llm:
-                # ===== WORKFLOW COMPLETO: Helper -> Reviewer -> Helper =====
                 episode_helper_calls += 1
 
-                # Aggiorna progressi Helper
                 helper.update_episode_progress(
                     achievements=episode_achievements_list,
                     step_count=moves,
@@ -222,10 +173,8 @@ def train_heron_final(episodes=300, batch_size=64, episode_length=1000, threshol
                 )
 
                 try:
-                    # Stato corrente
                     current_info = env._last_info if hasattr(env, '_last_info') else {}
 
-                    # Controllo se serve ripianificare
                     should_replan = (
                         executor.current_sequence and
                         previous_info is not None and
@@ -236,7 +185,6 @@ def train_heron_final(episodes=300, batch_size=64, episode_length=1000, threshol
                         print(f"\n[Episode {e}, Step {moves}] Re-planning triggered - interrupting sequence")
                         executor.interrupt_sequence()
 
-                    # Se serve nuova sequenza
                     if not executor.current_sequence or executor.current_sequence_index >= len(executor.current_sequence):
                         print(f"\n[Episode {e}, Step {moves}] Helper generating new sequence... (threshold={threshold:.3f})")
                         action_sequence, helper_response = helper.generate_action_sequence(
@@ -244,22 +192,18 @@ def train_heron_final(episodes=300, batch_size=64, episode_length=1000, threshol
                         )
 
                         if action_sequence is None:
-                            # Allucinazione
                             episode_hallucinations += 1
                             print(f"[Helper] Hallucination detected - falling back to DQN")
                             action = agent.act(state, env)
                         else:
-                            # 2. Il Reviewer corregge (se c'è)
                             if use_reviewer and instructor is not None:
                                 print(f"[Reviewer] Refining Helper suggestion...")
                                 game_description = helper.describe_crafter_state(state, current_info, previous_info)
                                 reviewer_feedback = instructor.generate_suggestion(game_description, helper_response)
                                 print(f"[Reviewer] Feedback: {reviewer_feedback}\n")
 
-                                # Salva feedback
                                 helper.update_episode_progress(reviewer_feedback=reviewer_feedback)
 
-                                # 3. Helper riprova usando il feedback
                                 refined_prompt = (
                                     f"REVIEWER FEEDBACK: {reviewer_feedback}\n\n"
                                     f"CRITICAL: Refine your action sequence to address the feedback above.\n"
@@ -277,7 +221,6 @@ def train_heron_final(episodes=300, batch_size=64, episode_length=1000, threshol
                                 )
 
                                 try:
-                                    # Usa generate_action_sequence dell'helper per mantenere il contesto
                                     action_sequence, refined_response = helper.generate_action_sequence(
                                         state, current_info, previous_info, override_prompt=refined_prompt
                                     )
@@ -287,7 +230,6 @@ def train_heron_final(episodes=300, batch_size=64, episode_length=1000, threshol
                                         episode_hallucinations += 1
                                         action = agent.act(state, env)
                                     else:
-                                        # Nuova sequenza raffinata
                                         executor.current_sequence = action_sequence
                                         executor.current_sequence_index = 0
                                         action = executor.current_sequence[executor.current_sequence_index]
@@ -298,13 +240,11 @@ def train_heron_final(episodes=300, batch_size=64, episode_length=1000, threshol
                                     episode_hallucinations += 1
                                     action = agent.act(state, env)
                             else:
-                                # Senza reviewer, usa quella dell'helper
                                 executor.current_sequence = action_sequence
                                 executor.current_sequence_index = 0
                                 action = executor.current_sequence[executor.current_sequence_index]
                                 executor.current_sequence_index += 1
                     else:
-                        # Continua sequenza corrente
                         action = executor.current_sequence[executor.current_sequence_index]
                         executor.current_sequence_index += 1
 
@@ -314,14 +254,11 @@ def train_heron_final(episodes=300, batch_size=64, episode_length=1000, threshol
                     action = agent.act(state, env)
 
             else:
-                # ===== DQN DIRETTA =====
                 action = agent.act(state, env)
 
-            # ===== ESEGUE AZIONE =====
             next_state, native_reward, done, info = env.step(action)
             next_state = np.reshape(next_state, [1, env.state_size])
 
-            # ===== REWARD SHAPING =====
             shaped_reward, bonus_components = reward_shaper.calculate_shaped_reward(
                 native_reward, info, previous_info
             )
@@ -330,7 +267,6 @@ def train_heron_final(episodes=300, batch_size=64, episode_length=1000, threshol
             total_shaped_reward += shaped_reward
             total_reward += shaped_reward
 
-            # ===== ACHIEVEMENTS =====
             if previous_info is not None:
                 curr_achievements = set(
                     k for k, v in info.get('achievements', {}).items() if v >= 1
@@ -341,29 +277,23 @@ def train_heron_final(episodes=300, batch_size=64, episode_length=1000, threshol
                 newly_unlocked_names = curr_achievements - prev_achievements
                 episode_achievements += len(newly_unlocked_names)
 
-                # Traccia nomi
                 if newly_unlocked_names:
                     episode_achievements_list.extend(newly_unlocked_names)
 
-                # Aggiunge a evaluation
                 if newly_unlocked_names:
                     newly_unlocked_ids = {ACHIEVEMENT_NAME_TO_ID[name] for name in newly_unlocked_names
                                          if name in ACHIEVEMENT_NAME_TO_ID}
                     evaluation_system.add_episode_achievements(e, newly_unlocked_ids, moves)
 
-            # ===== SALVA ESPERIENZA =====
             agent.remember(state, action, shaped_reward, next_state, done)
 
-            # ===== REPLAY =====
             if len(agent.memory) > batch_size:
                 agent.replay(batch_size, env)
 
-            # ===== NEXT STEP =====
             state = next_state
             previous_info = info
             moves += 1
 
-        # ===== FINE EPISODIO =====
         shaped_bonus = total_shaped_reward - total_native_reward
 
         rewards_per_episode.append(total_shaped_reward)
@@ -374,7 +304,6 @@ def train_heron_final(episodes=300, batch_size=64, episode_length=1000, threshol
         helper_calls.append(episode_helper_calls)
         hallucinations.append(episode_hallucinations)
 
-        # Valid actions %
         if episode_helper_calls > 0:
             valid_actions = episode_helper_calls - episode_hallucinations
             valid_actions_percentage = (valid_actions / episode_helper_calls) * 100.0
@@ -383,7 +312,6 @@ def train_heron_final(episodes=300, batch_size=64, episode_length=1000, threshol
 
         print(f"  Valid Actions Percentage: {valid_actions_percentage:.2f}% ({episode_helper_calls - episode_hallucinations}/{episode_helper_calls})")
 
-        # Aggiungi a evaluation system
         evaluation_system.add_episode(
             episode=e,
             shaped_reward=total_shaped_reward,
@@ -396,7 +324,6 @@ def train_heron_final(episodes=300, batch_size=64, episode_length=1000, threshol
             valid_actions_percentage=valid_actions_percentage
         )
 
-        # Salva checkpoint record
         if episode_achievements > best_achievement_count:
             best_achievement_count = episode_achievements
             best_episode = e
@@ -406,7 +333,6 @@ def train_heron_final(episodes=300, batch_size=64, episode_length=1000, threshol
             agent.save(str(checkpoint_path))
             print(f"\n[Checkpoint] New best model saved: {checkpoint_path}.*")
 
-        # Checkpoint periodici
         if (e + 1) % 10 == 0:
             checkpoint_dir = Path(__file__).parent / 'heron_final_output' / 'checkpoints'
             checkpoint_dir.mkdir(parents=True, exist_ok=True)
@@ -426,10 +352,8 @@ def train_heron_final(episodes=300, batch_size=64, episode_length=1000, threshol
         print(f"  Final Threshold: {threshold:.3f}")
         print(f"  Helper Stats: {helper.get_statistics()}")
 
-        # Epsilon decay
         agent.decay_epsilon_linear(e, total_episodes=episodes)
 
-    # ===== TRAINING COMPLETATO =====
     print(f"\n[Training] HeRoN Final Complete!")
     print(f"[Training] Average Shaped Reward: {np.mean(rewards_per_episode):.2f}")
     print(f"[Training] Average Native Reward: {np.mean(native_rewards_per_episode):.2f}")
@@ -441,10 +365,8 @@ def train_heron_final(episodes=300, batch_size=64, episode_length=1000, threshol
     print(f"[Training] Reward Shaping Stats: {reward_shaper.get_statistics()}")
     print(f"[Training] Best Model: Episode {best_episode}, Achievements: {best_achievement_count}")
 
-    # Finalizza valutazione
     evaluation_system.finalize()
 
-    # Salva modello finale
     print("\n[HeRoN Final] Saving final model...")
     models_dir = Path(__file__).parent / 'heron_final_output' / 'models'
     models_dir.mkdir(parents=True, exist_ok=True)
@@ -456,29 +378,21 @@ def train_heron_final(episodes=300, batch_size=64, episode_length=1000, threshol
     best_checkpoint = checkpoint_dir / f"heron_final_best_ep{best_episode}_ach{best_achievement_count}"
     print(f"[HeRoN Final] Best model saved: {best_checkpoint}.*")
 
-    # Esporta metriche
     print("[HeRoN Final] Exporting metrics...")
     output_dir = Path(__file__).parent / 'heron_final_output'
     output_dir.mkdir(parents=True, exist_ok=True)
     jsonl_path = output_dir / "heron_final_metrics.jsonl"
     evaluation_system.export_to_jsonl(str(jsonl_path))
 
-    # Esporta statistiche achievement
     print("[HeRoN Final] Exporting per-achievement statistics...")
     achievement_stats_path = output_dir / "heron_final_achievement_statistics.json"
     export_achievement_statistics_json(evaluation_system, str(achievement_stats_path))
 
-    # Genera grafici
-    print("[HeRoN Final] Generating plots...")
-    plot_dir = output_dir / "plots"
-    plot_dir.mkdir(exist_ok=True)
-    generate_all_plots(evaluation_system, output_dir=str(plot_dir), title_prefix="HeRoN_Final")
 
-    # Report finale
+
     print("\n[HeRoN Final] Final Evaluation Report:")
     evaluation_system.print_summary_report()
 
-    # Esporta riassunto
     evaluation_json = output_dir / "heron_final_evaluation.json"
     evaluation_system.export_summary_json(str(evaluation_json))
     print(f"[HeRoN Final] Evaluation summary saved: {evaluation_json}")
@@ -488,17 +402,9 @@ def train_heron_final(episodes=300, batch_size=64, episode_length=1000, threshol
             helper.get_statistics(), reward_shaper.get_statistics(), evaluation_system)
 
 
-# ============================================================================
-# Visualization and Export
-# ============================================================================
-
 def export_achievement_statistics_json(evaluation_system, output_file="heron_final_achievement_statistics.json"):
-    """
-    Esporta statistiche sugli achievement in JSON.
-    """
     achievement_stats = evaluation_system.get_achievement_statistics()
 
-    # Converte per JSON
     def convert_to_serializable(obj):
         if isinstance(obj, np.ndarray):
             return obj.tolist()
@@ -515,7 +421,6 @@ def export_achievement_statistics_json(evaluation_system, output_file="heron_fin
 
     serializable_stats = convert_to_serializable(achievement_stats)
 
-    # Mapping nomi
     serializable_stats['achievement_id_to_name'] = ACHIEVEMENT_ID_TO_NAME
 
     with open(output_file, 'w') as f:
@@ -524,10 +429,6 @@ def export_achievement_statistics_json(evaluation_system, output_file="heron_fin
     print(f"[Export] Saved achievement statistics to: {output_file}")
 
 
-# ============================================================================
-# Main Entry Point
-# ============================================================================
-
 if __name__ == "__main__":
     print("="*80)
     print("HeRoN FINAL: Crafter Environment Integration")
@@ -535,7 +436,6 @@ if __name__ == "__main__":
     print("Three-Agent System: DQNAgent + CrafterHelper + InstructorAgent")
     print("="*80)
 
-    # Via al training
     (rewards, native_rewards, shaped_bonus, achievements, moves,
      helper_calls, hallucinations, helper_stats, reward_shaper_stats, eval_system) = train_heron_final(
         episodes=300,  # 300 episodi standard

@@ -1,16 +1,17 @@
 import json
 import os
+"""Genera grafici di training (learning curves, achievement, helper calls, etc.)."""
+
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from pathlib import Path
 
-# Configuration
 BASE_DIR = Path(__file__).parent.parent
 TRAINING_DIR = BASE_DIR / "training"
 OUTPUT_DIR = Path(__file__).parent / "training"
 
-# Variant configurations with their file paths
+# Configurazione varianti modelli da confrontare (path ai file JSONL)
 VARIANTS = {
     "DQN Base": {
         "metrics": TRAINING_DIR / "dqn_base_output" / "dqn_base_metrics.jsonl",
@@ -39,11 +40,10 @@ VARIANTS = {
     }
 }
 
-# Filter VARIANTS to only include those that have existing metrics files
+# Filtra solo varianti con file esistenti
 VARIANTS = {name: config for name, config in VARIANTS.items() 
             if (config["metrics"].exists() and config["achievements"].exists())}
 
-# All 22 achievements in Crafter
 ALL_ACHIEVEMENTS = [
     "collect_coal", "collect_diamond", "collect_drink", "collect_iron",
     "collect_sapling", "collect_stone", "collect_wood", "defeat_skeleton",
@@ -55,7 +55,6 @@ ALL_ACHIEVEMENTS = [
 
 
 def load_jsonl(filepath):
-    """Load a JSONL file and return list of dictionaries."""
     data = []
     if filepath.exists():
         with open(filepath, 'r', encoding='utf-8') as f:
@@ -66,7 +65,6 @@ def load_jsonl(filepath):
 
 
 def load_json(filepath):
-    """Load a JSON file and return dictionary."""
     if filepath.exists():
         with open(filepath, 'r', encoding='utf-8') as f:
             return json.load(f)
@@ -74,14 +72,12 @@ def load_json(filepath):
 
 
 def moving_average(data, window=10):
-    """Calculate moving average for smoothing."""
     if len(data) < window:
         return data
     return np.convolve(data, np.ones(window)/window, mode='valid')
 
 
 def setup_plot_style():
-    """Setup matplotlib style for consistent plots."""
     plt.style.use('seaborn-v0_8-whitegrid')
     plt.rcParams['figure.figsize'] = (12, 6)
     plt.rcParams['font.size'] = 11
@@ -91,7 +87,6 @@ def setup_plot_style():
 
 
 def plot_learning_curves():
-    """Plot shaped reward learning curves for all variants."""
     fig, ax = plt.subplots(figsize=(14, 7))
 
     for name, config in VARIANTS.items():
@@ -100,10 +95,8 @@ def plot_learning_curves():
             rewards = [d["shaped_reward"] for d in data]
             episodes = range(len(rewards))
 
-            # Plot raw data with transparency
             ax.plot(episodes, rewards, alpha=0.2, color=config["color"])
 
-            # Plot smoothed line
             if len(rewards) > 10:
                 smoothed = moving_average(rewards, window=10)
                 ax.plot(range(9, len(rewards)), smoothed,
@@ -126,7 +119,6 @@ def plot_learning_curves():
 
 
 def plot_cumulative_achievements():
-    """Plot cumulative achievements over episodes."""
     fig, ax = plt.subplots(figsize=(14, 7))
 
     for name, config in VARIANTS.items():
@@ -153,7 +145,6 @@ def plot_cumulative_achievements():
 
 
 def plot_unique_achievements_bar():
-    """Bar chart of unique achievements unlocked per variant."""
     fig, ax = plt.subplots(figsize=(10, 6))
 
     names = []
@@ -169,7 +160,6 @@ def plot_unique_achievements_bar():
 
     bars = ax.barh(names, unique_counts, color=colors, edgecolor='black')
 
-    # Add value labels
     for bar, count in zip(bars, unique_counts):
         ax.text(bar.get_width() + 0.3, bar.get_y() + bar.get_height()/2,
                f'{count}/22 ({count/22*100:.1f}%)',
@@ -187,8 +177,6 @@ def plot_unique_achievements_bar():
 
 
 def plot_achievement_heatmap():
-    """Heatmap showing which achievements each variant unlocked."""
-    # Create matrix: variants x achievements
     matrix = []
     variant_names = []
 
@@ -206,8 +194,7 @@ def plot_achievement_heatmap():
 
     fig, ax = plt.subplots(figsize=(16, 6))
 
-    # Create heatmap
-    cmap = sns.color_palette(["#f0f0f0", "#2ca02c"], as_cmap=True)
+    cmap = sns.color_palette(["#f0f0f0", "#4CAF50"], as_cmap=True)
     sns.heatmap(matrix, annot=False, cmap=cmap,
                 xticklabels=[a.replace('_', '\n') for a in ALL_ACHIEVEMENTS],
                 yticklabels=variant_names,
@@ -227,7 +214,6 @@ def plot_achievement_heatmap():
 
 
 def plot_helper_calls():
-    """Plot helper calls evolution for HeRoN variants."""
     fig, ax = plt.subplots(figsize=(14, 7))
 
     heron_variants = ["DQN + Helper", "HeRoN Initial", "HeRoN Final", "HeRoN Random"]
@@ -239,10 +225,8 @@ def plot_helper_calls():
             calls = [d["helper_calls"] for d in data]
             episodes = range(len(calls))
 
-            # Plot raw data with transparency
             ax.plot(episodes, calls, alpha=0.2, color=config["color"])
 
-            # Plot smoothed line
             if len(calls) > 10:
                 smoothed = moving_average(calls, window=10)
                 ax.plot(range(9, len(calls)), smoothed,
@@ -265,7 +249,6 @@ def plot_helper_calls():
 
 
 def plot_hallucination_rate():
-    """Plot hallucination rate evolution."""
     fig, ax = plt.subplots(figsize=(14, 7))
 
     heron_variants = ["DQN + Helper", "HeRoN Initial", "HeRoN Final", "HeRoN Random"]
@@ -274,7 +257,7 @@ def plot_hallucination_rate():
         config = VARIANTS[name]
         data = load_jsonl(config["metrics"])
         if data:
-            rates = [d.get("hallucination_rate", 0) * 100 for d in data]  # Convert to percentage
+            rates = [d.get("hallucination_rate", 0) * 100 for d in data]
             episodes = range(len(rates))
 
             if len(rates) > 10:
@@ -299,7 +282,6 @@ def plot_hallucination_rate():
 
 
 def plot_reward_per_helper_call():
-    """Plot reward per helper call efficiency."""
     fig, ax = plt.subplots(figsize=(14, 7))
 
     heron_variants = ["DQN + Helper", "HeRoN Initial", "HeRoN Final", "HeRoN Random"]
@@ -308,7 +290,6 @@ def plot_reward_per_helper_call():
         config = VARIANTS[name]
         data = load_jsonl(config["metrics"])
         if data:
-            # Filter out episodes with 0 helper calls
             rewards = [d["reward_per_helper_call"] for d in data if d["helper_calls"] > 0]
             episodes = [d["episode"] for d in data if d["helper_calls"] > 0]
 
@@ -335,7 +316,6 @@ def plot_reward_per_helper_call():
 
 
 def plot_moves_per_episode():
-    """Plot episode length (moves) over training."""
     fig, ax = plt.subplots(figsize=(14, 7))
 
     for name, config in VARIANTS.items():
@@ -366,7 +346,6 @@ def plot_moves_per_episode():
 
 
 def plot_native_vs_shaped_reward():
-    """Compare native reward vs shaped reward."""
     fig, axes = plt.subplots(2, 1, figsize=(14, 10), sharex=True)
 
     for name, config in VARIANTS.items():
@@ -403,7 +382,6 @@ def plot_native_vs_shaped_reward():
 
 
 def plot_summary_statistics():
-    """Create a summary bar chart with multiple metrics."""
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
 
     variant_names = []
@@ -425,22 +403,18 @@ def plot_summary_statistics():
             unique_achievements.append(stats["unique_achievements_unlocked"])
             colors.append(config["color"])
 
-    # Average Shaped Reward
     axes[0, 0].barh(variant_names, avg_rewards, color=colors, edgecolor='black')
     axes[0, 0].set_xlabel("Average Shaped Reward")
     axes[0, 0].set_title("Average Shaped Reward")
 
-    # Total Achievements
     axes[0, 1].barh(variant_names, total_achievements, color=colors, edgecolor='black')
     axes[0, 1].set_xlabel("Total Achievement Unlocks")
     axes[0, 1].set_title("Total Achievement Unlocks")
 
-    # Average Moves
     axes[1, 0].barh(variant_names, avg_moves, color=colors, edgecolor='black')
     axes[1, 0].set_xlabel("Average Moves per Episode")
     axes[1, 0].set_title("Average Episode Length")
 
-    # Unique Achievements
     axes[1, 1].barh(variant_names, unique_achievements, color=colors, edgecolor='black')
     axes[1, 1].set_xlabel("Unique Achievements (out of 22)")
     axes[1, 1].set_title("Unique Achievements Unlocked")
@@ -453,18 +427,14 @@ def plot_summary_statistics():
 
 
 def main():
-    """Generate all training plots."""
     print("=" * 50)
     print("Training Plots Generator")
     print("=" * 50)
 
-    # Ensure output directory exists
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Setup plot style
     setup_plot_style()
 
-    # Check which data files exist
     print("\nChecking data files...")
     for name, config in VARIANTS.items():
         metrics_exists = config["metrics"].exists()
@@ -473,7 +443,6 @@ def main():
 
     print("\nGenerating plots...")
 
-    # Generate all plots
     plot_learning_curves()
     plot_cumulative_achievements()
     plot_unique_achievements_bar()

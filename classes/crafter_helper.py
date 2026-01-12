@@ -1,7 +1,3 @@
-"""
-Crafter Helper - Un LLM Zero-shot che suggerisce sequenze di azioni.
-"""
-
 import re
 import numpy as np
 import lmstudio as lms
@@ -10,9 +6,7 @@ from transformers import AutoTokenizer
 
 
 class CrafterHelper:
-    """Helper che usa un LLM per generare sequenze di 3-5 azioni in Crafter."""
-    
-    # Mappa azioni (ordine ufficiale di Crafter)
+    """Helper LLM zero-shot che genera sequenze di 3-5 azioni per Crafter."""
     ACTION_NAMES = {
         0: 'noop',
         1: 'move_left', 2: 'move_right', 3: 'move_up', 4: 'move_down',
@@ -24,17 +18,17 @@ class CrafterHelper:
     
     ACTION_ID_MAP = {v: k for k, v in ACTION_NAMES.items()}
     
-    # Re-planning
-    REPLAN_THRESHOLD_HP = 0.3  # Se HP < 30%
-    REPLAN_THRESHOLD_HP_CRITICAL = 5  # Se HP <= 5 
-    REPLAN_THRESHOLD_ACHIEVEMENT = True  
+    # Soglie per decidere quando ri-pianificare la strategia
+    REPLAN_THRESHOLD_HP = 0.3
+    REPLAN_THRESHOLD_HP_CRITICAL = 5
+    REPLAN_THRESHOLD_ACHIEVEMENT = True
     REPLAN_THRESHOLD_INVENTORY_CHANGE = True  
     
     def __init__(self, server_host="http://127.0.0.1:1234", model_name="qwen/qwen3-4b-2507",
                  min_sequence_length=3, max_sequence_length=5, default_sequence_length=4):
+        """Inizializza Helper con server LM Studio e tokenizer per gestione contesto."""
         self.server_host = server_host
         self.model_name = model_name
-        
         
         self.min_sequence_length = min_sequence_length
         self.max_sequence_length = max_sequence_length
@@ -46,22 +40,18 @@ class CrafterHelper:
         assert min_sequence_length <= default_sequence_length <= max_sequence_length, \
             f"Default {default_sequence_length} must be within [{min_sequence_length}, {max_sequence_length}]"
         
-       
         self.sequence_count = 0
         self.hallucination_count = 0
         
-       
-        self.max_messages_history = 12  
+        self.max_messages_history = 12
         self.llm_timeout_seconds = 60
-      
         self._message_history = []
         
-       
         try:
-   
+            # Tokenizer per contare e gestire limiti contesto (8192 token max, safe a 6500)
             self.tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen2.5-7B-Instruct")
-            self.max_context_tokens = 8192  
-            self.safe_context_threshold = 6500  
+            self.max_context_tokens = 8192
+            self.safe_context_threshold = 6500
             self.token_counting_enabled = True
             print(f"[Helper] Token counting attivato - max: {self.max_context_tokens}, threshold: {self.safe_context_threshold}")
         except Exception as e:
@@ -70,12 +60,10 @@ class CrafterHelper:
             self.tokenizer = None
             self.token_counting_enabled = False
         
-        
         self._episode_achievements = []
         self._recent_reviewer_feedback = None
         self._episode_step_count = 0
         self._episode_reward = 0.0
-        
         
         self._recent_sequences = []
         self._max_sequence_history = 5
@@ -179,6 +167,7 @@ class CrafterHelper:
             return "Explore and unlock remaining achievements (combat, crafting)"
     
     def generate_action_sequence(self, state, info, previous_info=None, override_prompt=None):
+        """Chiama LLM per generare sequenza di azioni con gestione token e timeout."""
         game_description = self.describe_crafter_state(state, info, previous_info)
 
     
@@ -224,6 +213,7 @@ class CrafterHelper:
 
                 llm_response = str(llm_response)
 
+                # Rimuove tag <think>...</think> se LLM ragiona ad alta voce
                 llm_response = re.sub(r"<think>.*?</think>", "", llm_response, flags=re.DOTALL).strip()
                 
                 if len(llm_response) > 500:
@@ -237,6 +227,7 @@ class CrafterHelper:
                 if action_sequence:
                     self.sequence_count += 1
                     
+                    # Rileva loop (stessa sequenza ripetuta 3 volte)
                     seq_str = str(action_sequence)
                     self._recent_sequences.append(seq_str)
                     if len(self._recent_sequences) > self._max_sequence_history:
@@ -330,6 +321,7 @@ class CrafterHelper:
         return prompt
     
     def parse_action_sequence(self, llm_response, max_length=None):
+        """Estrae sequenza di action ID da risposta LLM con fuzzy matching per errori."""
         if max_length is None:
             max_length = self.max_sequence_length
         
@@ -358,6 +350,7 @@ class CrafterHelper:
             if action_id is not None:
                 action_sequence.append(action_id)
             else:
+                # Fuzzy matching per correggere errori comuni (es. "place_rock" -> "place_stone")
                 action_id = self._fuzzy_match_action(action_str)
                 if action_id is not None:
                     action_sequence.append(action_id)
@@ -396,9 +389,11 @@ class CrafterHelper:
         return None
     
     def should_replan(self, state, info, previous_info, action_sequence):
+        """Determina se serve re-planning (achievement sbloccato, salute critica, risorse esaurite)."""
         if previous_info is None:
             return False
         
+        # Re-planning se: 1) nuovo achievement 2) salute critica 3) risorse esaurite
         if self.REPLAN_THRESHOLD_ACHIEVEMENT:
             prev_achievements = set(
                 k for k, v in previous_info.get('achievements', {}).items() if v >= 1

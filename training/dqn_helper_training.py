@@ -1,3 +1,5 @@
+"""Training DQN + Helper (senza Reviewer) con LLM attivo primi 100 step."""
+
 import numpy as np
 import re
 import os
@@ -5,7 +7,6 @@ import sys
 import json
 from pathlib import Path
 
-# Aggiungo parent directory
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import lmstudio as lms
@@ -17,9 +18,8 @@ from classes.agent import DQNAgent
 from classes.crafter_helper import CrafterHelper, SequenceExecutor
 from evaluation.evaluation_system import EvaluationSystem
 from training.reward_shaper import CrafterRewardShaper
-from evaluation.evaluation_plots import AdvancedPlotter, generate_all_plots
 
-# Mappa nomi-ID per gli achievement di Crafter
+
 ACHIEVEMENT_NAME_TO_ID = {
     'collect_coal': 0,
     'collect_diamond': 1,
@@ -45,27 +45,16 @@ ACHIEVEMENT_NAME_TO_ID = {
     'wake_up': 21
 }
 
-# Mappa inversa
 ACHIEVEMENT_ID_TO_NAME = {v: k for k, v in ACHIEVEMENT_NAME_TO_ID.items()}
 
-# Scelta device: CUDA o CPU 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"[Config] Using device: {device}")
 print(f"[Config] NOTE: MPS (Apple Silicon) not supported by Crafter environment")
 
-ASSISTED_STEPS = 100  # LLM attivo solo nei primi 100 step di ogni episodio
+ASSISTED_STEPS = 100
 
 
 def train_dqn_helper(episodes=300, batch_size=64, episode_length=1000, threshold_episodes=100):
-    """
-    Allena l'agente DQN aiutato dall'Helper (senza Reviewer).
-    
-    Logica (come HERON_initial):
-    - Se moves < ASSISTED_STEPS e episodio < threshold_episodes: usa LLM
-    - Altrimenti: usa DQN
-    """
-    
-    # Inizializza ambiente
     print("\n[Init] Initializing Crafter environment...")
     env = CrafterEnv(area=(64, 64), view=(9, 9), size=(64, 64), reward=True, 
                      length=episode_length, seed=None)
@@ -73,30 +62,23 @@ def train_dqn_helper(episodes=300, batch_size=64, episode_length=1000, threshold
     print(f"[Init] State size: {env.state_size}, Action size: {env.action_size}")
     print(f"[Init] Using device: {device}")
     
-    # Inizializza DQN Agent
     print("[Init] Initializing DQN Agent...")
     agent = DQNAgent(env.state_size, env.action_size, load_model_path=None)
     
-    # Controllo device
     print(f"[Init] DQN Agent device: {agent.device}")
     if agent.device != device:
         print(f"[WARNING] Device mismatch: Agent={agent.device}, Global={device}")
     
-    # Inizializza Helper (LLM)
     print("[Init] Initializing CrafterHelper...")
     helper = CrafterHelper(model_name="qwen/qwen3-4b-2507")
     
-    # Niente Reviewer qui
     use_reviewer = False
     print("[Init] Config: DQN + Helper (Reviewer DISABLED)")
     
-    # Esecutore di sequenze
     executor = SequenceExecutor(agent, env)
     
-    # Reward Shaper
     reward_shaper = CrafterRewardShaper()
     
-    # Metriche
     rewards_per_episode = []
     achievements_per_episode = []
     moves_per_episode = []
@@ -106,11 +88,9 @@ def train_dqn_helper(episodes=300, batch_size=64, episode_length=1000, threshold
     native_rewards_per_episode = []
     shaped_bonus_per_episode = []
     
-    # Tracking performance
     best_achievement_count = 0
     best_episode = -1
     
-    # Sistema di valutazione
     evaluation_system = EvaluationSystem(num_achievements=22)
     
     print("\n" + "="*80)
@@ -125,7 +105,6 @@ def train_dqn_helper(episodes=300, batch_size=64, episode_length=1000, threshold
     print(f"[Training] Episode length: {episode_length} steps")
     print(f"[Training] Initial epsilon: {agent.epsilon:.4f}")
     
-    # ===== EPISODE LOOP =====
     for e in range(episodes):
         state, initial_info = env.reset()
         state = np.reshape(state, [1, env.state_size])
@@ -143,24 +122,18 @@ def train_dqn_helper(episodes=300, batch_size=64, episode_length=1000, threshold
         executor.current_sequence = []  # Reset sequenza
         executor.current_sequence_index = 0
         
-        # Lista achievement sbloccati in questo episodio
         episode_achievements_list = []
         
-        # Pulisce la memoria dell'LLM a inizio episodio
         helper.reset_conversation()
         print(f"[Episode {e}] Conversation history cleared for new episode")
         
-        # ===== STEP LOOP =====
         while not done and moves < episode_length:
             
-            # ===== DQN + Helper: LLM solo nei primi ASSISTED_STEPS =====
             use_llm = (moves < ASSISTED_STEPS) and (e < threshold_episodes)
             
             if use_llm:
-                # ===== WORKFLOW LLM: Solo Helper =====
                 episode_helper_calls += 1
                 
-                # Aggiorna progressi per l'helper
                 helper.update_episode_progress(
                     achievements=episode_achievements_list,
                     step_count=moves,
@@ -168,10 +141,8 @@ def train_dqn_helper(episodes=300, batch_size=64, episode_length=1000, threshold
                 )
                 
                 try:
-                    # Stato attuale
                     current_info = env._last_info if hasattr(env, '_last_info') else {}
                     
-                    # Controlla se serve ripianificare
                     should_replan = (
                         executor.current_sequence and 
                         previous_info is not None and
@@ -182,7 +153,6 @@ def train_dqn_helper(episodes=300, batch_size=64, episode_length=1000, threshold
                         print(f"\n[Episode {e}, Step {moves}] Re-planning triggered - interrupting sequence")
                         executor.interrupt_sequence()
                     
-                    # Se sequenza finita o interrotta, fanne una nuova
                     if not executor.current_sequence or executor.current_sequence_index >= len(executor.current_sequence):
                         print(f"\n[Episode {e}, Step {moves}] Helper generating new sequence...")
                         action_sequence, helper_response = helper.generate_action_sequence(
@@ -190,18 +160,15 @@ def train_dqn_helper(episodes=300, batch_size=64, episode_length=1000, threshold
                         )
                         
                         if action_sequence is None:
-                            # Allucinazione
                             episode_hallucinations += 1
                             print(f"[Helper] Hallucination detected - falling back to DQN")
                             action = agent.act(state, env)
                         else:
-                            # Nuova sequenza
                             executor.current_sequence = action_sequence
                             executor.current_sequence_index = 0
                             action = executor.current_sequence[executor.current_sequence_index]
                             executor.current_sequence_index += 1
                     else:
-                        # Continua sequenza corrente
                         action = executor.current_sequence[executor.current_sequence_index]
                         executor.current_sequence_index += 1
                 
@@ -211,14 +178,11 @@ def train_dqn_helper(episodes=300, batch_size=64, episode_length=1000, threshold
                     action = agent.act(state, env)
             
             else:
-                # ===== DQN DIRETTA =====
                 action = agent.act(state, env)
             
-            # ===== ESEGUE AZIONE =====
             next_state, native_reward, done, info = env.step(action)
             next_state = np.reshape(next_state, [1, env.state_size])
             
-            # ===== REWARD SHAPING =====
             shaped_reward, bonus_components = reward_shaper.calculate_shaped_reward(
                 native_reward, info, previous_info
             )
@@ -227,7 +191,6 @@ def train_dqn_helper(episodes=300, batch_size=64, episode_length=1000, threshold
             total_shaped_reward += shaped_reward
             total_reward += shaped_reward  
             
-            # ===== UPDATE ACHIEVEMENTS =====
             if previous_info is not None:
                 curr_achievements = set(
                     k for k, v in info.get('achievements', {}).items() if v >= 1
@@ -238,29 +201,23 @@ def train_dqn_helper(episodes=300, batch_size=64, episode_length=1000, threshold
                 newly_unlocked_names = curr_achievements - prev_achievements
                 episode_achievements += len(newly_unlocked_names)
                 
-                # Tiene traccia dei nomi
                 if newly_unlocked_names:
                     episode_achievements_list.extend(newly_unlocked_names)
                 
-                # Aggiunge a evaluation system
                 if newly_unlocked_names:
                     newly_unlocked_ids = {ACHIEVEMENT_NAME_TO_ID[name] for name in newly_unlocked_names 
                                          if name in ACHIEVEMENT_NAME_TO_ID}
                     evaluation_system.add_episode_achievements(e, newly_unlocked_ids, moves)
             
-            # ===== SALVA ESPERIENZA =====
             agent.remember(state, action, shaped_reward, next_state, done)
             
-            # ===== REPLAY =====
             if len(agent.memory) > batch_size:
                 agent.replay(batch_size, env)
             
-            # ===== AGGIORNA STATO =====
             state = next_state
             previous_info = info
             moves += 1
         
-        # ===== FINE EPISODIO =====
         shaped_bonus = total_shaped_reward - total_native_reward
         
         rewards_per_episode.append(total_shaped_reward)
@@ -271,7 +228,6 @@ def train_dqn_helper(episodes=300, batch_size=64, episode_length=1000, threshold
         helper_calls.append(episode_helper_calls)
         hallucinations.append(episode_hallucinations)
         
-        # Calcolo % azioni valide
         if episode_helper_calls > 0:
             valid_actions = episode_helper_calls - episode_hallucinations
             valid_actions_percentage = (valid_actions / episode_helper_calls) * 100.0
@@ -280,7 +236,6 @@ def train_dqn_helper(episodes=300, batch_size=64, episode_length=1000, threshold
         
         print(f"  Valid Actions Percentage: {valid_actions_percentage:.2f}% ({episode_helper_calls - episode_hallucinations}/{episode_helper_calls})")
         
-        # Aggiungi a EvaluationSystem
         evaluation_system.add_episode(
             episode=e,
             shaped_reward=total_shaped_reward,
@@ -293,7 +248,6 @@ def train_dqn_helper(episodes=300, batch_size=64, episode_length=1000, threshold
             valid_actions_percentage=valid_actions_percentage
         )
         
-        # Salva checkpoint se record
         if episode_achievements > best_achievement_count:
             best_achievement_count = episode_achievements
             best_episode = e
@@ -303,7 +257,6 @@ def train_dqn_helper(episodes=300, batch_size=64, episode_length=1000, threshold
             agent.save(str(checkpoint_path))
             print(f"\n[Checkpoint] New best model saved: {checkpoint_path}.*")
         
-        # Checkpoint periodico (ogni 10)
         if (e + 1) % 10 == 0:
             checkpoint_dir = Path(__file__).parent / 'dqn_helper_output' / 'checkpoints'
             checkpoint_dir.mkdir(parents=True, exist_ok=True)
@@ -322,10 +275,8 @@ def train_dqn_helper(episodes=300, batch_size=64, episode_length=1000, threshold
         print(f"  LLM Active: {e < threshold_episodes} (Episode {e} < {threshold_episodes})")
         print(f"  Helper Stats: {helper.get_statistics()}")
         
-        # Epsilon decay
         agent.decay_epsilon_linear(e, total_episodes=episodes)
     
-    # ===== TRAINING COMPLETATO =====
     print(f"\n[Training] Complete!")
     print(f"[Training] Average Shaped Reward: {np.mean(rewards_per_episode):.2f}")
     print(f"[Training] Average Native Reward: {np.mean(native_rewards_per_episode):.2f}")
@@ -337,10 +288,8 @@ def train_dqn_helper(episodes=300, batch_size=64, episode_length=1000, threshold
     print(f"[Training] Reward Shaping Stats: {reward_shaper.get_statistics()}")
     print(f"[Training] Best Model: Episode {best_episode}, Achievements: {best_achievement_count}")
     
-    # Finalizza valutazione
     evaluation_system.finalize()
     
-    # Salva tutto
     print("\n[DQN+Helper] Saving final model...")
     models_dir = Path(__file__).parent / 'dqn_helper_output' / 'models'
     models_dir.mkdir(parents=True, exist_ok=True)
@@ -352,29 +301,21 @@ def train_dqn_helper(episodes=300, batch_size=64, episode_length=1000, threshold
     best_checkpoint = checkpoint_dir / f"dqn_helper_best_ep{best_episode}_ach{best_achievement_count}"
     print(f"[DQN+Helper] ✓ Best model saved: {best_checkpoint}.*")
     
-    # Esporta metriche
     print("[DQN+Helper] Exporting metrics...")
     output_dir = Path(__file__).parent / 'dqn_helper_output'
     output_dir.mkdir(parents=True, exist_ok=True)
     jsonl_path = output_dir / "dqn_helper_crafter_metrics.jsonl"
     evaluation_system.export_to_jsonl(str(jsonl_path))
     
-    # Esporta statistiche achievement
     print("[DQN+Helper] Exporting per-achievement statistics...")
     achievement_stats_path = output_dir / "dqn_helper_achievement_statistics.json"
     export_achievement_statistics_json(evaluation_system, str(achievement_stats_path))
     
-    # Grafici
-    print("[DQN+Helper] Generating plots...")
-    plot_dir = output_dir / "plots"
-    plot_dir.mkdir(exist_ok=True)
-    generate_all_plots(evaluation_system, output_dir=str(plot_dir))
+
     
-    # Report finale
     print("\n[DQN+Helper] Final Evaluation Report:")
     evaluation_system.print_summary_report()
     
-    # Export summary
     evaluation_json = output_dir / "dqn_helper_evaluation.json"
     evaluation_system.export_summary_json(str(evaluation_json))
     print(f"[DQN+Helper] ✓ Evaluation summary saved: {evaluation_json}")
@@ -384,17 +325,9 @@ def train_dqn_helper(episodes=300, batch_size=64, episode_length=1000, threshold
             helper.get_statistics(), reward_shaper.get_statistics(), evaluation_system)
 
 
-# ============================================================================
-# Visualization and Export
-# ============================================================================
-
 def export_achievement_statistics_json(evaluation_system, output_file="dqn_helper_achievement_statistics.json"):
-    """
-    Esporta statistiche complete sugli achievement in JSON.
-    """
     achievement_stats = evaluation_system.get_achievement_statistics()
     
-    # Converte numpy array in liste
     def convert_to_serializable(obj):
         if isinstance(obj, np.ndarray):
             return obj.tolist()
@@ -411,7 +344,6 @@ def export_achievement_statistics_json(evaluation_system, output_file="dqn_helpe
     
     serializable_stats = convert_to_serializable(achievement_stats)
     
-    # Aggiunge mapping nomi
     serializable_stats['achievement_id_to_name'] = ACHIEVEMENT_ID_TO_NAME
     
     with open(output_file, 'w') as f:
@@ -419,10 +351,6 @@ def export_achievement_statistics_json(evaluation_system, output_file="dqn_helpe
     
     print(f"[Export] Saved achievement statistics to: {output_file}")
 
-
-# ============================================================================
-# Main Entry Point
-# ============================================================================
 
 if __name__ == "__main__":
     import argparse
@@ -441,7 +369,6 @@ if __name__ == "__main__":
     print("Two-Agent System: DQNAgent + CrafterHelper")
     print("="*80)
     
-    # Via al training
     (rewards, native_rewards, shaped_bonus, achievements, moves, 
      helper_calls, hallucinations, helper_stats, reward_shaper_stats, eval_system) = train_dqn_helper(
         episodes=args.episodes,

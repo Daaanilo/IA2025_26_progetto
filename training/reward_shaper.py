@@ -1,6 +1,9 @@
 import numpy as np
 
+"""Custom reward shaping per Crafter (risorse +0.1, health +0.02, tools +0.3, morte -1.0)."""
+
 class CrafterRewardShaper:
+    """Modella reward custom per incentivare raccolta risorse e sopravvivenza."""
     def __init__(self):
         self.bonus_tracker = {
             'resource_collection': [],
@@ -21,26 +24,24 @@ class CrafterRewardShaper:
         if previous_info is None:
             return shaped_reward, bonuses
 
-        # ===== MORTE (-1.0) =====
+        # Penalità morte (health passa da >0 a 0)
         curr_health = info.get('inventory', {}).get('health', 10)
         prev_health = previous_info.get('inventory', {}).get('health', 10)
         if curr_health == 0 and prev_health > 0:
             bonuses['death_penalty'] = -1.0
 
-        # ===== 1. Risorse (+0.1) =====
+        # Bonus +0.1 per ogni risorsa raccolta (wood, stone, coal, iron, diamond)
         bonuses['resource_collection'] = self._calculate_resource_bonus(info, previous_info)
 
-        # ===== 2. Salute (+0.02) =====
+        # Bonus +0.02 per health alto (incentiva sopravvivenza)
         bonuses['health_management'] = self._calculate_health_bonus(info)
 
-        # ===== 3. Crafting (+0.3) =====
+        # Bonus +0.3 per crafting tools (pickaxe, sword - importante per progressione)
         bonuses['tool_usage'] = self._calculate_tool_bonus(info, previous_info)
 
-        # Somma tutto
         total_bonus = sum(bonuses.values())
         shaped_reward += total_bonus
 
-        # Traccia statistiche
         for key in bonuses:
             self.bonus_tracker[key].append(bonuses[key])
 

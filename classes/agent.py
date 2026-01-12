@@ -11,7 +11,7 @@ Transition = namedtuple('Transition', ('state', 'action', 'reward', 'next_state'
 
 
 class DQNNetwork(nn.Module):
-    """PyTorch neural network for DQN (GPU-compatible)."""
+    """Rete neurale per DQN (43 input -> 128 -> 128 -> 64 -> 17 output)."""
     def __init__(self, state_size, action_size):
         super(DQNNetwork, self).__init__()
         self.fc1 = nn.Linear(state_size, 128)
@@ -27,41 +27,38 @@ class DQNNetwork(nn.Module):
 
 
 class DQNAgent:
+    """Agente DQN con Double DQN, Prioritized Replay e Target Network."""
     def __init__(self, state_size, action_size, load_model_path=None, learning_rate=0.0001, epsilon=1.0):
         self.state_size = state_size
         self.action_size = action_size
         
-        # Memory più grande, ma occhio alla GPU da 6GB
+        # Memoria per Prioritized Experience Replay
         self.memory = deque(maxlen=5000)
-        self.priorities = deque(maxlen=5000)  # Prioritized Replay
+        self.priorities = deque(maxlen=5000)
         
-        # Parametri per Crafter
-        self.gamma = 0.99  # Discount alto per rewards sparse
+        self.gamma = 0.99
         self.epsilon = epsilon
-        self.epsilon_min = 0.05  # Più esplorazione alla fine
-        self.epsilon_decay_episodes = 300  # Scende lineare in 300 episodi
+        self.epsilon_min = 0.05
+        self.epsilon_decay_episodes = 300
         self.learning_rate = learning_rate
         
-        # Target network separata
-        self.target_update_freq = 100  # Ogni quanto aggiorno la target
+        # Target network separata per stabilità (aggiornata ogni 100 step)
+        self.target_update_freq = 100
         self.train_step_counter = 0
         
-        # Parametri Prioritized Replay
         self.priority_alpha = 0.6
         self.priority_beta = 0.4
         self.priority_beta_increment = 0.001
-        self.priority_epsilon = 1e-6  # Per evitare priorità zero
+        self.priority_epsilon = 1e-6
         
-        # Usa GPU se c'è
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
         if load_model_path:
             self.load(load_model_path)
         else:
-            # Due reti per Double DQN
             self.model = self._build_model()
             self.target_model = self._build_model()
-            self._update_target_model()  # Sincronizza subito
+            self._update_target_model()
             
             self.optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate)
         
@@ -72,11 +69,9 @@ class DQNAgent:
         return model
     
     def _update_target_model(self):
-        """Copia i pesi sulla target network."""
         self.target_model.load_state_dict(self.model.state_dict())
     
     def update_learning_rate(self, new_lr):
-        """Aggiorna il learning rate al volo."""
         self.learning_rate = new_lr
         for param_group in self.optimizer.param_groups:
             param_group['lr'] = new_lr
@@ -107,11 +102,13 @@ class DQNAgent:
                 self.epsilon = float(f.read().strip())
 
     def remember(self, state, action, reward, next_state, done):
+        """Salva esperienza nella memoria con priorità massima."""
         max_priority = max(self.priorities) if self.priorities else 1.0
         self.memory.append((state, action, reward, next_state, done))
         self.priorities.append(max_priority)
 
     def act(self, state, env):
+        """Seleziona azione con epsilon-greedy (esplorazione vs sfruttamento)."""
         valid_actions = env.get_valid_actions()
         if np.random.rand() <= self.epsilon:
             action = random.choice(valid_actions)
@@ -145,17 +142,18 @@ class DQNAgent:
         if len(self.memory) < batch_size:
             return
 
+        # Campionamento proporzionale alle priorità (esperienze importanti più spesso)
         priorities = np.array(self.priorities, dtype=np.float64)
         probabilities = priorities ** self.priority_alpha
         probabilities /= probabilities.sum()
         
         indices = np.random.choice(len(self.memory), batch_size, p=probabilities, replace=False)
         
+        # Importance sampling weights per correggere bias del campionamento
         weights = (len(self.memory) * probabilities[indices]) ** (-self.priority_beta)
-        weights /= weights.max() 
+        weights /= weights.max()
         self.priority_beta = min(1.0, self.priority_beta + self.priority_beta_increment)
         
-        # Prepara i batch
         states = []
         targets = []
         td_errors = []
@@ -165,13 +163,13 @@ class DQNAgent:
             
             target = reward
             if not done:
-                # Double DQN: Policy sceglie, Target valuta
+                # Double DQN: policy network sceglie, target network valuta
                 next_state_tensor = torch.FloatTensor(next_state).to(self.device)
                 self.model.eval()
                 self.target_model.eval()
                 
                 with torch.no_grad():
-                    # La Policy sceglie l'azione migliore
+                    # Policy network: sceglie l'azione migliore
                     next_q_policy = self.model(next_state_tensor).cpu().numpy()[0]
                     valid_actions = env.get_valid_actions()
                     
@@ -182,17 +180,15 @@ class DQNAgent:
                     else:
                         best_action = np.argmax(next_q_policy)
                     
-                    # La Target valuta quell'azione
+                    # Target network: valuta il valore di quell'azione (riduce overestimation)
                     next_q_target = self.target_model(next_state_tensor).cpu().numpy()[0]
                     target = reward + self.gamma * next_q_target[best_action]
             
-            # Q-values attuali
             state_tensor = torch.FloatTensor(state).to(self.device)
             self.model.eval()
             with torch.no_grad():
                 current_q = self.model(state_tensor).cpu().numpy()[0]
             
-            # Errore TD per aggiornare le priorità
             td_error = abs(target - current_q[action])
             td_errors.append(td_error)
             
@@ -201,7 +197,6 @@ class DQNAgent:
             states.append(state[0])
             targets.append(target_f)
         
-        # Training su GPU con i pesi
         self.model.train()
         states_batch = torch.FloatTensor(np.array(states)).to(self.device)
         targets_batch = torch.FloatTensor(np.array(targets)).to(self.device)
@@ -210,25 +205,20 @@ class DQNAgent:
         self.optimizer.zero_grad()
         predictions = self.model(states_batch)
         
-        # Loss pesata
         loss = (weights_batch * ((predictions - targets_batch) ** 2).mean(dim=1)).mean()
         loss.backward()
         
-        # Clipping per stabilità
         torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=10.0)
         
         self.optimizer.step()
         
-        # Aggiorna priorità
+        # Aggiorna priorità in base all'errore TD (esperienze sorprendenti = priorità alta)
         for idx, td_error in zip(indices, td_errors):
             self.priorities[idx] = td_error + self.priority_epsilon
         
-        # Aggiorna la target network 
         self.train_step_counter += 1
         if self.train_step_counter % self.target_update_freq == 0:
             self._update_target_model()
-        
-        # Epsilon decay viene fatto in act()
 
     def save(self, path_prefix):
         save_dir = os.path.dirname(path_prefix)

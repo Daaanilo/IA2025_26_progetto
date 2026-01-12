@@ -1,4 +1,5 @@
 class InstructorAgent:
+    """Reviewer T5 fine-tuned per validare e correggere sequenze dell'Helper."""
     def __init__(self, model, tokenizer, device):
         self.model = model
         self.tokenizer = tokenizer

@@ -1,4 +1,6 @@
 import re
+"""Reinforcement learning con PPO sul Reviewer T5 per feedback strategico."""
+
 import torch
 import json
 from datasets import Dataset
@@ -20,21 +22,9 @@ def processes_function(examples):
 
 
 def calculate_reward(ideal_feedback, suggested_feedback):
-    """
-    Calculate reward based on quality of Reviewer's strategic feedback.
-    
-    Args:
-        ideal_feedback: Target strategic feedback (from dataset)
-        suggested_feedback: Model-generated feedback
-    
-    Returns:
-        float: Reward score
-    """
-    # Positive reward for generating any feedback
     if not suggested_feedback or len(suggested_feedback.strip()) < 10:
-        return -5.0  # Penalty for too short or empty feedback
+        return -5.0
     
-    # Check for key strategic terms (Crafter-specific)
     strategic_terms = [
         'achievement', 'resource', 'collect', 'craft', 'health', 
         'wood', 'stone', 'iron', 'pickaxe', 'sword', 'table',
@@ -43,26 +33,21 @@ def calculate_reward(ideal_feedback, suggested_feedback):
     
     term_count = sum(1 for term in strategic_terms if term.lower() in suggested_feedback.lower())
     
-    # Base reward for term coverage
     reward = term_count * 0.5
     
-    # Check for action suggestions (bracketed actions like [do], [move_right])
     action_pattern = r'\[([^\]]+)\]'
     ideal_actions = set(re.findall(action_pattern, ideal_feedback.lower()))
     suggested_actions = set(re.findall(action_pattern, suggested_feedback.lower()))
     
-    # Reward for matching actions
     if ideal_actions and suggested_actions:
         action_overlap = len(ideal_actions & suggested_actions) / max(len(ideal_actions), 1)
         reward += action_overlap * 3.0
     
-    # Bonus for quality indicators
     quality_indicators = ['EXCELLENT', 'GOOD', 'CRITICAL', 'WARNING', 'SUGGESTION']
     has_quality_feedback = any(ind in suggested_feedback for ind in quality_indicators)
     if has_quality_feedback:
         reward += 2.0
     
-    # Length penalty (too verbose is bad)
     if len(suggested_feedback) > 500:
         reward -= 1.0
     
@@ -73,11 +58,9 @@ def collators(data):
     return dict((key, [d[key] for d in data]) for key in data[0])
 
 
-# Device auto-detection: CUDA > CPU (no MPS support)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
-# Load fine-tuned Reviewer model from F06
 REVIEWER_MODEL_PATH = "reviewer_retrained"
 print(f"Loading Reviewer model from {REVIEWER_MODEL_PATH}...")
 
@@ -91,7 +74,6 @@ tokenizer = AutoTokenizer.from_pretrained(REVIEWER_MODEL_PATH)
 model = AutoModelForSeq2SeqLMWithValueHead.from_pretrained(REVIEWER_MODEL_PATH).to(device)
 print(f"✓ Model loaded from {REVIEWER_MODEL_PATH}")
 
-# Load JSONL dataset
 DATASET_PATH = 'game_scenarios_dataset_crafter.jsonl'
 print(f"Loading dataset from {DATASET_PATH}...")
 
@@ -104,7 +86,6 @@ if os.path.exists(DATASET_PATH):
 else:
     raise FileNotFoundError(f"Dataset not found at {DATASET_PATH}. Run crafter_dataset_generation.py first.")
 
-# Prepare data for PPO training
 processed_data = {
     'input': [f"{item['prompt']} {item['response']}" for item in data],
     'instructions': [item['instructions'] for item in data]
@@ -130,12 +111,11 @@ generation_kwards = {
     "temperature": 0.4,
     "top_k": 50,
     "top_p": 0.8,
-    "max_new_tokens": 128,  
+    "max_new_tokens": 128,
 }
 
 
 def train_ppo(epochs):
-    """Train Reviewer with PPO reinforcement learning."""
     print(f"\nStarting PPO training for {epochs} epochs...")
     
     for i in tqdm(range(epochs), desc="PPO Epochs"):
@@ -162,14 +142,12 @@ def train_ppo(epochs):
 
             stats = ppo_trainer.step(input_tensor, response_tensor, reward_tensor)
         
-        # Epoch summary
         avg_reward = sum(epoch_rewards) / max(len(epoch_rewards), 1)
         print(f"\nEpoch {i+1}/{epochs} complete")
         print(f"  Average reward: {avg_reward:.3f}")
         print(f"  KL divergence: {stats.get('objective/kl', 'N/A')}")
         print(f"  Returns mean: {stats.get('ppo/returns/mean', 'N/A')}")
 
-    # Save PPO-trained model
     output_path = "reviewer_retrained_ppo"
     print(f"\nSaving PPO-trained model to {output_path}/...")
     ppo_trainer.save_pretrained(output_path)

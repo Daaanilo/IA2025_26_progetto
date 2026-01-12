@@ -128,21 +128,21 @@ Dopo il training, i modelli sono stati testati per 300 episodi su nuovi seed per
 \rowcolor{gray!20}
 \textbf{Metrica} & \textbf{DQN} & \textbf{DQN+H} & \textbf{HeRoN I} & \textbf{HeRoN R} & \textbf{HeRoN F} \\
 \hline
-Achievement medio & 0.25 & 0.27 & 0.73 & \textbf{0.78} & 0.48 \\
+Achievement medio & $0.25 \pm 0.64$ & $0.31 \pm 0.76$ & $0.76 \pm 0.96$ & $\mathbf{0.80 \pm 0.96}$ & $0.46 \pm 0.78$ \\
 \hline
 Coverage & 13.6\% & 22.7\% & \textbf{40.9\%} & 36.4\% & 31.8\% \\
  & (3/22) & (5/22) & \textbf{(9/22)} & (8/22) & (7/22) \\
 \hline
-Reward shaped & 1.18 & 2.33 & \textbf{5.24} & 5.04 & 2.99 \\
+Reward shaped & $1.18 \pm 0.72$ & $2.38 \pm 1.00$ & $\mathbf{5.21 \pm 1.67}$ & $5.02 \pm 1.71$ & $2.98 \pm 1.11$ \\
 \hline
-Total unlocks & 76 & 81 & 222 & \textbf{235} & 143 \\
+Total unlocks & 76 & 94 & 228 & \textbf{239} & 138 \\
 \hline
 \end{tabular}
 \caption{Metriche di testing delle cinque configurazioni (300 episodi, senza LLM).}
 \end{table}
 
 \noindent
-Le configurazioni HeRoN mantengono il vantaggio acquisito in training anche in fase di testing. HeRoN Initial raggiunge la coverage massima nel testing (40.9\%, 9/22), superando HeRoN Random (36.4\%, 8/22). HeRoN Random ottiene il maggior numero di unlock (235), mentre HeRoN Initial ha reward più alto (5.24). Tutte le varianti HeRoN superano significativamente DQN baseline.
+Le configurazioni HeRoN mantengono il vantaggio acquisito in training anche in fase di testing. HeRoN Initial raggiunge la coverage massima nel testing (40.9\%, 9/22), superando HeRoN Random (36.4\%, 8/22). HeRoN Random ottiene il maggior numero medio di achievement (0.80), mentre HeRoN Initial ha reward shaped leggermente più alto (5.21 vs 5.02). Tutte le varianti HeRoN superano significativamente DQN baseline.
 
 \subsection{Visualizzazioni Testing}
 
@@ -178,13 +178,13 @@ Le configurazioni HeRoN mantengono il vantaggio acquisito in training anche in f
 \hline
 DQN Baseline & 1.86 & 1.18 & 18.2\% & 13.6\% \\
 \hline
-DQN + Helper & 2.93 & 2.33 & 27.3\% & 22.7\% \\
+DQN + Helper & 2.93 & 2.38 & 27.3\% & 22.7\% \\
 \hline
-\textbf{HeRoN Initial} & \textbf{8.02} & \textbf{5.24} & \textbf{50.0\%} & \textbf{40.9\%} \\
+\textbf{HeRoN Initial} & \textbf{8.02} & \textbf{5.21} & \textbf{50.0\%} & \textbf{40.9\%} \\
 \hline
-HeRoN Random & 6.47 & 5.04 & 50.0\% & 36.4\% \\
+HeRoN Random & 6.47 & 5.02 & 50.0\% & 36.4\% \\
 \hline
-HeRoN Final & 3.84 & 2.99 & 36.4\% & 31.8\% \\
+HeRoN Final & 3.84 & 2.98 & 36.4\% & 31.8\% \\
 \hline
 \end{tabular}
 \caption{Confronto performance training vs testing.}

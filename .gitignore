@@ -4,8 +4,10 @@
 *.safetensors
 *.keras
 *.pkl
-*.jsonl
 *.json
+*.jsonl
+*.csv
+*.png
 
 # Training output
 training_output/
