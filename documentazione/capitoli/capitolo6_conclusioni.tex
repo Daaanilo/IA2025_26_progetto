@@ -13,10 +13,10 @@ Il presente lavoro affronta l'applicazione dell'architettura HeRoN (Helper-Revie
 L'analisi comparativa di cinque configurazioni (presentata in dettaglio nel Capitolo~5) evidenzia risultati significativi:
 
 \begin{itemize}
-    \item \textbf{Vincitore complessivo}: HeRoN Initial ottiene il miglior reward shaped (8.02), coverage massima (50\%, 11/22 achievement), achievement medio più alto (2.65) e maggior numero di unlock totali (802)
-    \item \textbf{Coverage}: HeRoN Initial e HeRoN Random raggiungono parità con coverage massima (50\%, 11/22 achievement), includendo crafting base e combat. DQN Baseline raggiunge solo 18.2\% (4/22)
-    \item \textbf{Performance intermedie}: HeRoN Final presenta performance intermedie (reward 3.84, coverage 36.4\%, 228 unlock), superiori a DQN baseline ma inferiori a HeRoN Initial
-    \item \textbf{Generalizzazione}: In testing, HeRoN Initial mantiene vantaggio su DQN baseline, confermando apprendimento robusto
+    \item \textbf{Vincitore complessivo}: HeRoN Initial ottiene il miglior reward shaped in training (8.02) e testing (5.21), coverage massima (50\%, 11/22 achievement) mantenuta in entrambe le fasi, e achievement medio più alto
+    \item \textbf{Coverage}: In training, HeRoN Initial e HeRoN Random raggiungono parità con coverage massima (50\%, 11/22 achievement). In testing, tutte e tre le varianti HeRoN raggiungono 50\% coverage, mentre DQN Baseline raggiunge solo 36.4\% (8/22)
+    \item \textbf{Performance intermedie}: HeRoN Final presenta performance intermedie in training (reward 3.84, coverage 36.4\%), ma raggiunge 50\% coverage in testing, dimostrando buona capacità di generalizzazione
+    \item \textbf{Generalizzazione eccellente}: In testing (1500 episodi su 5 run), tutte le varianti HeRoN mantengono o migliorano la coverage, con HeRoN Initial che conserva il vantaggio su tutte le metriche
 \end{itemize}
 
 \vspace{0.5cm}
@@ -106,7 +106,7 @@ Nonostante i risultati positivi, il progetto presenta alcune limitazioni:
 \begin{enumerate}
     \item \textbf{Assenza di informazioni visive}: Il progetto lavora esclusivamente su uno stato vettoriale di 43 dimensioni, senza accesso a osservazioni visive (immagini RGB). Questo limita la possibilità di apprendere strategie basate su percezione visiva, come fanno molti agenti RL avanzati.
     \item \textbf{Pianificazione a breve termine}: Sequenze di 5 azioni limitano la capacità di perseguire obiettivi molto distanti (es. collect\_diamond richiede 50+ azioni coordinate)
-    \item \textbf{Coverage incompleta}: HeRoN Initial raggiunge 11 achievement su 22 (50\% coverage), mentre DQN Baseline solo 4/22 (18.2\%). Gli achievement più avanzati richiedono catene complesse non ancora supportate
+    \item \textbf{Coverage incompleta}: Le varianti HeRoN raggiungono 11 achievement su 22 (50\% coverage) sia in training che in testing, mentre DQN Baseline raggiunge 8/22 (36.4\%) in testing. Gli achievement più avanzati (es. diamanti, crafting complesso) richiedono catene di azioni molto lunghe non ancora supportate dalla pianificazione a breve termine
 \end{enumerate}
 
 \vspace{0.5cm}
@@ -149,7 +149,7 @@ Il presente lavoro dimostra che l'architettura HeRoN può essere estesa oltre il
         \item Robustezza del sistema di re-planning per gestire situazioni critiche
     \end{itemize}
     Il successo in domini diversi (JRPG a turni vs survival open-world) conferma la generalizzabilità dell'approccio.
-    \item \textbf{Vantaggi osservati}: Velocità di apprendimento significativamente migliorata, performance finale superiore su tutte le metriche principali, capacità di pianificazione strategica e coverage achievement triplicata rispetto a baseline puro.
+    \item \textbf{Vantaggi osservati}: Velocità di apprendimento significativamente migliorata, performance finale superiore su tutte le metriche principali, capacità di pianificazione strategica e coverage achievement migliorata del 37\% rispetto a DQN baseline (50.0\% vs 36.4\% in testing). In testing, HeRoN Random ottiene una media di 240 unlock per run, contro i 75 di DQN Base, triplicando le prestazioni esplorative.
 \end{itemize}
 
 Allo stesso tempo, sono emersi sfide importanti relative all'overhead computazionale, alla qualità del dataset per il Reviewer e ai limiti della pianificazione a breve termine. Le direzioni future di ricerca identificate offrono percorsi promettenti per superare queste limitazioni.

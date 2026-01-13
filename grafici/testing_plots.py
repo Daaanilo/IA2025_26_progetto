@@ -121,8 +121,10 @@ def plot_achievements_bar():
     model_names = []
     unique_counts = []
     unlock_ratios = []
-    total_instances = []
+    avg_instances = []  # Media tra 5 run
     colors = []
+    
+    NUM_RUNS = 5  # Numero di run aggregate
 
     for name, config in TEST_MODELS.items():
         stats = load_json(config["achievements"])
@@ -130,7 +132,8 @@ def plot_achievements_bar():
             model_names.append(name)
             unique_counts.append(stats["unique_achievements_unlocked"])
             unlock_ratios.append(stats["unlock_ratio"] * 100)
-            total_instances.append(stats["total_unlock_instances"])
+            # Calcola la media dividendo per il numero di run
+            avg_instances.append(stats["total_unlock_instances"] / NUM_RUNS)
             colors.append(config["color"])
 
     bars1 = axes[0].bar(model_names, unique_counts, color=colors, edgecolor='black')
@@ -141,12 +144,12 @@ def plot_achievements_bar():
         axes[0].text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.3,
                     f'{count}\n({ratio:.1f}%)', ha='center', va='bottom', fontsize=10)
 
-    bars2 = axes[1].bar(model_names, total_instances, color=colors, edgecolor='black')
-    axes[1].set_ylabel("Total Instances")
-    axes[1].set_title("Total Achievement Unlock Instances")
-    for bar, count in zip(bars2, total_instances):
-        axes[1].text(bar.get_x() + bar.get_width()/2, bar.get_height() + 5,
-                    str(count), ha='center', va='bottom', fontsize=10)
+    bars2 = axes[1].bar(model_names, avg_instances, color=colors, edgecolor='black')
+    axes[1].set_ylabel("Average Instances per Run")
+    axes[1].set_title("Average Achievement Unlock Instances (per 300 episodes)")
+    for bar, count in zip(bars2, avg_instances):
+        axes[1].text(bar.get_x() + bar.get_width()/2, bar.get_height() + 3,
+                    f'{int(count)}', ha='center', va='bottom', fontsize=10)
 
     plt.tight_layout()
     plt.savefig(OUTPUT_DIR / "02_achievements_bar.png", dpi=150)

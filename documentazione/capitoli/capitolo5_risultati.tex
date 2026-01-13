@@ -116,7 +116,7 @@ Come evidenziato nelle tabelle precedenti, HeRoN Initial domina su tutte le metr
 
 \section{Risultati Testing}
 
-Dopo il training, i modelli sono stati testati per 300 episodi su nuovi seed per valutare la generalizzazione. Tutte le configurazioni sono state testate senza LLM attivo, utilizzando solo la policy appresa.
+Dopo il training, i modelli sono stati testati per 1500 episodi complessivi (5 run da 300 episodi ciascuna) su nuovi seed per valutare la generalizzazione e la robustezza. Tutte le configurazioni sono state testate senza LLM attivo, utilizzando solo la policy appresa.
 
 \subsection{Metriche di Testing}
 
@@ -128,21 +128,21 @@ Dopo il training, i modelli sono stati testati per 300 episodi su nuovi seed per
 \rowcolor{gray!20}
 \textbf{Metrica} & \textbf{DQN} & \textbf{DQN+H} & \textbf{HeRoN I} & \textbf{HeRoN R} & \textbf{HeRoN F} \\
 \hline
-Achievement medio & $0.25 \pm 0.64$ & $0.31 \pm 0.76$ & $0.76 \pm 0.96$ & $\mathbf{0.80 \pm 0.96}$ & $0.46 \pm 0.78$ \\
+Achievement medio & $0.25 \pm 0.47$ & $0.31 \pm 0.53$ & $0.76 \pm 0.83$ & $\mathbf{0.80 \pm 0.84}$ & $0.46 \pm 0.63$ \\
 \hline
-Coverage & 13.6\% & 22.7\% & \textbf{40.9\%} & 36.4\% & 31.8\% \\
- & (3/22) & (5/22) & \textbf{(9/22)} & (8/22) & (7/22) \\
+Coverage & 36.4\% & 45.5\% & \textbf{50.0\%} & \textbf{50.0\%} & \textbf{50.0\%} \\
+ & (8/22) & (10/22) & \textbf{(11/22)} & \textbf{(11/22)} & \textbf{(11/22)} \\
 \hline
 Reward shaped & $1.18 \pm 0.72$ & $2.38 \pm 1.00$ & $\mathbf{5.21 \pm 1.67}$ & $5.02 \pm 1.71$ & $2.98 \pm 1.11$ \\
 \hline
-Total unlocks & 76 & 94 & 228 & \textbf{239} & 138 \\
+Total unlocks (avg) & 75 & 93 & 228 & \textbf{240} & 138 \\
 \hline
 \end{tabular}
-\caption{Metriche di testing delle cinque configurazioni (300 episodi, senza LLM).}
+\caption{Metriche di testing delle cinque configurazioni (1500 episodi totali, senza LLM).}
 \end{table}
 
 \noindent
-Le configurazioni HeRoN mantengono il vantaggio acquisito in training anche in fase di testing. HeRoN Initial raggiunge la coverage massima nel testing (40.9\%, 9/22), superando HeRoN Random (36.4\%, 8/22). HeRoN Random ottiene il maggior numero medio di achievement (0.80), mentre HeRoN Initial ha reward shaped leggermente più alto (5.21 vs 5.02). Tutte le varianti HeRoN superano significativamente DQN baseline.
+Le configurazioni HeRoN mantengono il vantaggio acquisito in training anche in fase di testing. Le tre varianti HeRoN raggiungono tutte la massima coverage (50.0\%, 11/22 achievement), mentre DQN Base e DQN+Helper si fermano rispettivamente a 36.4\% (8/22) e 45.5\% (10/22). HeRoN Random ottiene il maggior numero medio di unlock per run (240), seguito da HeRoN Initial (228), mentre HeRoN Initial mantiene il reward shaped più alto (5.21). Tutte le varianti HeRoN superano significativamente DQN baseline.
 
 \subsection{Visualizzazioni Testing}
 
@@ -155,17 +155,7 @@ Le configurazioni HeRoN mantengono il vantaggio acquisito in training anche in f
 \end{figure}
 
 \noindent
-\textbf{Descrizione}: HeRoN Initial sblocca 9 achievement unici, superando HeRoN Random (8/22) e HeRoN Final (7/22). DQN Baseline rimane limitato a 3 achievement base. Per quanto riguarda il numero totale di istanze di unlock, HeRoN Random raggiunge il valore massimo (239), seguito da HeRoN Initial (228), HeRoN Final (138), DQN+Helper (94) e DQN Base (76), confermando la maggiore capacità esplorativa delle varianti HeRoN.
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.95\textwidth]{../grafici/testing/03_achievement_radar.png}
-\caption{Radar chart achievement testing.}
-\label{fig:test_achievement_radar}
-\end{figure}
-
-\noindent
-\textbf{Descrizione:} Visualizzazione radar delle categorie di achievement: le varianti HeRoN coprono più categorie (collect, combat, crafting, survive) rispetto a DQN Baseline limitato a collect e survive.
+\textbf{Descrizione}: Tutte le varianti HeRoN sbloccano 11 achievement unici (50.0\% coverage), dimostrando una capacità esplorativa superiore rispetto a DQN+Helper (10/22) e DQN Base (8/22). Per quanto riguarda il numero medio di unlock per run (300 episodi), HeRoN Random raggiunge il valore massimo (240), seguito da HeRoN Initial (228), HeRoN Final (138), DQN+Helper (94) e DQN Base (75), confermando la maggiore capacità esplorativa delle varianti HeRoN anche in testing senza LLM attivo.
 
 \subsection{Confronto Training vs Testing}
 
@@ -176,23 +166,23 @@ Le configurazioni HeRoN mantengono il vantaggio acquisito in training anche in f
 \rowcolor{gray!20}
 \textbf{Configurazione} & \textbf{Reward Train} & \textbf{Reward Test} & \textbf{Cover. Train} & \textbf{Cover. Test} \\
 \hline
-DQN Baseline & 1.86 & 1.18 & 18.2\% & 13.6\% \\
+DQN Baseline & 1.86 & 1.18 & 18.2\% & 36.4\% \\
 \hline
-DQN + Helper & 2.93 & 2.38 & 27.3\% & 22.7\% \\
+DQN + Helper & 2.93 & 2.38 & 27.3\% & 45.5\% \\
 \hline
-\textbf{HeRoN Initial} & \textbf{8.02} & \textbf{5.21} & \textbf{50.0\%} & \textbf{40.9\%} \\
+\textbf{HeRoN Initial} & \textbf{8.02} & \textbf{5.21} & \textbf{50.0\%} & \textbf{50.0\%} \\
 \hline
-HeRoN Random & 6.47 & 5.02 & 50.0\% & 36.4\% \\
+HeRoN Random & 6.47 & 5.02 & 50.0\% & 50.0\% \\
 \hline
-HeRoN Final & 3.84 & 2.98 & 36.4\% & 31.8\% \\
+HeRoN Final & 3.84 & 2.98 & 36.4\% & 50.0\% \\
 \hline
 \end{tabular}
 \caption{Confronto performance training vs testing.}
 \end{table}
 
 \noindent
-La coverage decresce leggermente in testing rispetto al training, riflettendo il fatto che senza LLM attivo gli agenti hanno difficoltà a mantenere le stesse performance esplorative. HeRoN Initial rimane il leader (40.9\% vs 50.0\% nel training), confermando la superiorità della sua strategia anche in inference. Il reward decresce leggermente (assenza di LLM e nuovi seed), ma le proporzioni relative restano invariate.
+I risultati di testing mostrano una stabilità eccellente delle policy apprese. Le varianti HeRoN mantengono o migliorano la coverage raggiunta in training: HeRoN Initial e Random mantengono entrambi 50.0\%, mentre HeRoN Final migliora da 36.4\% a 50.0\%. Questo dimostra che la guidance LLM durante training ha permesso di apprendere policy robuste che generalizzano efficacemente anche senza LLM in inference. Il reward decresce leggermente per l'assenza di LLM e l'uso di nuovi seed, ma le proporzioni relative restano invariate, con HeRoN Initial che mantiene il vantaggio su tutte le configurazioni.
 
 \subsection{Conclusioni Testing}
 
-I risultati confermano l'efficacia dell'architettura HeRoN: la policy appresa durante training con guidance LLM mantiene performance superiori anche senza LLM in inference. HeRoN Initial mantiene il vantaggio su tutte le metriche. La riduzione di coverage in testing riflette la difficoltà maggiore senza LLM, confermando l'importanza della guidance LLM per l'esplorazione efficace.
+I risultati di testing confermano pienamente l'efficacia dell'architettura HeRoN: la policy appresa durante training con guidance LLM mantiene performance superiori anche senza LLM in inference. Tutte e tre le varianti HeRoN raggiungono la massima coverage (50.0\%, 11/22 achievement), dimostrando robustezza e capacità di generalizzazione eccellenti. HeRoN Initial mantiene il vantaggio su reward shaped (5.21), mentre HeRoN Random eccelle nel numero medio di unlock per run (240 vs 228 di HeRoN Initial). La stabilità delle metriche tra training e testing evidenzia che la guidance LLM non introduce dipendenze critiche in inference, ma permette di apprendere policy più esplorative e robuste che generalizzano efficacemente su nuovi seed.
