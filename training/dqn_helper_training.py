@@ -16,7 +16,6 @@ from transformers import AutoTokenizer, T5ForConditionalGeneration
 from classes.crafter_environment import CrafterEnv
 from classes.agent import DQNAgent
 from classes.crafter_helper import CrafterHelper, SequenceExecutor
-from evaluation.evaluation_system import EvaluationSystem
 from training.reward_shaper import CrafterRewardShaper
 
 
@@ -90,9 +89,7 @@ def train_dqn_helper(episodes=300, batch_size=64, episode_length=1000, threshold
     
     best_achievement_count = 0
     best_episode = -1
-    
-    evaluation_system = EvaluationSystem(num_achievements=22)
-    
+
     print("\n" + "="*80)
     print("DQN + Helper Configuration (same as HERON_initial, without Reviewer)")
     print(f"LLM attivo nei primi {ASSISTED_STEPS} step di ogni episodio")
@@ -204,11 +201,7 @@ def train_dqn_helper(episodes=300, batch_size=64, episode_length=1000, threshold
                 if newly_unlocked_names:
                     episode_achievements_list.extend(newly_unlocked_names)
                 
-                if newly_unlocked_names:
-                    newly_unlocked_ids = {ACHIEVEMENT_NAME_TO_ID[name] for name in newly_unlocked_names 
-                                         if name in ACHIEVEMENT_NAME_TO_ID}
-                    evaluation_system.add_episode_achievements(e, newly_unlocked_ids, moves)
-            
+
             agent.remember(state, action, shaped_reward, next_state, done)
             
             if len(agent.memory) > batch_size:
@@ -235,19 +228,7 @@ def train_dqn_helper(episodes=300, batch_size=64, episode_length=1000, threshold
             valid_actions_percentage = 0.0
         
         print(f"  Valid Actions Percentage: {valid_actions_percentage:.2f}% ({episode_helper_calls - episode_hallucinations}/{episode_helper_calls})")
-        
-        evaluation_system.add_episode(
-            episode=e,
-            shaped_reward=total_shaped_reward,
-            native_reward=total_native_reward,
-            shaped_bonus=shaped_bonus,
-            achievements_unlocked=episode_achievements,
-            moves=moves,
-            helper_calls=episode_helper_calls,
-            hallucinations=episode_hallucinations,
-            valid_actions_percentage=valid_actions_percentage
-        )
-        
+
         if episode_achievements > best_achievement_count:
             best_achievement_count = episode_achievements
             best_episode = e
@@ -287,9 +268,7 @@ def train_dqn_helper(episodes=300, batch_size=64, episode_length=1000, threshold
     print(f"[Training] Total Hallucinations: {sum(hallucinations)}")
     print(f"[Training] Reward Shaping Stats: {reward_shaper.get_statistics()}")
     print(f"[Training] Best Model: Episode {best_episode}, Achievements: {best_achievement_count}")
-    
-    evaluation_system.finalize()
-    
+
     print("\n[DQN+Helper] Saving final model...")
     models_dir = Path(__file__).parent / 'dqn_helper_output' / 'models'
     models_dir.mkdir(parents=True, exist_ok=True)
@@ -300,56 +279,10 @@ def train_dqn_helper(episodes=300, batch_size=64, episode_length=1000, threshold
     checkpoint_dir = Path(__file__).parent / 'dqn_helper_output' / 'checkpoints'
     best_checkpoint = checkpoint_dir / f"dqn_helper_best_ep{best_episode}_ach{best_achievement_count}"
     print(f"[DQN+Helper] ✓ Best model saved: {best_checkpoint}.*")
-    
-    print("[DQN+Helper] Exporting metrics...")
-    output_dir = Path(__file__).parent / 'dqn_helper_output'
-    output_dir.mkdir(parents=True, exist_ok=True)
-    jsonl_path = output_dir / "dqn_helper_crafter_metrics.jsonl"
-    evaluation_system.export_to_jsonl(str(jsonl_path))
-    
-    print("[DQN+Helper] Exporting per-achievement statistics...")
-    achievement_stats_path = output_dir / "dqn_helper_achievement_statistics.json"
-    export_achievement_statistics_json(evaluation_system, str(achievement_stats_path))
-    
 
-    
-    print("\n[DQN+Helper] Final Evaluation Report:")
-    evaluation_system.print_summary_report()
-    
-    evaluation_json = output_dir / "dqn_helper_evaluation.json"
-    evaluation_system.export_summary_json(str(evaluation_json))
-    print(f"[DQN+Helper] ✓ Evaluation summary saved: {evaluation_json}")
-    
     return (rewards_per_episode, native_rewards_per_episode, shaped_bonus_per_episode,
             achievements_per_episode, moves_per_episode, helper_calls, hallucinations,
-            helper.get_statistics(), reward_shaper.get_statistics(), evaluation_system)
-
-
-def export_achievement_statistics_json(evaluation_system, output_file="dqn_helper_achievement_statistics.json"):
-    achievement_stats = evaluation_system.get_achievement_statistics()
-    
-    def convert_to_serializable(obj):
-        if isinstance(obj, np.ndarray):
-            return obj.tolist()
-        elif isinstance(obj, np.integer):
-            return int(obj)
-        elif isinstance(obj, np.floating):
-            return float(obj)
-        elif isinstance(obj, list):
-            return [convert_to_serializable(item) for item in obj]
-        elif isinstance(obj, dict):
-            return {key: convert_to_serializable(value) for key, value in obj.items()}
-        else:
-            return obj
-    
-    serializable_stats = convert_to_serializable(achievement_stats)
-    
-    serializable_stats['achievement_id_to_name'] = ACHIEVEMENT_ID_TO_NAME
-    
-    with open(output_file, 'w') as f:
-        json.dump(serializable_stats, f, indent=2)
-    
-    print(f"[Export] Saved achievement statistics to: {output_file}")
+            helper.get_statistics(), reward_shaper.get_statistics())
 
 
 if __name__ == "__main__":
@@ -369,8 +302,8 @@ if __name__ == "__main__":
     print("Two-Agent System: DQNAgent + CrafterHelper")
     print("="*80)
     
-    (rewards, native_rewards, shaped_bonus, achievements, moves, 
-     helper_calls, hallucinations, helper_stats, reward_shaper_stats, eval_system) = train_dqn_helper(
+    (rewards, native_rewards, shaped_bonus, achievements, moves,
+     helper_calls, hallucinations, helper_stats, reward_shaper_stats) = train_dqn_helper(
         episodes=args.episodes,
         batch_size=args.batch_size,
         episode_length=args.episode_length,

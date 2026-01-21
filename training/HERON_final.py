@@ -17,7 +17,7 @@ from classes.crafter_environment import CrafterEnv
 from classes.agent import DQNAgent
 from classes.crafter_helper import CrafterHelper, SequenceExecutor
 from classes.instructor_agent import InstructorAgent
-from evaluation.evaluation_system import EvaluationSystem
+
 from training.reward_shaper import CrafterRewardShaper
 
 
@@ -54,8 +54,8 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"[Config] Using device: {device}")
 print(f"[Config] NOTE: MPS (Apple Silicon) not supported by Crafter environment")
 
-REVIEWER_MODEL_PATH = "reviewer_retrained_ppo"
-REVIEWER_TOKENIZER_PATH = "reviewer_retrained_ppo"
+REVIEWER_MODEL_PATH = "reviewer_fine_tuning/reviewer"
+REVIEWER_TOKENIZER_PATH = "reviewer_fine_tuning/reviewer"
 
 print(f"[Config] Reviewer model path: {REVIEWER_MODEL_PATH}")
 print(f"[Config] Using PPO fine-tuned reviewer model")
@@ -120,8 +120,6 @@ def train_heron_final(episodes=300, batch_size=64, episode_length=1000, threshol
 
     best_achievement_count = 0
     best_episode = -1
-
-    evaluation_system = EvaluationSystem(num_achievements=22)
 
     print(f"\n[Training] Starting HeRoN Final training for {episodes} episodes...")
     print(f"[Training] KAPPA: {KAPPA} (threshold decresce di {KAPPA} per step)")
@@ -280,10 +278,6 @@ def train_heron_final(episodes=300, batch_size=64, episode_length=1000, threshol
                 if newly_unlocked_names:
                     episode_achievements_list.extend(newly_unlocked_names)
 
-                if newly_unlocked_names:
-                    newly_unlocked_ids = {ACHIEVEMENT_NAME_TO_ID[name] for name in newly_unlocked_names
-                                         if name in ACHIEVEMENT_NAME_TO_ID}
-                    evaluation_system.add_episode_achievements(e, newly_unlocked_ids, moves)
 
             agent.remember(state, action, shaped_reward, next_state, done)
 
@@ -311,18 +305,6 @@ def train_heron_final(episodes=300, batch_size=64, episode_length=1000, threshol
             valid_actions_percentage = 0.0
 
         print(f"  Valid Actions Percentage: {valid_actions_percentage:.2f}% ({episode_helper_calls - episode_hallucinations}/{episode_helper_calls})")
-
-        evaluation_system.add_episode(
-            episode=e,
-            shaped_reward=total_shaped_reward,
-            native_reward=total_native_reward,
-            shaped_bonus=shaped_bonus,
-            achievements_unlocked=episode_achievements,
-            moves=moves,
-            helper_calls=episode_helper_calls,
-            hallucinations=episode_hallucinations,
-            valid_actions_percentage=valid_actions_percentage
-        )
 
         if episode_achievements > best_achievement_count:
             best_achievement_count = episode_achievements
@@ -365,8 +347,6 @@ def train_heron_final(episodes=300, batch_size=64, episode_length=1000, threshol
     print(f"[Training] Reward Shaping Stats: {reward_shaper.get_statistics()}")
     print(f"[Training] Best Model: Episode {best_episode}, Achievements: {best_achievement_count}")
 
-    evaluation_system.finalize()
-
     print("\n[HeRoN Final] Saving final model...")
     models_dir = Path(__file__).parent / 'heron_final_output' / 'models'
     models_dir.mkdir(parents=True, exist_ok=True)
@@ -378,31 +358,12 @@ def train_heron_final(episodes=300, batch_size=64, episode_length=1000, threshol
     best_checkpoint = checkpoint_dir / f"heron_final_best_ep{best_episode}_ach{best_achievement_count}"
     print(f"[HeRoN Final] Best model saved: {best_checkpoint}.*")
 
-    print("[HeRoN Final] Exporting metrics...")
-    output_dir = Path(__file__).parent / 'heron_final_output'
-    output_dir.mkdir(parents=True, exist_ok=True)
-    jsonl_path = output_dir / "heron_final_metrics.jsonl"
-    evaluation_system.export_to_jsonl(str(jsonl_path))
-
-    print("[HeRoN Final] Exporting per-achievement statistics...")
-    achievement_stats_path = output_dir / "heron_final_achievement_statistics.json"
-    export_achievement_statistics_json(evaluation_system, str(achievement_stats_path))
-
-
-
-    print("\n[HeRoN Final] Final Evaluation Report:")
-    evaluation_system.print_summary_report()
-
-    evaluation_json = output_dir / "heron_final_evaluation.json"
-    evaluation_system.export_summary_json(str(evaluation_json))
-    print(f"[HeRoN Final] Evaluation summary saved: {evaluation_json}")
-
     return (rewards_per_episode, native_rewards_per_episode, shaped_bonus_per_episode,
             achievements_per_episode, moves_per_episode, helper_calls, hallucinations,
-            helper.get_statistics(), reward_shaper.get_statistics(), evaluation_system)
+            helper.get_statistics(), reward_shaper.get_statistics())
 
 
-def export_achievement_statistics_json(evaluation_system, output_file="heron_final_achievement_statistics.json"):
+def export_achievement_statistics_json_old(evaluation_system, output_file="heron_final_achievement_statistics.json"):
     achievement_stats = evaluation_system.get_achievement_statistics()
 
     def convert_to_serializable(obj):
@@ -437,7 +398,7 @@ if __name__ == "__main__":
     print("="*80)
 
     (rewards, native_rewards, shaped_bonus, achievements, moves,
-     helper_calls, hallucinations, helper_stats, reward_shaper_stats, eval_system) = train_heron_final(
+     helper_calls, hallucinations, helper_stats, reward_shaper_stats) = train_heron_final(
         episodes=300,  # 300 episodi standard
         batch_size=64,  # batch size standard
         episode_length=1000,  # steps per episodio

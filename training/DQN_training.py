@@ -10,14 +10,14 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from classes.crafter_environment import CrafterEnv
 from classes.agent import DQNAgent
 from training.reward_shaper import CrafterRewardShaper
-from evaluation.evaluation_system import EvaluationSystem, ACHIEVEMENT_NAME_TO_ID
+, ACHIEVEMENT_NAME_TO_ID
 
 from evaluation.achievement_learning_curves import AchievementLearningCurvePlotter
 
 ACHIEVEMENT_ID_TO_NAME = {v: k for k, v in ACHIEVEMENT_NAME_TO_ID.items()}
 
 
-def export_achievement_statistics_json(evaluation_system, output_file="crafter_achievement_statistics.json"):
+def export_achievement_statistics_json_old(evaluation_system, output_file="crafter_achievement_statistics.json"):
     """Esporta statistiche achievement in formato JSON."""
     achievement_stats = evaluation_system.get_achievement_statistics()
     
@@ -53,9 +53,7 @@ def train_dqn_baseline(episodes=300, batch_size=64, episode_length=1000, load_mo
     
     agent = DQNAgent(env.state_size, env.action_size, epsilon=1.0, load_model_path=load_model_path)
     print(f"[Baseline DQN] DQN Agent initialized (epsilon={agent.epsilon:.4f})")
-    
-    evaluation_system = EvaluationSystem()
-    
+
     reward_shaper = CrafterRewardShaper()
     
     rewards_per_episode = []
@@ -95,10 +93,7 @@ def train_dqn_baseline(episodes=300, batch_size=64, episode_length=1000, load_mo
             achievements_this_step = len(newly_unlocked_names)
             
             if newly_unlocked_names:
-                newly_unlocked_ids = {ACHIEVEMENT_NAME_TO_ID[name] for name in newly_unlocked_names 
-                                     if name in ACHIEVEMENT_NAME_TO_ID}
-                evaluation_system.add_episode_achievements(episode, newly_unlocked_ids, step)
-            
+
             previous_achievements_set = current_achievements_set
             
             # Calcola reward shaped (base + bonus risorse/health/tools - penalità)
@@ -132,19 +127,8 @@ def train_dqn_baseline(episodes=300, batch_size=64, episode_length=1000, load_mo
         moves_per_episode.append(episode_moves)
         
         valid_actions_percentage = 0.0
-        
-        evaluation_system.add_episode(
-            episode=episode,
-            shaped_reward=episode_reward,
-            native_reward=episode_native_reward,
-            shaped_bonus=episode_shaped_bonus,
-            achievements_unlocked=episode_achievements,
-            moves=episode_moves,
-            helper_calls=0,
-            hallucinations=0,
-            valid_actions_percentage=valid_actions_percentage
-        )
-        
+
+
         if episode_achievements > best_achievement_count:
             best_achievement_count = episode_achievements
             best_episode = episode
@@ -165,9 +149,7 @@ def train_dqn_baseline(episodes=300, batch_size=64, episode_length=1000, load_mo
     print("="*70)
     print("[Baseline DQN] Training completed.")
     print(f"[Baseline DQN] Best performance: {best_achievement_count} achievements at episode {best_episode}")
-    
-    evaluation_system.finalize()
-    
+
     print("[Baseline DQN] Saving final model...")
     models_dir = Path(__file__).parent / 'DQN_nuovo_training' / 'models'
     models_dir.mkdir(parents=True, exist_ok=True)
@@ -178,47 +160,9 @@ def train_dqn_baseline(episodes=300, batch_size=64, episode_length=1000, load_mo
     checkpoint_dir = Path(__file__).parent / 'DQN_nuovo_training' / 'checkpoints'
     best_checkpoint = checkpoint_dir / f"nuovo_dqn_best_ep{best_episode}_ach{best_achievement_count}"
     print(f"[Baseline DQN] ✓ Best model saved: {best_checkpoint}.*")
-    
-    print("[Baseline DQN] Exporting metrics...")
-    output_dir = Path(__file__).parent / 'DQN_nuovo_training'
-    output_dir.mkdir(parents=True, exist_ok=True)
-    jsonl_path = output_dir / "nuovo_crafter_dqn_metrics.jsonl"
-    evaluation_system.export_to_jsonl(str(jsonl_path))
-    
-    print("[Baseline DQN] Exporting per-achievement statistics...")
-    achievement_stats_path = output_dir / "nuovo_crafter_dqn_achievement_statistics.json"
-    export_achievement_statistics_json(evaluation_system, str(achievement_stats_path))
-    
 
-    
-    print("[Baseline DQN] Generating achievement learning curves...")
-    curves_dir = plot_dir / "achievement_curves"
-    curves_dir.mkdir(exist_ok=True)
-    
-    try:
-        plotter = AchievementLearningCurvePlotter(str(achievement_stats_path))
-        plotter.plot_all_achievements(
-            output_dir=str(curves_dir),
-            window=10,
-            use_steps=False,
-            only_unlocked=True
-        )
-        print(f"[Baseline DQN] ✓ Achievement learning curves generated in {curves_dir}")
-    except Exception as e:
-        print(f"[Baseline DQN] ⚠ Warning: Could not generate achievement curves: {e}")
-        print("[Baseline DQN]   This is normal if no achievements were unlocked during training.")
-    
-    print("\n[Baseline DQN] Final Evaluation Report:")
-    try:
-        evaluation_system.print_summary_report()
-    except (KeyError, IndexError) as e:
-        print(f"[Baseline DQN] ⚠ Note: Could not generate full summary report ({e})")
-        print("[Baseline DQN]   All metrics have been saved to JSON and JSONL files.")
-    
-    evaluation_json = output_dir / "nuovo_crafter_dqn_evaluation.json"
-    evaluation_system.export_summary_json(str(evaluation_json))
-    
-    return evaluation_system
+    return (rewards_per_episode, native_rewards_per_episode, shaped_bonus_per_episode,
+            achievements_per_episode, moves_per_episode)
 
 
 if __name__ == "__main__":
@@ -232,9 +176,14 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     
-    eval_system = train_dqn_baseline(
+    (rewards, native_rewards, shaped_bonus, achievements, moves) = train_dqn_baseline(
         episodes=args.episodes,
         batch_size=args.batch_size,
         episode_length=args.episode_length,
         load_model_path=args.load_model
     )
+
+    print("\n[Training Complete] Final Statistics:")
+    print(f"  Average Reward: {sum(rewards)/len(rewards):.2f}")
+    print(f"  Average Native Reward: {sum(native_rewards)/len(native_rewards):.2f}")
+    print(f"  Average Achievements: {sum(achievements)/len(achievements):.2f}")
