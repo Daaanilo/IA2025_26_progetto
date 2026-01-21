@@ -9,8 +9,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from classes.crafter_environment import CrafterEnv
 from classes.agent import DQNAgent
-from evaluation.evaluation_system import EvaluationSystem
-from evaluation.evaluation_plots import generate_all_plots
 
 
 ACHIEVEMENT_NAME_TO_ID = {
@@ -39,29 +37,6 @@ ACHIEVEMENT_NAME_TO_ID = {
 }
 
 
-def export_achievement_statistics_json(evaluation_system, output_file):
-    achievement_stats = evaluation_system.get_achievement_statistics()
-
-    def convert_to_serializable(obj):
-        if isinstance(obj, np.ndarray):
-            return obj.tolist()
-        elif isinstance(obj, np.integer):
-            return int(obj)
-        elif isinstance(obj, np.floating):
-            return float(obj)
-        elif isinstance(obj, list):
-            return [convert_to_serializable(item) for item in obj]
-        elif isinstance(obj, dict):
-            return {key: convert_to_serializable(value) for key, value in obj.items()}
-        else:
-            return obj
-
-    serializable_stats = convert_to_serializable(achievement_stats)
-
-    with open(output_file, 'w', encoding='utf-8') as f:
-        json.dump(serializable_stats, f, indent=2, ensure_ascii=False)
-
-    print(f"[Test] Exported achievement statistics to {output_file}")
 
 
 def test_dqn(model_path: str, episodes: int = 300, seed: int = None, output_dir: str = None):
@@ -92,8 +67,6 @@ def test_dqn(model_path: str, episodes: int = 300, seed: int = None, output_dir:
     agent.load(model_path)
     agent.epsilon = 0.0
 
-    evaluation_system = EvaluationSystem(num_achievements=22)
-
     print(f"\n{'='*60}")
     print(f"TESTING DQN MODEL ON CRAFTER")
     print(f"{'='*60}")
@@ -104,7 +77,10 @@ def test_dqn(model_path: str, episodes: int = 300, seed: int = None, output_dir:
     print(f"{'='*60}\n")
 
     total_achievements_all = []
+    total_rewards = []
+    total_moves = []
     survival_count = 0
+    episode_results = []
 
     for e in range(episodes):
         state, info = env.reset()
@@ -128,9 +104,6 @@ def test_dqn(model_path: str, episodes: int = 300, seed: int = None, output_dir:
 
             if newly_unlocked_names:
                 episode_achievement_names.update(newly_unlocked_names)
-                newly_unlocked_ids = {ACHIEVEMENT_NAME_TO_ID[name] for name in newly_unlocked_names
-                                     if name in ACHIEVEMENT_NAME_TO_ID}
-                evaluation_system.add_episode_achievements(e, newly_unlocked_ids, moves)
 
             previous_achievements_set = current_achievements_set
             next_state = np.reshape(next_state, [1, 43])
@@ -140,19 +113,18 @@ def test_dqn(model_path: str, episodes: int = 300, seed: int = None, output_dir:
         if survived:
             survival_count += 1
 
-        evaluation_system.add_episode(
-            episode=e,
-            shaped_reward=total_reward,
-            native_reward=total_reward,
-            shaped_bonus=0,
-            achievements_unlocked=len(episode_achievement_names),
-            moves=moves,
-            helper_calls=0,
-            hallucinations=0,
-            valid_actions_percentage=100.0
-        )
-
         total_achievements_all.append(len(episode_achievement_names))
+        total_rewards.append(total_reward)
+        total_moves.append(moves)
+
+        episode_results.append({
+            'episode': e,
+            'reward': float(total_reward),
+            'achievements': len(episode_achievement_names),
+            'achievement_names': list(episode_achievement_names),
+            'moves': moves,
+            'survived': survived
+        })
 
         if (e + 1) % 10 == 0 or e == 0:
             survival_rate = (survival_count / (e + 1)) * 100
@@ -165,8 +137,6 @@ def test_dqn(model_path: str, episodes: int = 300, seed: int = None, output_dir:
     except AttributeError:
         pass
 
-    evaluation_system.finalize()
-
     if output_dir is None:
         model_name = Path(model_path).stem
         output_dir = f"testing/test_output/{model_name}"
@@ -174,33 +144,40 @@ def test_dqn(model_path: str, episodes: int = 300, seed: int = None, output_dir:
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
 
-    evaluation_system.export_to_jsonl(str(output_path / "test_metrics.jsonl"))
-    export_achievement_statistics_json(evaluation_system, str(output_path / "test_achievement_statistics.json"))
-    evaluation_system.export_summary_json(str(output_path / "test_evaluation.json"))
+    summary = {
+        'model_path': model_path,
+        'episodes': episodes,
+        'seed': seed,
+        'survival_rate': float((survival_count / episodes) * 100),
+        'mean_reward': float(np.mean(total_rewards)),
+        'std_reward': float(np.std(total_rewards)),
+        'mean_achievements': float(np.mean(total_achievements_all)),
+        'max_achievements': int(np.max(total_achievements_all)),
+        'mean_moves': float(np.mean(total_moves))
+    }
 
-    plots_dir = output_path / "plots"
-    plots_dir.mkdir(parents=True, exist_ok=True)
-    generate_all_plots(evaluation_system, output_dir=str(plots_dir))
+    with open(output_path / "test_results.json", 'w', encoding='utf-8') as f:
+        json.dump({
+            'summary': summary,
+            'episodes': episode_results
+        }, f, indent=2, ensure_ascii=False)
 
     print(f"\n{'='*60}")
     print("TEST RESULTS SUMMARY")
     print(f"{'='*60}")
-    evaluation_system.print_summary_report()
-
-    print(f"\n[Test-Specific Metrics]")
-    print(f"  Final Survival Rate: {(survival_count / episodes) * 100:.2f}%")
-    print(f"  Mean Achievements per Episode: {np.mean(total_achievements_all):.2f}")
-    print(f"  Max Achievements in Single Episode: {np.max(total_achievements_all)}")
+    print(f"  Total Episodes: {episodes}")
+    print(f"  Survival Rate: {summary['survival_rate']:.2f}%")
+    print(f"  Mean Reward: {summary['mean_reward']:.2f} (+/- {summary['std_reward']:.2f})")
+    print(f"  Mean Achievements: {summary['mean_achievements']:.2f}")
+    print(f"  Max Achievements: {summary['max_achievements']}")
+    print(f"  Mean Moves: {summary['mean_moves']:.2f}")
 
     print(f"\n[Output Files]")
     print(f"  Results saved to: {output_path}")
-    print(f"  - test_metrics.jsonl")
-    print(f"  - test_achievement_statistics.json")
-    print(f"  - test_evaluation.json")
-    print(f"  - plots/")
+    print(f"  - test_results.json")
     print(f"{'='*60}\n")
 
-    return evaluation_system
+    return summary
 
 
 def main():
